@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Styling**: Tailwind CSS + shadcn/ui
 - **Database/Auth/Storage**: Supabase (PostgreSQL)
 - **PDF**: react-pdf (client display), pdf-lib (server manipulation)
-- **AI**: Google Document AI (field detection), Gemini 3 (refinement & auto-fill)
+- **AI**: Azure Document Intelligence (field detection), Gemini (refinement & auto-fill)
 - **Deployment**: Vercel
 
 **Note**: Row-Level Security (RLS) will be applied at the end after thorough testing.
@@ -71,7 +71,7 @@ console.log(`[AutoForm] Document status:`, { id, status, timestamp });
 ## Core Data Flow
 
 1. **Upload**: PDF → Supabase Storage → Document record created
-2. **Processing**: Document AI analysis → Field extraction → Gemini refinement
+2. **Processing**: Azure Document Intelligence analysis → Field extraction → Gemini refinement
 3. **Display**: Wizard view (primary) or Overlay view (verification)
 4. **Auto-fill**: Gemini matches user profile to form fields
 5. **Export**: pdf-lib draws values onto original PDF

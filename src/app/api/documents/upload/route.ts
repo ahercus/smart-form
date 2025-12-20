@@ -53,14 +53,33 @@ export async function POST(request: NextRequest) {
 
     // Trigger processing asynchronously
     const baseUrl = request.nextUrl.origin;
+    console.log("[AutoForm] Triggering document processing:", {
+      documentId: document.id,
+      baseUrl,
+      processUrl: `${baseUrl}/api/documents/${document.id}/process`,
+    });
+
     fetch(`${baseUrl}/api/documents/${document.id}/process`, {
       method: "POST",
       headers: {
         Cookie: request.headers.get("cookie") || "",
       },
-    }).catch((err) => {
-      console.error(`[AutoForm] Failed to trigger processing:`, err);
-    });
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        console.log("[AutoForm] Process trigger response:", {
+          documentId: document.id,
+          status: res.status,
+          ok: res.ok,
+          data,
+        });
+      })
+      .catch((err) => {
+        console.error(`[AutoForm] Failed to trigger processing:`, {
+          documentId: document.id,
+          error: err instanceof Error ? err.message : "Unknown error",
+        });
+      });
 
     return NextResponse.json({
       document_id: document.id,

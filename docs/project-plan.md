@@ -114,7 +114,7 @@ console.error(`${LOG_PREFIX} Parse failed:`, error, {
 | Deployment | Vercel | Optimized for Next.js, edge functions, preview deployments |
 | PDF Rendering | react-pdf (pdf.js) | Client-side PDF display |
 | PDF Manipulation | pdf-lib | Server-side text placement and export |
-| Field Detection | Google Document AI | Layout model for bounding boxes, text lines, selection marks |
+| Field Detection | Azure Document Intelligence | Layout model with keyValuePairs for form fields, checkboxes, bounding boxes |
 | AI Processing | Gemini 3 | Field refinement, smart filling, contextual assistance |
 
 ### 3.1 shadcn/ui Philosophy
@@ -152,14 +152,14 @@ User drags a PDF onto the upload zone (or uses camera capture on mobile).
 
 **Pipeline (server-side):**
 
-1. **Document AI Analysis**
-   - Send PDF to Google Document AI (Layout model)
-   - Receive: bounding boxes, text lines, selection marks, tables
-   - Store raw response in `documents.raw_analysis` (cached for cost reduction)
+1. **Azure Document Intelligence Analysis**
+   - Send PDF to Azure Document Intelligence (prebuilt-layout with keyValuePairs)
+   - Receive: key-value pairs with bounding polygons, including empty fillable fields
+   - Store raw response in `documents.extraction_response` (cached for cost reduction)
 
 2. **Field Extraction**
-   - Parse Document AI response into candidate fields
-   - Apply proximity heuristics to match labels to input areas
+   - Parse Azure response keyValuePairs into candidate fields
+   - Map bounding polygons to normalized coordinates (0-100 percentages)
    - Generate initial `extracted_fields` records
 
 3. **Gemini Refinement** (the intelligence layer)
@@ -488,7 +488,7 @@ create table documents (
   context_notes text,                   -- "This is for my daughter Emma..."
   
   -- Cached API responses (for cost reduction)
-  document_ai_response jsonb,           -- Raw Document AI output
+  extraction_response jsonb,            -- Raw Azure Document Intelligence output
   gemini_refinement_response jsonb,     -- Raw Gemini corrections
   
   -- Rendered page images (for overlay view)
@@ -546,8 +546,8 @@ create table extracted_fields (
   help_text text,                       -- Pre-generated explanation for info popover
   
   -- Metadata
-  detection_source text default 'document_ai' check (detection_source in (
-    'document_ai', 'gemini_refinement', 'manual'
+  detection_source text default 'azure_document_intelligence' check (detection_source in (
+    'azure_document_intelligence', 'gemini_refinement', 'gemini_vision', 'manual'
   )),
   confidence_score float,               -- Document AI's detection confidence
   manually_adjusted boolean default false,
@@ -628,7 +628,7 @@ Internal route triggered after upload. Handles the full processing pipeline.
 
 **Steps:**
 1. Update status to `analyzing`
-2. Call Google Document AI
+2. Call Azure Document Intelligence
 3. Update status to `extracting`
 4. Parse response, create extracted_fields records
 5. Update status to `refining`
@@ -639,7 +639,7 @@ Internal route triggered after upload. Handles the full processing pipeline.
 
 **Error handling:**
 - Any failure updates status to `failed` with error_message
-- Partial progress is preserved (e.g., if Gemini fails, Document AI results remain)
+- Partial progress is preserved (e.g., if Gemini fails, Azure results remain)
 
 ### `GET /api/documents/[id]`
 
@@ -1275,7 +1275,7 @@ This is the canary in the coal mine. High manual adjustment rates mean the AI is
 - [ ] Build UploadZone component with drag-and-drop
 - [ ] Implement file upload to Supabase Storage
 - [ ] Create /api/documents/upload route
-- [ ] Integrate Google Document AI
+- [x] Integrate Azure Document Intelligence
 - [ ] Build field extraction logic
 - [ ] Integrate Gemini refinement step
 - [ ] Implement processing status polling

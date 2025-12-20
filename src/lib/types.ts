@@ -6,6 +6,74 @@ export interface NormalizedCoordinates {
   height: number;
 }
 
+// Processing phases for parallel pipeline
+// Flow: idle → parsing → displaying → enhancing → ready
+export type ProcessingPhase =
+  | "idle"
+  | "parsing"      // Document AI extracting fields
+  | "displaying"   // Fields shown to user (editable), questions being generated
+  | "enhancing"    // Gemini Vision QC running in background
+  | "ready"        // All done
+  | "failed";
+
+// Question that maps to PDF fields
+export interface QuestionGroup {
+  id: string;
+  document_id: string;
+  question: string;
+  field_ids: string[];
+  input_type: FieldType;
+  profile_key?: string;
+  page_number: number;
+  status: "pending" | "visible" | "answered" | "hidden";
+  answer?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Processing progress (stored in Supabase, pushed via Realtime)
+export interface ProcessingProgress {
+  phase: ProcessingPhase;
+  pagesTotal: number;
+  pagesComplete: number;
+  questionsDelivered: number;
+  currentPage?: number;
+  error?: string;
+}
+
+// Gemini conversation message for context across pages
+export interface GeminiMessage {
+  role: "user" | "model";
+  content: string;
+  pageNumber?: number;
+  timestamp: string;
+}
+
+// Auto-answered field from Gemini
+export interface AutoAnsweredField {
+  fieldId: string;
+  value: string;
+  reasoning: string;
+}
+
+// Skipped field from Gemini
+export interface SkippedField {
+  fieldId: string;
+  reason: string;
+}
+
+// Gemini question generation response
+export interface QuestionGenerationResult {
+  questions: Array<{
+    question: string;
+    fieldIds: string[];
+    inputType: FieldType;
+    profileKey?: string;
+  }>;
+  autoAnswered: AutoAnsweredField[];
+  skippedFields: SkippedField[];
+}
+
 // Field types supported by the system
 export type FieldType =
   | "text"
@@ -17,7 +85,7 @@ export type FieldType =
   | "unknown";
 
 // Detection source for fields
-export type DetectionSource = "document_ai" | "gemini_refinement" | "manual";
+export type DetectionSource = "document_ai" | "azure_document_intelligence" | "gemini_refinement" | "gemini_vision" | "manual";
 
 // Document processing status
 export type DocumentStatus =
@@ -86,7 +154,7 @@ export interface Document {
   status: DocumentStatus;
   error_message: string | null;
   context_notes: string | null;
-  document_ai_response: unknown | null;
+  extraction_response: unknown | null; // Azure Document Intelligence response
   gemini_refinement_response: unknown | null;
   page_images: PageImage[];
   created_at: string;

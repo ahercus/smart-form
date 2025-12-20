@@ -14,30 +14,45 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  console.log("[AutoForm] Process route called");
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
+    console.log("[AutoForm] Process route: Unauthorized - no user");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id } = await params;
+  console.log("[AutoForm] Process route: Processing document", { documentId: id });
 
   try {
     const document = await getDocument(id);
     if (!document) {
+      console.log("[AutoForm] Process route: Document not found", { documentId: id });
       return NextResponse.json({ error: "Document not found" }, { status: 404 });
     }
 
     // Verify ownership
     if (document.user_id !== user.id) {
+      console.log("[AutoForm] Process route: Not authorized for this document");
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
+    console.log("[AutoForm] Process route: Document status check", {
+      documentId: id,
+      status: document.status
+    });
+
     // Don't reprocess if already processing or ready
     if (document.status !== "uploading") {
+      console.log("[AutoForm] Process route: Skipping - already processed", {
+        documentId: id,
+        status: document.status
+      });
       return NextResponse.json({
         message: "Document already processed or processing",
         status: document.status,

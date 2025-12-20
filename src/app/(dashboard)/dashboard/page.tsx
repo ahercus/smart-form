@@ -55,8 +55,9 @@ export default function DashboardPage() {
     try {
       const docId = await uploadDocument(file, contextNotes);
       setUploadDialogOpen(false);
-      setProcessingDocId(docId);
-      toast.info("Processing document...");
+      // Immediately redirect to document page - it will show processing state
+      router.push(`/document/${docId}`);
+      toast.info("Opening document...");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     }

@@ -15,8 +15,8 @@ export async function ensureStorageBucket(): Promise<void> {
   if (!exists) {
     const { error } = await supabase.storage.createBucket(DOCUMENTS_BUCKET, {
       public: false,
-      fileSizeLimit: 10 * 1024 * 1024, // 10MB
-      allowedMimeTypes: ["application/pdf"],
+      fileSizeLimit: 50 * 1024 * 1024, // 50MB (for PDFs + page images)
+      allowedMimeTypes: ["application/pdf", "image/png", "image/jpeg"],
     });
     if (error && !error.message.includes("already exists")) {
       console.error("[AutoForm] Failed to create storage bucket:", error);
@@ -203,16 +203,53 @@ export async function updateDocument(
 export async function deleteDocument(id: string): Promise<boolean> {
   const supabase = createAdminClient();
 
-  // Get document to find storage path
+  // Get document to find storage path and user_id
   const doc = await getDocument(id);
-  if (doc?.storage_path) {
-    await deleteFile(doc.storage_path);
+
+  if (doc?.user_id) {
+    // Delete ALL files in the document folder (PDF, page images, composites)
+    const folderPath = `${doc.user_id}/${id}`;
+
+    // List all files in the folder
+    const { data: files } = await supabase.storage
+      .from(DOCUMENTS_BUCKET)
+      .list(folderPath, { limit: 1000 });
+
+    if (files && files.length > 0) {
+      // Delete files in root of document folder
+      const rootFiles = files
+        .filter(f => f.name && !f.id) // Files have name, folders have id
+        .map(f => `${folderPath}/${f.name}`);
+
+      if (rootFiles.length > 0) {
+        await supabase.storage.from(DOCUMENTS_BUCKET).remove(rootFiles);
+      }
+    }
+
+    // List and delete files in /pages subfolder
+    const { data: pageFiles } = await supabase.storage
+      .from(DOCUMENTS_BUCKET)
+      .list(`${folderPath}/pages`, { limit: 1000 });
+
+    if (pageFiles && pageFiles.length > 0) {
+      const pagePaths = pageFiles.map(f => `${folderPath}/pages/${f.name}`);
+      await supabase.storage.from(DOCUMENTS_BUCKET).remove(pagePaths);
+    }
+
+    // List and delete files in /composites subfolder
+    const { data: compositeFiles } = await supabase.storage
+      .from(DOCUMENTS_BUCKET)
+      .list(`${folderPath}/composites`, { limit: 1000 });
+
+    if (compositeFiles && compositeFiles.length > 0) {
+      const compositePaths = compositeFiles.map(f => `${folderPath}/composites/${f.name}`);
+      await supabase.storage.from(DOCUMENTS_BUCKET).remove(compositePaths);
+    }
+
+    console.log("[AutoForm] Deleted storage files for document:", id);
   }
 
-  // Delete fields first (cascade should handle this, but be safe)
-  await supabase.from("extracted_fields").delete().eq("document_id", id);
-
-  // Delete document
+  // Delete document (cascade will handle extracted_fields and document_questions)
   const { error } = await supabase.from("documents").delete().eq("id", id);
 
   return !error;
@@ -276,4 +313,180 @@ export async function updateField(
   }
 
   return data as ExtractedField;
+}
+
+export async function getField(fieldId: string): Promise<ExtractedField | null> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("extracted_fields")
+    .select("*")
+    .eq("id", fieldId)
+    .is("deleted_at", null)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") return null;
+    throw new Error(`Failed to get field: ${error.message}`);
+  }
+
+  return data as ExtractedField;
+}
+
+export async function createField(
+  field: Omit<ExtractedField, "id" | "field_index" | "created_at" | "updated_at" | "deleted_at">
+): Promise<ExtractedField> {
+  const supabase = createAdminClient();
+
+  // Get the next field_index for this document
+  const { data: maxIndex } = await supabase
+    .from("extracted_fields")
+    .select("field_index")
+    .eq("document_id", field.document_id)
+    .order("field_index", { ascending: false })
+    .limit(1)
+    .single();
+
+  const nextIndex = (maxIndex?.field_index ?? -1) + 1;
+
+  const { data, error } = await supabase
+    .from("extracted_fields")
+    .insert({
+      ...field,
+      field_index: nextIndex,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to create field: ${error.message}`);
+  }
+
+  return data as ExtractedField;
+}
+
+// Page image operations
+export async function uploadPageImage(
+  userId: string,
+  documentId: string,
+  pageNumber: number,
+  imageData: ArrayBuffer
+): Promise<string> {
+  const supabase = createAdminClient();
+  const storagePath = `${userId}/${documentId}/pages/page-${pageNumber}.png`;
+
+  const { error } = await supabase.storage
+    .from(DOCUMENTS_BUCKET)
+    .upload(storagePath, imageData, {
+      contentType: "image/png",
+      upsert: true,
+    });
+
+  if (error) {
+    throw new Error(`Failed to upload page image: ${error.message}`);
+  }
+
+  console.log("[AutoForm] Page image uploaded:", {
+    documentId,
+    pageNumber,
+    storagePath,
+  });
+
+  return storagePath;
+}
+
+export async function getPageImageUrl(storagePath: string): Promise<string> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase.storage
+    .from(DOCUMENTS_BUCKET)
+    .createSignedUrl(storagePath, 3600); // 1 hour expiry
+
+  if (error || !data) {
+    throw new Error(`Failed to get page image URL: ${error?.message}`);
+  }
+
+  return data.signedUrl;
+}
+
+export async function getPageImageBase64(storagePath: string): Promise<string> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase.storage
+    .from(DOCUMENTS_BUCKET)
+    .download(storagePath);
+
+  if (error || !data) {
+    throw new Error(`Failed to download page image: ${error?.message}`);
+  }
+
+  const buffer = await data.arrayBuffer();
+  return Buffer.from(buffer).toString("base64");
+}
+
+// Update document page images
+export async function updateDocumentPageImages(
+  documentId: string,
+  pageImages: Array<{ page: number; storage_path: string }>
+): Promise<void> {
+  const supabase = createAdminClient();
+
+  const { error } = await supabase
+    .from("documents")
+    .update({
+      page_images: pageImages,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", documentId);
+
+  if (error) {
+    throw new Error(`Failed to update page images: ${error.message}`);
+  }
+}
+
+// Upload composite image (page with field overlays) to storage
+export async function uploadCompositeImage(
+  userId: string,
+  documentId: string,
+  pageNumber: number,
+  imageBase64: string
+): Promise<string> {
+  const supabase = createAdminClient();
+  const storagePath = `${userId}/${documentId}/composites/page-${pageNumber}-composite.png`;
+
+  const imageBuffer = Buffer.from(imageBase64, "base64");
+
+  const { error } = await supabase.storage
+    .from(DOCUMENTS_BUCKET)
+    .upload(storagePath, imageBuffer, {
+      contentType: "image/png",
+      upsert: true,
+    });
+
+  if (error) {
+    throw new Error(`Failed to upload composite image: ${error.message}`);
+  }
+
+  console.log("[AutoForm] Composite image uploaded:", {
+    documentId,
+    pageNumber,
+    storagePath,
+  });
+
+  return storagePath;
+}
+
+// Get composite image URL
+export async function getCompositeImageUrl(storagePath: string): Promise<string> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase.storage
+    .from(DOCUMENTS_BUCKET)
+    .createSignedUrl(storagePath, 3600);
+
+  if (error || !data) {
+    throw new Error(`Failed to get composite image URL: ${error?.message}`);
+  }
+
+  return data.signedUrl;
 }
