@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,56 +10,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { UploadZone } from "@/components/UploadZone";
 import { DocumentCard } from "@/components/DocumentCard";
 import { useDocuments } from "@/hooks/useDocuments";
-import { useDocumentPolling } from "@/hooks/useDocumentPolling";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { documents, loading, error, refresh, uploadDocument, deleteDocument } =
+  const { documents, loading, error, refresh, deleteDocument } =
     useDocuments();
-  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [processingDocId, setProcessingDocId] = useState<string | null>(null);
 
-  // Poll for processing document status
-  const { document: processingDoc } = useDocumentPolling(
-    processingDocId,
-    (doc) => {
-      // Document is ready, refresh the list and navigate
-      refresh();
-      setProcessingDocId(null);
-      toast.success("Document processed successfully");
-      router.push(`/document/${doc.id}`);
-    }
-  );
-
-  // Update document in list while processing
-  useEffect(() => {
-    if (processingDoc) {
-      refresh();
-    }
-  }, [processingDoc?.status, refresh]);
-
-  const handleUpload = async (file: File, contextNotes: string) => {
-    try {
-      const docId = await uploadDocument(file, contextNotes);
-      setUploadDialogOpen(false);
-      // Immediately redirect to document page - it will show processing state
-      router.push(`/document/${docId}`);
-      toast.info("Opening document...");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed");
-    }
+  const handleUploadClick = () => {
+    router.push("/document");
   };
 
   const handleDelete = async (id: string) => {
@@ -85,20 +46,10 @@ export default function DashboardPage() {
           <Button variant="outline" size="icon" onClick={() => refresh()}>
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Upload PDF
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Upload PDF Form</DialogTitle>
-              </DialogHeader>
-              <UploadZone onUpload={handleUpload} />
-            </DialogContent>
-          </Dialog>
+          <Button onClick={handleUploadClick}>
+            <Plus className="h-4 w-4 mr-2" />
+            Upload PDF
+          </Button>
         </div>
       </div>
 
@@ -124,7 +75,10 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <UploadZone onUpload={handleUpload} />
+            <Button onClick={handleUploadClick} size="lg" className="w-full">
+              <Plus className="h-5 w-5 mr-2" />
+              Upload Your First PDF
+            </Button>
           </CardContent>
         </Card>
       ) : (

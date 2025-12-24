@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,19 @@ export function FullCanvasDropZone({ onDocumentCreated }: FullCanvasDropZoneProp
   const router = useRouter();
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasAutoTriggered = useRef(false);
+
+  // Auto-trigger file selector on mount
+  useEffect(() => {
+    if (!hasAutoTriggered.current && fileInputRef.current) {
+      hasAutoTriggered.current = true;
+      // Small delay to ensure component is fully mounted
+      setTimeout(() => {
+        fileInputRef.current?.click();
+      }, 100);
+    }
+  }, []);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -145,6 +158,7 @@ export function FullCanvasDropZone({ onDocumentCreated }: FullCanvasDropZoneProp
         </p>
 
         <input
+          ref={fileInputRef}
           type="file"
           accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,application/pdf,image/*"
           onChange={handleFileSelect}
