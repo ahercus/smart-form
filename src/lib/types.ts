@@ -154,6 +154,9 @@ export interface Document {
   status: DocumentStatus;
   error_message: string | null;
   context_notes: string | null;
+  context_submitted: boolean;
+  fields_qc_complete: boolean; // True when Gemini QC has refined fields
+  tailored_context_question: string | null; // AI-generated context question based on document
   extraction_response: unknown | null; // Azure Document Intelligence response
   gemini_refinement_response: unknown | null;
   page_images: PageImage[];

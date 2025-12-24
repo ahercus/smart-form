@@ -1,6 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createDocument } from "@/lib/storage";
+import { PDFDocument } from "pdf-lib";
+
+const ACCEPTED_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+];
+
+async function convertImageToPdf(imageBuffer: ArrayBuffer, mimeType: string): Promise<ArrayBuffer> {
+  const pdfDoc = await PDFDocument.create();
+
+  let image;
+  if (mimeType === "image/jpeg") {
+    image = await pdfDoc.embedJpg(imageBuffer);
+  } else if (mimeType === "image/png") {
+    image = await pdfDoc.embedPng(imageBuffer);
+  } else {
+    // For other formats, we need to convert to PNG first
+    // For now, just throw an error - in production you'd use sharp to convert
+    throw new Error(`Unsupported image format: ${mimeType}`);
+  }
+
+  // Create a page with the image dimensions
+  const page = pdfDoc.addPage([image.width, image.height]);
+  page.drawImage(image, {
+    x: 0,
+    y: 0,
+    width: image.width,
+    height: image.height,
+  });
+
+  const pdfBytes = await pdfDoc.save();
+  // Convert Uint8Array to ArrayBuffer
+  const buffer = new ArrayBuffer(pdfBytes.length);
+  new Uint8Array(buffer).set(pdfBytes);
+  return buffer;
+}
 
 export async function POST(request: NextRequest) {
   // Get authenticated user
@@ -22,9 +61,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    if (file.type !== "application/pdf") {
+    if (!ACCEPTED_TYPES.includes(file.type)) {
       return NextResponse.json(
-        { error: "Only PDF files are accepted" },
+        { error: "Only PDF and image files (JPEG, PNG) are accepted" },
         { status: 400 }
       );
     }
@@ -37,10 +76,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const fileData = await file.arrayBuffer();
+    let fileData = await file.arrayBuffer();
+    let filename = file.name;
+
+    // Convert images to PDF
+    if (file.type !== "application/pdf") {
+      console.log("[AutoForm] Converting image to PDF:", { originalType: file.type });
+      fileData = await convertImageToPdf(fileData, file.type);
+      filename = file.name.replace(/\.(jpe?g|png|webp|gif)$/i, ".pdf");
+    }
+
     const document = await createDocument(
       user.id,
-      file.name,
+      filename,
       fileData,
       contextNotes || undefined
     );
@@ -82,7 +130,7 @@ export async function POST(request: NextRequest) {
       });
 
     return NextResponse.json({
-      document_id: document.id,
+      documentId: document.id,
       status: document.status,
       message: "Document received. Processing will begin shortly.",
     });

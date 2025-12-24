@@ -77,8 +77,8 @@ export function DocumentCard({ document, onDelete }: DocumentCardProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {document.status === "ready" && (
-              <Button asChild size="sm">
+            {document.status !== "failed" && (
+              <Button asChild size="sm" variant={isProcessing ? "outline" : "default"}>
                 <Link href={`/document/${document.id}`}>Open</Link>
               </Button>
             )}

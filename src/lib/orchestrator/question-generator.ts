@@ -33,6 +33,41 @@ export async function generateQuestions(
 ): Promise<QuestionGeneratorResult> {
   const { documentId, userId, pageImages } = params;
 
+  const supabase = createAdminClient();
+
+  // Check for existing processing lock to prevent duplicate runs
+  const { data: doc } = await supabase
+    .from("documents")
+    .select("status, processing_lock")
+    .eq("id", documentId)
+    .single();
+
+  const now = Date.now();
+  const lockAge = doc?.processing_lock ? now - new Date(doc.processing_lock).getTime() : Infinity;
+  const LOCK_TIMEOUT = 5 * 60 * 1000; // 5 minutes - stale lock timeout
+
+  // If already processing and lock is fresh, skip
+  if (doc?.status === "extracting" && lockAge < LOCK_TIMEOUT) {
+    console.log("[AutoForm] Question generation already in progress, skipping:", {
+      documentId,
+      lockAge: `${Math.round(lockAge / 1000)}s`,
+    });
+    return {
+      success: true,
+      questionsGenerated: 0,
+    };
+  }
+
+  // Acquire lock
+  const { error: lockError } = await supabase
+    .from("documents")
+    .update({ processing_lock: new Date().toISOString() })
+    .eq("id", documentId);
+
+  if (lockError) {
+    console.error("[AutoForm] Failed to acquire processing lock:", lockError);
+  }
+
   console.log("[AutoForm] ==========================================");
   console.log("[AutoForm] Question generation starting:", {
     documentId,
@@ -41,8 +76,6 @@ export async function generateQuestions(
     pageNumbers: pageImages.map((p) => p.pageNumber),
   });
   console.log("[AutoForm] ==========================================");
-
-  const supabase = createAdminClient();
 
   try {
     // Get existing fields from database
@@ -96,11 +129,21 @@ export async function generateQuestions(
       fields: fieldsByPage.get(img.pageNumber) || [],
     }));
 
-    // Phase: ENHANCING - Gemini Vision QC running in background
-    // (Note: Questions are generated FIRST in processPage, then QC runs)
-    await updateProcessingProgress(documentId, {
-      phase: "enhancing",
-    });
+    // Check if QC already done - if so, skip enhancing phase
+    const { data: docStatus } = await supabase
+      .from("documents")
+      .select("fields_qc_complete")
+      .eq("id", documentId)
+      .single();
+
+    const fieldsAlreadyQCd = docStatus?.fields_qc_complete || false;
+
+    if (!fieldsAlreadyQCd) {
+      // Phase: ENHANCING - Gemini Vision QC running in background
+      await updateProcessingProgress(documentId, {
+        phase: "enhancing",
+      });
+    }
 
     const pageResults = await processPages(documentId, userId, pagesToProcess);
 
@@ -136,6 +179,12 @@ export async function generateQuestions(
 
     await updateDocumentStatus(documentId, "ready");
 
+    // Clear processing lock
+    await supabase
+      .from("documents")
+      .update({ processing_lock: null })
+      .eq("id", documentId);
+
     return {
       success: true,
       questionsGenerated: totalQuestions,
@@ -156,6 +205,12 @@ export async function generateQuestions(
       "failed",
       error instanceof Error ? error.message : "Question generation failed"
     );
+
+    // Clear processing lock on failure
+    await supabase
+      .from("documents")
+      .update({ processing_lock: null })
+      .eq("id", documentId);
 
     return {
       success: false,

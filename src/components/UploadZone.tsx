@@ -7,6 +7,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
+const ACCEPTED_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+];
+
 interface UploadZoneProps {
   onUpload: (file: File, contextNotes: string) => Promise<void>;
   disabled?: boolean;
@@ -34,7 +42,7 @@ export function UploadZone({ onUpload, disabled }: UploadZoneProps) {
     setDragActive(false);
 
     const droppedFile = e.dataTransfer.files?.[0];
-    if (droppedFile?.type === "application/pdf") {
+    if (droppedFile && ACCEPTED_TYPES.includes(droppedFile.type)) {
       setFile(droppedFile);
     }
   }, []);
@@ -42,7 +50,7 @@ export function UploadZone({ onUpload, disabled }: UploadZoneProps) {
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const selectedFile = e.target.files?.[0];
-      if (selectedFile?.type === "application/pdf") {
+      if (selectedFile && ACCEPTED_TYPES.includes(selectedFile.type)) {
         setFile(selectedFile);
       }
     },
@@ -83,11 +91,11 @@ export function UploadZone({ onUpload, disabled }: UploadZoneProps) {
         >
           <Upload className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
           <p className="text-muted-foreground mb-4">
-            Drag and drop a PDF here, or click to browse
+            Drag and drop a PDF or image here, or click to browse
           </p>
           <input
             type="file"
-            accept=".pdf,application/pdf"
+            accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,application/pdf,image/*"
             onChange={handleFileSelect}
             className="hidden"
             id="file-upload"

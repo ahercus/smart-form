@@ -33,8 +33,20 @@ export function useDocumentRealtime(documentId: string) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
+  // Validate documentId is a valid UUID
+  const isValidId = documentId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(documentId);
+
   // Initial data fetch
   const fetchData = useCallback(async () => {
+    if (!isValidId) {
+      setState((prev) => ({
+        ...prev,
+        loading: false,
+        error: "Invalid document ID",
+      }));
+      return;
+    }
+
     try {
       // Fetch document
       const { data: doc, error: docError } = await supabase
@@ -94,10 +106,12 @@ export function useDocumentRealtime(documentId: string) {
         error: error instanceof Error ? error.message : "Failed to load",
       }));
     }
-  }, [documentId, supabase]);
+  }, [documentId, isValidId, supabase]);
 
   // Set up realtime subscriptions
   useEffect(() => {
+    if (!isValidId) return;
+
     fetchData();
 
     // Subscribe to document changes
@@ -143,11 +157,15 @@ export function useDocumentRealtime(documentId: string) {
               fields: [...prev.fields, payload.new as ExtractedField],
             }));
           } else if (payload.eventType === "UPDATE") {
+            const updatedField = payload.new as ExtractedField;
             setState((prev) => ({
               ...prev,
-              fields: prev.fields.map((f) =>
-                f.id === payload.new.id ? (payload.new as ExtractedField) : f
-              ),
+              // Filter out soft-deleted fields, update others
+              fields: updatedField.deleted_at
+                ? prev.fields.filter((f) => f.id !== updatedField.id)
+                : prev.fields.map((f) =>
+                    f.id === updatedField.id ? updatedField : f
+                  ),
             }));
           } else if (payload.eventType === "DELETE") {
             setState((prev) => ({
@@ -225,7 +243,7 @@ export function useDocumentRealtime(documentId: string) {
       supabase.removeChannel(fieldsChannel);
       supabase.removeChannel(questionsChannel);
     };
-  }, [documentId, fetchData, supabase]);
+  }, [documentId, isValidId, fetchData, supabase]);
 
   const refetch = useCallback(() => {
     setState((prev) => ({ ...prev, loading: true }));

@@ -80,9 +80,34 @@ export async function POST(
     await setDocumentFields(id, result.fields);
     await updateDocument(id, { page_count: result.pageCount });
 
+    // Trigger field refinement (Gemini QC) in the background
+    // This runs BEFORE context submission to have fields ready
+    const baseUrl = request.nextUrl.origin;
+    fetch(`${baseUrl}/api/documents/${id}/refine-fields`, {
+      method: "POST",
+      headers: {
+        Cookie: request.headers.get("cookie") || "",
+      },
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        console.log("[AutoForm] Field refinement trigger response:", {
+          documentId: id,
+          status: res.status,
+          ok: res.ok,
+          data,
+        });
+      })
+      .catch((err) => {
+        console.error("[AutoForm] Failed to trigger field refinement:", {
+          documentId: id,
+          error: err instanceof Error ? err.message : "Unknown error",
+        });
+      });
+
     return NextResponse.json({
       success: true,
-      status: "ready",
+      status: "extracting", // Fields extracted, refinement starting
       field_count: result.fields.length,
       page_count: result.pageCount,
     });

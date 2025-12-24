@@ -38,12 +38,24 @@ interface GenerateContentOptions {
 }
 
 /**
- * Generate content with Gemini 3 Pro (high thinking for complex analysis)
+ * Generate content with Gemini 3 Pro (configurable thinking level)
  * Use for: Grid analysis, field review/QC, coordinate adjustments
+ *
+ * Gemini 3 Pro thinking levels (only these are supported):
+ * - LOW: Minimizes latency and cost. Best for simple tasks.
+ * - HIGH: Maximizes reasoning depth. Model may take longer but output is more carefully reasoned.
+ *
+ * Note: MINIMAL and MEDIUM are Flash-only and will be mapped to LOW for Pro.
  */
 export async function generateWithVision(options: GenerateContentOptions) {
   const client = getGeminiClient();
-  const { prompt, imageParts, thinkingLevel = ThinkingLevel.HIGH } = options;
+  // Default to LOW for faster responses. Map MINIMAL/MEDIUM to LOW for Pro compatibility.
+  let { prompt, imageParts, thinkingLevel = ThinkingLevel.LOW } = options;
+
+  // Pro only supports LOW and HIGH - map others to LOW
+  if (thinkingLevel === ThinkingLevel.MINIMAL || thinkingLevel === ThinkingLevel.MEDIUM) {
+    thinkingLevel = ThinkingLevel.LOW;
+  }
 
   const contents = imageParts
     ? [{ text: prompt }, ...imageParts.map((p) => ({ inlineData: p.inlineData }))]

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -10,7 +10,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { ArrowLeft, Save, Download, Loader2, Sparkles } from "lucide-react";
+import { FolderOpen, Save, Download, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { PDFWithOverlays } from "./PDFWithOverlays";
 import { QuestionsPanel } from "./QuestionsPanel";
@@ -28,6 +28,17 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
+  const [scrollToQuestionId, setScrollToQuestionId] = useState<string | null>(null);
+  const [scrollToFieldId, setScrollToFieldId] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   // Realtime data subscription
   const {
@@ -42,12 +53,16 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
   // Question management
   const {
     visibleQuestions,
+    currentQuestion,
     currentQuestionIndex,
     answering,
     answerQuestion,
     goToQuestion,
     progress: questionProgress,
   } = useQuestions({ questions, documentId });
+
+  // Get highlighted field IDs from current question
+  const highlightedFieldIds = currentQuestion?.field_ids || [];
 
   // Field sync
   const {
@@ -73,24 +88,42 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
     [capturePageImage]
   );
 
-  // Fetch PDF URL
-  useEffect(() => {
-    const fetchPdfUrl = async () => {
-      try {
-        const response = await fetch(`/api/documents/${documentId}/pdf`);
-        if (response.ok) {
-          const data = await response.json();
-          setPdfUrl(data.url);
-        }
-      } catch (error) {
-        console.error("[AutoForm] Failed to fetch PDF URL:", error);
-      }
-    };
+  // Validate documentId is a valid UUID
+  const isValidId = documentId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(documentId);
 
-    if (documentId) {
+  // Fetch PDF URL - can be called on mount or to refresh expired URL
+  const fetchPdfUrl = useCallback(async () => {
+    if (!isValidId) return;
+
+    try {
+      const response = await fetch(`/api/documents/${documentId}/pdf`);
+      if (response.ok) {
+        const data = await response.json();
+        setPdfUrl(data.url);
+        console.log("[AutoForm] PDF URL fetched successfully");
+      } else {
+        console.error("[AutoForm] Failed to fetch PDF URL:", response.status);
+        toast.error("Failed to load PDF");
+      }
+    } catch (error) {
+      console.error("[AutoForm] Failed to fetch PDF URL:", error);
+      toast.error("Failed to load PDF");
+    }
+  }, [documentId, isValidId]);
+
+  // Initial PDF URL fetch
+  useEffect(() => {
+    if (isValidId) {
       fetchPdfUrl();
     }
-  }, [documentId]);
+  }, [isValidId, fetchPdfUrl]);
+
+  // Handle PDF load error - refresh the signed URL
+  const handlePdfLoadError = useCallback(() => {
+    console.log("[AutoForm] PDF load error, refreshing URL...");
+    toast("Refreshing PDF...", { duration: 2000 });
+    fetchPdfUrl();
+  }, [fetchPdfUrl]);
 
   // Handle field click - navigate to field's page and highlight it
   const handleFieldClick = useCallback((fieldId: string) => {
@@ -197,16 +230,47 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
     [documentId]
   );
 
-  // Handle navigate to question for a field
+  // Handle navigate to question for a field (when field is clicked)
   const handleNavigateToQuestion = useCallback(
     (fieldId: string) => {
       // Find the question that contains this field
       const question = questions.find((q) => q.field_ids.includes(fieldId));
       if (question) {
         goToQuestion(question.id);
+        // Trigger scroll to question
+        setScrollToQuestionId(question.id);
+        // Clear after a tick to allow re-triggering
+        setTimeout(() => setScrollToQuestionId(null), 100);
       }
     },
     [questions, goToQuestion]
+  );
+
+  // Handle clicking on a question - navigate to its page and scroll field into view
+  const handleGoToQuestion = useCallback(
+    (questionId: string) => {
+      const question = questions.find((q) => q.id === questionId);
+      if (question) {
+        // Navigate to the page containing the first field
+        if (question.field_ids.length > 0) {
+          const firstFieldId = question.field_ids[0];
+          const firstField = fields.find((f) => f.id === firstFieldId);
+          if (firstField) {
+            if (firstField.page_number !== currentPage) {
+              setCurrentPage(firstField.page_number);
+            }
+            // Set active field and trigger scroll
+            setActiveFieldId(firstFieldId);
+            setScrollToFieldId(firstFieldId);
+            // Clear after a tick to allow re-triggering
+            setTimeout(() => setScrollToFieldId(null), 100);
+          }
+        }
+        // Update the current question index
+        goToQuestion(questionId);
+      }
+    },
+    [questions, fields, currentPage, goToQuestion]
   );
 
   // Handle answering a question
@@ -241,6 +305,41 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
     };
   }, [hasUnsavedChanges, saveFieldUpdates]);
 
+  // Handle PDF export
+  const [exporting, setExporting] = useState(false);
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      // Save any pending changes first
+      if (hasUnsavedChanges) {
+        await saveFieldUpdates();
+      }
+
+      const response = await fetch(`/api/documents/${documentId}/export`);
+      if (!response.ok) {
+        throw new Error("Export failed");
+      }
+
+      // Download the file
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = window.document.createElement("a");
+      a.href = url;
+      a.download = `${document?.original_filename?.replace(/\.pdf$/i, "") || "document"}_filled.pdf`;
+      window.document.body.appendChild(a);
+      a.click();
+      window.document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success("PDF exported successfully");
+    } catch (error) {
+      console.error("[AutoForm] Export error:", error);
+      toast.error("Failed to export PDF");
+    } finally {
+      setExporting(false);
+    }
+  }, [documentId, document, hasUnsavedChanges, saveFieldUpdates]);
+
   // Check if still processing
   const isProcessing =
     progress &&
@@ -249,18 +348,21 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
     progress.phase !== "failed";
 
   // Check if in early processing phase (show blur overlay)
+  // PDF stays blurred until fields have been QC'd by Gemini
   const isEarlyProcessing =
     !document ||
     document.status === "uploading" ||
     document.status === "analyzing" ||
-    (progress?.phase === "parsing");
+    document.status === "refining" ||
+    !document.fields_qc_complete;
 
   // Processing phase labels
   const getProcessingLabel = () => {
     if (!document) return "Loading document...";
     if (document.status === "uploading") return "Uploading document...";
     if (document.status === "analyzing") return "Analyzing with AI...";
-    if (progress?.phase === "parsing") return "Extracting form fields...";
+    if (document.status === "extracting") return "Extracting form fields...";
+    if (document.status === "refining" || !document.fields_qc_complete) return "Refining field detection...";
     if (progress?.phase === "displaying") return "Generating questions...";
     if (progress?.phase === "enhancing") return "Enhancing with AI...";
     return "Processing...";
@@ -289,8 +391,8 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
           </h2>
           <Link href="/dashboard">
             <Button variant="outline">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Dashboard
+              <FolderOpen className="mr-2 h-4 w-4" />
+              Manage Files
             </Button>
           </Link>
         </div>
@@ -310,8 +412,8 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
           )}
           <Link href="/dashboard">
             <Button variant="outline">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Dashboard
+              <FolderOpen className="mr-2 h-4 w-4" />
+              Manage Files
             </Button>
           </Link>
         </div>
@@ -327,8 +429,9 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/dashboard">
-                <Button variant="ghost" size="icon">
-                  <ArrowLeft className="h-4 w-4" />
+                <Button variant="ghost" size="sm">
+                  <FolderOpen className="mr-2 h-4 w-4" />
+                  Manage Files
                 </Button>
               </Link>
               <div>
@@ -356,9 +459,16 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
                 <Save className="mr-2 h-4 w-4" />
                 {saving ? "Saving..." : hasUnsavedChanges ? "Save" : "Saved"}
               </Button>
-              <Button disabled={isEarlyProcessing}>
-                <Download className="mr-2 h-4 w-4" />
-                Export PDF
+              <Button
+                onClick={handleExport}
+                disabled={isEarlyProcessing || exporting}
+              >
+                {exporting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                {exporting ? "Exporting..." : "Export PDF"}
               </Button>
             </div>
           </div>
@@ -368,10 +478,13 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
 
       {/* Main Content - Resizable Panels */}
       <div className="h-[calc(100vh-100px)]">
-        <ResizablePanelGroup orientation="horizontal" className="h-full">
+        <ResizablePanelGroup
+          orientation={isMobile ? "vertical" : "horizontal"}
+          className="h-full"
+        >
           {/* PDF Panel */}
-          <ResizablePanel defaultSize={65} minSize={40}>
-            <div className="h-full relative border-r">
+          <ResizablePanel defaultSize={isMobile ? 50 : 65} minSize={isMobile ? 30 : 40}>
+            <div className={`h-full relative ${isMobile ? "border-b" : "border-r"}`}>
               {/* PDF Content */}
               <div className={`h-full ${isEarlyProcessing ? "blur-sm pointer-events-none" : ""}`}>
                 {pdfUrl ? (
@@ -389,7 +502,10 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
                     onFieldAdd={handleFieldAdd}
                     onNavigateToQuestion={handleNavigateToQuestion}
                     activeFieldId={activeFieldId}
+                    highlightedFieldIds={highlightedFieldIds}
                     onPageRender={handlePageRender}
+                    onLoadError={handlePdfLoadError}
+                    scrollToFieldId={scrollToFieldId}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -432,14 +548,17 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
           <ResizableHandle withHandle />
 
           {/* Questions Panel */}
-          <ResizablePanel defaultSize={35} minSize={25}>
+          <ResizablePanel defaultSize={isMobile ? 50 : 35} minSize={isMobile ? 30 : 25}>
             <QuestionsPanel
+              documentId={documentId}
+              document={document}
               questions={questions}
               progress={progress}
               currentQuestionIndex={currentQuestionIndex}
               onAnswer={handleAnswerQuestion}
               answering={answering}
-              onGoToQuestion={goToQuestion}
+              onGoToQuestion={handleGoToQuestion}
+              scrollToQuestionId={scrollToQuestionId}
             />
           </ResizablePanel>
         </ResizablePanelGroup>

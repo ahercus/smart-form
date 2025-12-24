@@ -16,6 +16,7 @@ interface QuestionCardProps {
   isActive: boolean;
   onAnswer: (answer: string) => Promise<void>;
   isAnswering: boolean;
+  onClick?: () => void;
 }
 
 export function QuestionCard({
@@ -23,6 +24,7 @@ export function QuestionCard({
   isActive,
   onAnswer,
   isAnswering,
+  onClick,
 }: QuestionCardProps) {
   const [answer, setAnswer] = useState(question.answer || "");
 
@@ -41,16 +43,16 @@ export function QuestionCard({
   if (question.status === "answered") {
     return (
       <Card className="border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <Check className="w-3 h-3 text-white" />
+        <CardContent className="p-3">
+          <div className="flex items-start gap-2">
+            <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <Check className="w-2.5 h-2.5 text-white" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm text-muted-foreground line-through">
                 {question.question}
               </p>
-              <p className="text-sm font-medium mt-1 truncate">
+              <p className="text-sm font-medium mt-0.5 truncate">
                 {question.answer}
               </p>
             </div>
@@ -123,22 +125,24 @@ export function QuestionCard({
 
   return (
     <Card
-      className={`transition-all ${
+      className={`transition-all cursor-pointer ${
         isActive
           ? "ring-2 ring-primary shadow-md"
-          : "hover:shadow-sm"
+          : "hover:shadow-sm hover:ring-1 hover:ring-muted-foreground/20"
       }`}
+      onClick={onClick}
     >
-      <CardContent className="p-4">
-        <div className="space-y-3">
-          <div className="flex items-start justify-between gap-2">
-            <p className="font-medium">{question.question}</p>
-            {question.profile_key && (
-              <Badge variant="outline" className="text-xs flex-shrink-0">
+      <CardContent className="p-3">
+        <div className="space-y-2">
+          {question.profile_key && (
+            <div className="flex justify-end">
+              <Badge variant="outline" className="text-xs">
                 {question.profile_key}
               </Badge>
-            )}
-          </div>
+            </div>
+          )}
+
+          <p className="font-medium text-sm">{question.question}</p>
 
           <div className="flex gap-2">
             <div className="flex-1">{renderInput()}</div>
@@ -146,7 +150,7 @@ export function QuestionCard({
               onClick={handleSubmit}
               disabled={!answer.trim() || isAnswering}
               size="icon"
-              className="flex-shrink-0"
+              className="flex-shrink-0 h-9 w-9"
             >
               {isAnswering ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

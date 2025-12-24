@@ -58,19 +58,21 @@ export async function processPage(
   const supabase = createAdminClient();
   const totalTimer = new StepTimer(documentId, `Page ${pageNumber} Total Processing`);
 
-  // Fetch context notes from document
+  // Fetch context notes and QC status from document
   const { data: doc } = await supabase
     .from("documents")
-    .select("context_notes")
+    .select("context_notes, fields_qc_complete")
     .eq("id", documentId)
     .single();
   const contextNotes = doc?.context_notes || undefined;
+  const fieldsAlreadyQCd = doc?.fields_qc_complete || false;
 
   console.log(`[AutoForm] ==========================================`);
   console.log(`[AutoForm] Processing page ${pageNumber}:`, {
     documentId,
     fieldCount: fields.length,
-    mode: fields.length > 0 ? "QC" : "full-detection",
+    fieldsAlreadyQCd,
+    mode: fieldsAlreadyQCd ? "questions-only" : fields.length > 0 ? "QC" : "full-detection",
   });
   console.log(`[AutoForm] ==========================================`);
 
@@ -129,139 +131,155 @@ export async function processPage(
   });
 
   // ============================================================
-  // STEP 2: Create composite image
+  // STEPS 2-4: Only run if fields haven't been QC'd yet
+  // (QC now runs separately via refine-fields route)
   // ============================================================
-  const step2Timer = new StepTimer(documentId, `Step 2: Composite Image Creation (Page ${pageNumber})`);
-
-  const composited = await compositeFieldsOntoImage({
-    imageBase64: pageImageBase64,
-    fields,
-    showGrid: true,
-    gridSpacing: 10,
-  });
-
-  const compositeStoragePath = await uploadCompositeImage(
-    userId,
-    documentId,
-    pageNumber,
-    composited.imageBase64
-  );
-
-  const step2Duration = step2Timer.end({
-    dimensions: `${composited.width}x${composited.height}`,
-    storagePath: compositeStoragePath,
-  });
-
-  // ============================================================
-  // STEP 3: Call Gemini Vision for field review/QC
-  // ============================================================
-  const step3Timer = new StepTimer(documentId, `Step 3: Gemini Vision QC (Page ${pageNumber})`);
-
-  const reviewResult = await reviewFieldsWithVision({
-    documentId,
-    pageNumber,
-    pageImageBase64,
-    fields,
-  });
-
-  const step3Duration = step3Timer.end({
-    adjustments: reviewResult.adjustments.length,
-    newFields: reviewResult.newFields.length,
-    removeFields: reviewResult.removeFields.length,
-    validated: reviewResult.fieldsValidated,
-  });
-
-  // ============================================================
-  // STEP 4: Apply field adjustments to database
-  // ============================================================
-  const step4Timer = new StepTimer(documentId, `Step 4: Apply Field Adjustments (Page ${pageNumber})`);
-
+  let step2Duration = 0;
+  let step3Duration = 0;
+  let step4Duration = 0;
   let fieldsAdjusted = 0;
   let fieldsAdded = 0;
   let fieldsRemoved = 0;
-
-  // Apply adjustments to existing fields
-  for (const adj of reviewResult.adjustments) {
-    const updates: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
-      // Mark as enhanced by Gemini so it shows in UI
-      detection_source: "gemini_vision",
-    };
-
-    if (adj.changes.label) updates.label = adj.changes.label;
-    if (adj.changes.fieldType) updates.field_type = adj.changes.fieldType;
-    if (adj.changes.coordinates) updates.coordinates = adj.changes.coordinates;
-
-    const { error } = await supabase
-      .from("extracted_fields")
-      .update(updates)
-      .eq("id", adj.fieldId);
-
-    if (!error) fieldsAdjusted++;
-  }
-
-  // Mark all fields on this page as reviewed by Gemini (even if no changes)
-  // This allows them to be shown in the UI
-  if (reviewResult.fieldsValidated && fields.length > 0) {
-    const fieldIds = fields.map((f) => f.id);
-    await supabase
-      .from("extracted_fields")
-      .update({
-        detection_source: "gemini_vision",
-        updated_at: new Date().toISOString(),
-      })
-      .in("id", fieldIds);
-  }
-
-  // Add new fields identified by Gemini
+  let compositeStoragePath = "";
   const newFieldRecords: ExtractedField[] = [];
-  for (const newField of reviewResult.newFields) {
-    const now = new Date().toISOString();
-    const fieldRecord: ExtractedField = {
-      id: crypto.randomUUID(),
-      document_id: documentId,
-      page_number: pageNumber,
-      field_index: fields.length + newFieldRecords.length,
-      label: newField.label,
-      field_type: newField.fieldType,
-      coordinates: newField.coordinates,
-      value: null,
-      ai_suggested_value: null,
-      ai_confidence: null,
-      help_text: null,
-      detection_source: "gemini_vision",
-      confidence_score: null,
-      manually_adjusted: false,
-      deleted_at: null,
-      created_at: now,
-      updated_at: now,
-    };
+  const removedFieldIds: string[] = [];
 
-    const { error } = await supabase
-      .from("extracted_fields")
-      .insert(fieldRecord);
+  if (!fieldsAlreadyQCd) {
+    // ============================================================
+    // STEP 2: Create composite image
+    // ============================================================
+    const step2Timer = new StepTimer(documentId, `Step 2: Composite Image Creation (Page ${pageNumber})`);
 
-    if (!error) {
-      newFieldRecords.push(fieldRecord);
-      fieldsAdded++;
+    const composited = await compositeFieldsOntoImage({
+      imageBase64: pageImageBase64,
+      fields,
+      showGrid: true,
+      gridSpacing: 10,
+    });
+
+    compositeStoragePath = await uploadCompositeImage(
+      userId,
+      documentId,
+      pageNumber,
+      composited.imageBase64
+    );
+
+    step2Duration = step2Timer.end({
+      dimensions: `${composited.width}x${composited.height}`,
+      storagePath: compositeStoragePath,
+    });
+
+    // ============================================================
+    // STEP 3: Call Gemini Vision for field review/QC
+    // ============================================================
+    const step3Timer = new StepTimer(documentId, `Step 3: Gemini Vision QC (Page ${pageNumber})`);
+
+    const reviewResult = await reviewFieldsWithVision({
+      documentId,
+      pageNumber,
+      pageImageBase64,
+      fields,
+    });
+
+    step3Duration = step3Timer.end({
+      adjustments: reviewResult.adjustments.length,
+      newFields: reviewResult.newFields.length,
+      removeFields: reviewResult.removeFields.length,
+      validated: reviewResult.fieldsValidated,
+    });
+
+    // ============================================================
+    // STEP 4: Apply field adjustments to database
+    // ============================================================
+    const step4Timer = new StepTimer(documentId, `Step 4: Apply Field Adjustments (Page ${pageNumber})`);
+
+    // Apply adjustments to existing fields
+    for (const adj of reviewResult.adjustments) {
+      const updates: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+        // Mark as enhanced by Gemini so it shows in UI
+        detection_source: "gemini_vision",
+      };
+
+      if (adj.changes.label) updates.label = adj.changes.label;
+      if (adj.changes.fieldType) updates.field_type = adj.changes.fieldType;
+      if (adj.changes.coordinates) updates.coordinates = adj.changes.coordinates;
+
+      const { error } = await supabase
+        .from("extracted_fields")
+        .update(updates)
+        .eq("id", adj.fieldId);
+
+      if (!error) fieldsAdjusted++;
     }
+
+    // Mark all fields on this page as reviewed by Gemini (even if no changes)
+    // This allows them to be shown in the UI
+    if (reviewResult.fieldsValidated && fields.length > 0) {
+      const fieldIds = fields.map((f) => f.id);
+      await supabase
+        .from("extracted_fields")
+        .update({
+          detection_source: "gemini_vision",
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", fieldIds);
+    }
+
+    // Add new fields identified by Gemini
+    for (const newField of reviewResult.newFields) {
+      const now = new Date().toISOString();
+      const fieldRecord: ExtractedField = {
+        id: crypto.randomUUID(),
+        document_id: documentId,
+        page_number: pageNumber,
+        field_index: fields.length + newFieldRecords.length,
+        label: newField.label,
+        field_type: newField.fieldType,
+        coordinates: newField.coordinates,
+        value: null,
+        ai_suggested_value: null,
+        ai_confidence: null,
+        help_text: null,
+        detection_source: "gemini_vision",
+        confidence_score: null,
+        manually_adjusted: false,
+        deleted_at: null,
+        created_at: now,
+        updated_at: now,
+      };
+
+      const { error } = await supabase
+        .from("extracted_fields")
+        .insert(fieldRecord);
+
+      if (!error) {
+        newFieldRecords.push(fieldRecord);
+        fieldsAdded++;
+      }
+    }
+
+    // Soft delete removed fields
+    for (const fieldId of reviewResult.removeFields) {
+      const { error } = await supabase
+        .from("extracted_fields")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", fieldId);
+
+      if (!error) {
+        fieldsRemoved++;
+        removedFieldIds.push(fieldId);
+      }
+    }
+
+    step4Duration = step4Timer.end({
+      fieldsAdjusted,
+      fieldsAdded,
+      fieldsRemoved,
+    });
+  } else {
+    console.log(`[AutoForm] Skipping QC steps 2-4 for page ${pageNumber} - fields already QC'd`);
   }
-
-  // Soft delete removed fields
-  for (const fieldId of reviewResult.removeFields) {
-    const { error } = await supabase
-      .from("extracted_fields")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", fieldId);
-
-    if (!error) fieldsRemoved++;
-  }
-
-  const step4Duration = step4Timer.end({
-    fieldsAdjusted,
-    fieldsAdded,
-    fieldsRemoved,
-  });
 
   // ============================================================
   // STEP 5: Generate/Adjust questions based on finalized fields
@@ -273,16 +291,19 @@ export async function processPage(
   let questionsGenerated = 0;
 
   // Generate questions if:
-  // 1. Full-detection mode (no initial Document AI fields) - need questions for all detected fields
-  // 2. QC mode but new fields were added by Gemini Vision
-  const needsQuestionGeneration = fields.length === 0 || newFieldRecords.length > 0;
-  const fieldsForQuestions = fields.length === 0 ? newFieldRecords : newFieldRecords;
+  // 1. QC already done - generate for all existing fields (normal flow after context submission)
+  // 2. Full-detection mode (no initial Document AI fields) - generate for all detected fields
+  // 3. QC mode but new fields were added by Gemini Vision
+  const needsQuestionGeneration = fieldsAlreadyQCd || fields.length === 0 || newFieldRecords.length > 0;
+  // When QC is already done, generate questions for all existing fields
+  // Otherwise, generate only for newly detected fields
+  const fieldsForQuestions = fieldsAlreadyQCd ? fields : (fields.length === 0 ? newFieldRecords : newFieldRecords);
 
   if (needsQuestionGeneration && fieldsForQuestions.length > 0) {
     console.log(`[AutoForm] Generating questions for ${fieldsForQuestions.length} fields:`, {
       documentId,
       pageNumber,
-      mode: fields.length === 0 ? "full-detection" : "new-fields-only",
+      mode: fieldsAlreadyQCd ? "post-context" : (fields.length === 0 ? "full-detection" : "new-fields-only"),
     });
 
     const generatedQuestions = await generateQuestionsForPage({
@@ -318,7 +339,7 @@ export async function processPage(
 
   // If fields were removed, hide questions that reference only removed fields
   let questionsHidden = 0;
-  if (reviewResult.removeFields.length > 0) {
+  if (removedFieldIds.length > 0) {
     const { data: affectedQuestions } = await supabase
       .from("document_questions")
       .select("id, field_ids")
@@ -328,7 +349,7 @@ export async function processPage(
     for (const q of affectedQuestions || []) {
       const fieldIds = q.field_ids as string[];
       const allFieldsRemoved = fieldIds.every((id) =>
-        reviewResult.removeFields.includes(id)
+        removedFieldIds.includes(id)
       );
 
       if (allFieldsRemoved) {
@@ -340,8 +361,8 @@ export async function processPage(
 
   const step5Duration = step5Timer.end({
     questionsGenerated,
-    mode: fields.length === 0 ? "full-detection" : "qc",
-    newFieldsCount: newFieldRecords.length,
+    mode: fieldsAlreadyQCd ? "post-context" : (fields.length === 0 ? "full-detection" : "qc"),
+    fieldsCount: fieldsForQuestions.length,
   });
 
   // ============================================================

@@ -194,13 +194,33 @@ Each field has a "charLimits" property showing MAX and RECOMMENDED character cou
 - For auto-fill values, truncate or abbreviate if needed to fit
 - Examples: "Street" → "St.", "Boulevard" → "Blvd.", "Apartment" → "Apt."
 
+## Input Types (ONLY use these exact values for inputType)
+- "text": Single-line text input (most common - use for names, addresses, phone numbers, etc.)
+- "textarea": Multi-line text for longer responses (comments, descriptions)
+- "checkbox": Yes/no questions
+- "date": Date inputs
+- "signature": Signature fields
+
+## Grouping Multiple Fields
+You CAN ask ONE question that fills MULTIPLE fields (even different field types):
+- Include ALL relevant field IDs in the "fieldIds" array
+- Choose inputType based on how the USER should answer:
+  - "text" for short answers (name, single value)
+  - "textarea" for complex answers with multiple pieces of info
+- The system will parse the user's natural language answer and distribute values to each field
+
+Example: "Provide emergency contact details (name, phone, relationship)"
+- fieldIds: [name_field_id, phone_field_id, relationship_field_id]
+- inputType: "textarea"
+- System parses the answer and fills each field appropriately
+
 ## Response Format
 Return ONLY valid JSON:
 {
   "questions": [
     {
       "question": "What is your full legal name?",
-      "fieldIds": ["field-uuid-1", "field-uuid-2"],
+      "fieldIds": ["first-name-field-id", "last-name-field-id"],
       "inputType": "text",
       "profileKey": "legal_name"
     }

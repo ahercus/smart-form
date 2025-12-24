@@ -114,38 +114,55 @@ export async function POST(
     });
 
     if (pagesNeedingProcessing.length > 0) {
-      console.log("[AutoForm] Triggering question generation for pages:", {
-        documentId,
-        pages: pagesNeedingProcessing,
-      });
+      // Check if context has been submitted
+      // If not, skip question generation - questions will be generated when context is submitted
+      if (document.context_submitted) {
+        console.log("[AutoForm] Context already submitted, triggering question generation:", {
+          documentId,
+          pages: pagesNeedingProcessing,
+        });
 
-      // Filter to only pages that need processing
-      const pagesToProcess = uploadedPages.filter(p => pagesNeedingProcessing.includes(p.page));
+        // Filter to only pages that need processing
+        const pagesToProcess = uploadedPages.filter(p => pagesNeedingProcessing.includes(p.page));
 
-      // Prepare page images for question generator
-      const pageImages = await Promise.all(
-        pagesToProcess.map(async (p) => ({
-          pageNumber: p.page,
-          imageBase64: await getPageImageBase64(p.storage_path),
-        }))
-      );
+        // Prepare page images for question generator
+        const pageImages = await Promise.all(
+          pagesToProcess.map(async (p) => ({
+            pageNumber: p.page,
+            imageBase64: await getPageImageBase64(p.storage_path),
+          }))
+        );
 
-      // Run question generation in the background
-      // The client uses Realtime for updates
-      generateQuestions({
-        documentId,
-        userId: user.id,
-        pageImages,
-      }).catch((error) => {
-        console.error("[AutoForm] Question generation failed:", error);
-      });
+        // Run question generation in the background
+        // The client uses Realtime for updates
+        generateQuestions({
+          documentId,
+          userId: user.id,
+          pageImages,
+        }).catch((error) => {
+          console.error("[AutoForm] Question generation failed:", error);
+        });
 
-      return NextResponse.json({
-        success: true,
-        pagesUploaded: uploadedPages.length,
-        processingStarted: true,
-        pagesProcessing: pagesNeedingProcessing,
-      });
+        return NextResponse.json({
+          success: true,
+          pagesUploaded: uploadedPages.length,
+          processingStarted: true,
+          pagesProcessing: pagesNeedingProcessing,
+        });
+      } else {
+        console.log("[AutoForm] Waiting for context before generating questions:", {
+          documentId,
+          pagesReady: pagesNeedingProcessing,
+        });
+
+        return NextResponse.json({
+          success: true,
+          pagesUploaded: uploadedPages.length,
+          processingStarted: false,
+          waitingForContext: true,
+          message: "Pages uploaded, waiting for context before generating questions",
+        });
+      }
     }
 
     return NextResponse.json({

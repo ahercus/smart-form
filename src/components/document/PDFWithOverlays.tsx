@@ -6,6 +6,7 @@ import { Rnd } from "react-rnd";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ChevronLeft,
   ChevronRight,
@@ -16,6 +17,7 @@ import {
   Copy,
   Plus,
   Trash2,
+  Loader2,
 } from "lucide-react";
 import type { ExtractedField, NormalizedCoordinates } from "@/lib/types";
 
@@ -45,7 +47,10 @@ interface PDFWithOverlaysProps {
   onFieldAdd?: (pageNumber: number, coords: NormalizedCoordinates) => void;
   onNavigateToQuestion?: (fieldId: string) => void;
   activeFieldId?: string | null;
+  highlightedFieldIds?: string[];
   onPageRender?: (pageNumber: number, canvas: HTMLCanvasElement) => void;
+  onLoadError?: () => void;
+  scrollToFieldId?: string | null;
 }
 
 export function PDFWithOverlays({
@@ -62,7 +67,10 @@ export function PDFWithOverlays({
   onFieldAdd,
   onNavigateToQuestion,
   activeFieldId,
+  highlightedFieldIds = [],
   onPageRender,
+  onLoadError,
+  scrollToFieldId,
 }: PDFWithOverlaysProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [scale, setScale] = useState(1.0);
@@ -80,26 +88,65 @@ export function PDFWithOverlays({
   const pageRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Scroll to field when scrollToFieldId changes
+  useEffect(() => {
+    if (scrollToFieldId && containerRef.current) {
+      const field = fields.find((f) => f.id === scrollToFieldId);
+      if (field && field.page_number === currentPage) {
+        const coords = field.coordinates;
+        const scrollContainer = containerRef.current.closest(".overflow-auto");
+        if (scrollContainer) {
+          // Calculate the field's center position within the scroll container
+          const containerRect = containerRef.current.getBoundingClientRect();
+          const fieldCenterY = (coords.top / 100) * containerRect.height + (coords.height / 100) * containerRect.height / 2;
+          const scrollContainerRect = scrollContainer.getBoundingClientRect();
+          const targetScrollTop = scrollContainer.scrollTop + fieldCenterY - scrollContainerRect.height / 2;
+          scrollContainer.scrollTo({ top: targetScrollTop, behavior: "smooth" });
+        }
+      }
+    }
+  }, [scrollToFieldId, fields, currentPage]);
+
   // Clear local state when fields update from DB
   useEffect(() => {
     setLocalCoords({});
     setDeletedFieldIds(new Set());
   }, [fields]);
 
-  // Handle Delete key to remove selected field
+  // Handle keyboard shortcuts for field management
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.key === "Delete" || e.key === "Backspace") && activeFieldId && !editingFieldId) {
+      // Check if we're focused on an input/textarea
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement instanceof HTMLInputElement ||
+                             activeElement instanceof HTMLTextAreaElement;
+
+      if (!activeFieldId) return;
+
+      // Delete key removes the selected field (when not editing)
+      if ((e.key === "Delete" || e.key === "Backspace") && !isInputFocused) {
         e.preventDefault();
-        // Optimistically remove from UI
+        setEditingFieldId(null);
         setDeletedFieldIds((prev) => new Set([...prev, activeFieldId]));
         onFieldDelete?.(activeFieldId);
+      }
+
+      // Enter key starts editing the selected field (when not already editing)
+      if (e.key === "Enter" && !isInputFocused) {
+        e.preventDefault();
+        setEditingFieldId(activeFieldId);
+      }
+
+      // Escape key deselects the field
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setEditingFieldId(null);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeFieldId, editingFieldId, onFieldDelete]);
+  }, [activeFieldId, onFieldDelete]);
 
   // Configure PDF.js worker on client side only
   useEffect(() => {
@@ -149,6 +196,15 @@ export function PDFWithOverlays({
     console.log("[AutoForm] PDF loaded:", { numPages });
   };
 
+  const onDocumentLoadError = useCallback(
+    (error: Error) => {
+      console.error("[AutoForm] PDF load error:", error.message);
+      setPageError(true);
+      onLoadError?.();
+    },
+    [onLoadError]
+  );
+
   const onPageLoadError = useCallback(() => {
     console.warn("[AutoForm] Page load error, will retry on next render");
     setPageError(true);
@@ -180,24 +236,18 @@ export function PDFWithOverlays({
   );
 
   const handleFieldClick = (fieldId: string) => {
-    if (editMode === "type") {
-      setEditingFieldId(fieldId);
-      onFieldClick?.(fieldId);
-      onNavigateToQuestion?.(fieldId);
-    } else {
-      // Pointer mode - select field
-      onFieldClick?.(fieldId);
-      onNavigateToQuestion?.(fieldId);
-    }
+    // Single click always selects the field
+    onFieldClick?.(fieldId);
+    onNavigateToQuestion?.(fieldId);
   };
 
   const handleFieldDoubleClick = (fieldId: string) => {
+    // Double click starts editing (in either mode)
     if (editMode === "pointer") {
-      // Switch to type mode and start editing
       setEditMode("type");
-      setEditingFieldId(fieldId);
-      onFieldClick?.(fieldId);
     }
+    setEditingFieldId(fieldId);
+    onFieldClick?.(fieldId);
   };
 
   const handleFieldBlur = () => {
@@ -254,6 +304,7 @@ export function PDFWithOverlays({
     // Use local coords if available (during drag/resize), otherwise use field coords
     const coords = localCoords[field.id] || field.coordinates;
     const isActive = field.id === activeFieldId;
+    const isHighlighted = highlightedFieldIds.includes(field.id);
     const isEditing = field.id === editingFieldId;
     const value = fieldValues[field.id] || "";
     const isFilled = value.trim().length > 0;
@@ -262,6 +313,9 @@ export function PDFWithOverlays({
 
     // If editing in type mode, show input with blue border
     if (isEditing && editMode === "type") {
+      // Use Input for date fields, Textarea for everything else
+      const isDateField = field.field_type === "date";
+
       return (
         <div
           key={field.id}
@@ -273,19 +327,42 @@ export function PDFWithOverlays({
             minHeight: pixelCoords.height,
           }}
         >
-          <Input
-            type={field.field_type === "date" ? "date" : "text"}
-            value={value}
-            onChange={(e) => onFieldChange(field.id, e.target.value)}
-            onBlur={handleFieldBlur}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === "Escape") {
-                handleFieldBlur();
-              }
-            }}
-            className="h-full w-full text-xs p-1 bg-transparent border-0 focus:ring-0 focus-visible:ring-0"
-            autoFocus
-          />
+          {isDateField ? (
+            <Input
+              type="date"
+              value={value}
+              onChange={(e) => onFieldChange(field.id, e.target.value)}
+              onBlur={handleFieldBlur}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  handleFieldBlur();
+                }
+              }}
+              className="h-full w-full text-xs p-1 bg-transparent border-0 focus:ring-0 focus-visible:ring-0"
+              autoFocus
+            />
+          ) : (
+            <Textarea
+              value={value}
+              onChange={(e) => {
+                onFieldChange(field.id, e.target.value);
+                // Auto-resize textarea
+                e.target.style.height = "auto";
+                e.target.style.height = e.target.scrollHeight + "px";
+              }}
+              onBlur={handleFieldBlur}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  handleFieldBlur();
+                }
+                // Allow Enter to add line breaks (don't prevent default)
+              }}
+              className="w-full text-xs p-1 bg-transparent border-0 focus:ring-0 focus-visible:ring-0 resize-none overflow-hidden"
+              style={{ minHeight: pixelCoords.height }}
+              autoFocus
+              rows={1}
+            />
+          )}
         </div>
       );
     }
@@ -293,9 +370,11 @@ export function PDFWithOverlays({
     const baseClasses = `w-full h-full border-2 transition-colors ${
       isActive
         ? "border-blue-500 bg-blue-500/20 ring-2 ring-blue-500 ring-offset-1"
-        : isFilled
-          ? "border-green-500 bg-green-500/10 hover:bg-green-500/20"
-          : "border-orange-400 bg-orange-400/10 hover:bg-orange-400/20"
+        : isHighlighted
+          ? "border-purple-500 bg-purple-500/20 ring-2 ring-purple-400 ring-offset-1"
+          : isFilled
+            ? "border-green-500 bg-green-500/10 hover:bg-green-500/20"
+            : "border-orange-400 bg-orange-400/10 hover:bg-orange-400/20"
     }`;
 
     // In pointer mode with active field, use react-rnd for drag/resize
@@ -306,17 +385,27 @@ export function PDFWithOverlays({
           position={{ x: pixelCoords.x, y: pixelCoords.y }}
           size={{ width: pixelCoords.width, height: pixelCoords.height }}
           onDrag={(_e, d) => {
-            // Optimistic update during drag
-            const newCoords = pixelToPercent(d.x, d.y, coords.width, coords.height);
+            // Optimistic update during drag - keep original width/height (in percent)
+            const newCoords: NormalizedCoordinates = {
+              left: (d.x / containerSize.width) * 100,
+              top: (d.y / containerSize.height) * 100,
+              width: coords.width,  // Preserve original percentage width
+              height: coords.height, // Preserve original percentage height
+            };
             setLocalCoords((prev) => ({ ...prev, [field.id]: newCoords }));
           }}
           onDragStop={(_e, d) => {
-            const newCoords = pixelToPercent(d.x, d.y, coords.width, coords.height);
+            const newCoords: NormalizedCoordinates = {
+              left: (d.x / containerSize.width) * 100,
+              top: (d.y / containerSize.height) * 100,
+              width: coords.width,
+              height: coords.height,
+            };
             setLocalCoords((prev) => ({ ...prev, [field.id]: newCoords }));
             onFieldCoordinatesChange?.(field.id, newCoords);
           }}
           onResize={(_e, _direction, ref, _delta, position) => {
-            // Optimistic update during resize
+            // Optimistic update during resize - convert pixel dimensions to percent
             const newCoords = pixelToPercent(
               position.x,
               position.y,
@@ -368,7 +457,7 @@ export function PDFWithOverlays({
             title={`${field.label}${value ? `: ${value}` : ""}`}
           >
             {isFilled && (
-              <span className="absolute inset-0 flex items-center px-1 text-xs truncate text-gray-700 dark:text-gray-300 pointer-events-none">
+              <span className="absolute inset-0 px-1 text-xs text-gray-700 dark:text-gray-300 pointer-events-none whitespace-pre-wrap overflow-hidden">
                 {value}
               </span>
             )}
@@ -396,7 +485,7 @@ export function PDFWithOverlays({
         title={`${field.label}${value ? `: ${value}` : ""}`}
       >
         {isFilled && (
-          <span className="absolute inset-0 flex items-center px-1 text-xs truncate text-gray-700 dark:text-gray-300 pointer-events-none">
+          <span className="absolute inset-0 px-1 text-xs text-gray-700 dark:text-gray-300 pointer-events-none whitespace-pre-wrap overflow-hidden">
             {value}
           </span>
         )}
@@ -520,14 +609,16 @@ export function PDFWithOverlays({
           key={url}
           file={url}
           onLoadSuccess={onDocumentLoadSuccess}
+          onLoadError={onDocumentLoadError}
           loading={
             <div className="space-y-2">
               <Skeleton className="h-[600px] w-[450px]" />
             </div>
           }
           error={
-            <div className="text-destructive text-center p-4">
-              Failed to load PDF
+            <div className="flex flex-col items-center justify-center p-8 h-[600px] w-[450px]">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">Refreshing PDF...</p>
             </div>
           }
         >
@@ -553,6 +644,45 @@ export function PDFWithOverlays({
               </div>
             )}
           </div>
+
+          {/* Hidden pages for background capture - renders all pages not currently visible */}
+          {isDocumentLoaded && numPages > 1 && (
+            <div className="absolute -left-[9999px] opacity-0 pointer-events-none" aria-hidden="true">
+              {Array.from({ length: numPages }, (_, i) => i + 1)
+                .filter((pageNum) => pageNum !== currentPage)
+                .map((pageNum) => (
+                  <div
+                    key={`hidden-${pageNum}`}
+                    ref={(el) => {
+                      // Capture canvas after it renders
+                      if (el && onPageRender) {
+                        const observer = new MutationObserver(() => {
+                          const canvas = el.querySelector("canvas");
+                          if (canvas) {
+                            onPageRender(pageNum, canvas);
+                            observer.disconnect();
+                          }
+                        });
+                        observer.observe(el, { childList: true, subtree: true });
+                        // Check if already rendered
+                        const canvas = el.querySelector("canvas");
+                        if (canvas) {
+                          onPageRender(pageNum, canvas);
+                          observer.disconnect();
+                        }
+                      }
+                    }}
+                  >
+                    <Page
+                      pageNumber={pageNum}
+                      width={containerWidth * scale}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                    />
+                  </div>
+                ))}
+            </div>
+          )}
         </Document>
         )}
       </div>

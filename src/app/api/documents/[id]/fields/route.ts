@@ -261,9 +261,32 @@ export async function DELETE(
       deleted_at: new Date().toISOString(),
     });
 
-    console.log("[AutoForm] Field deleted:", { fieldId, documentId });
+    // Check for questions that only had this field - delete them
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const adminClient = createAdminClient();
 
-    return NextResponse.json({ success: true });
+    const { data: affectedQuestions } = await adminClient
+      .from("document_questions")
+      .select("id, field_ids")
+      .eq("document_id", documentId)
+      .contains("field_ids", [fieldId]);
+
+    let questionsDeleted = 0;
+    for (const q of affectedQuestions || []) {
+      const fieldIds = q.field_ids as string[];
+      // If this was the only field in the question, delete it
+      if (fieldIds.length === 1 && fieldIds[0] === fieldId) {
+        await adminClient
+          .from("document_questions")
+          .delete()
+          .eq("id", q.id);
+        questionsDeleted++;
+      }
+    }
+
+    console.log("[AutoForm] Field deleted:", { fieldId, documentId, questionsDeleted });
+
+    return NextResponse.json({ success: true, questionsDeleted });
   } catch (error) {
     console.error(`[AutoForm] Delete field error:`, error);
     return NextResponse.json(
