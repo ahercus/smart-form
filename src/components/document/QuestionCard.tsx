@@ -9,9 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { MicrophoneButton } from "@/components/ui/microphone-button";
 import { Check, Loader2, ChevronRight, PenLine } from "lucide-react";
-import { SignatureField } from "@/components/signature";
-import type { QuestionGroup } from "@/lib/types";
+import { useVoiceRecording } from "@/hooks/useVoiceRecording";
+import { toast } from "sonner";
+import type { QuestionGroup, SignatureType } from "@/lib/types";
 
 interface QuestionCardProps {
   question: QuestionGroup;
@@ -19,6 +21,7 @@ interface QuestionCardProps {
   onAnswer: (answer: string) => Promise<void>;
   isAnswering: boolean;
   onClick?: () => void;
+  onOpenSignatureManager?: (fieldIds: string[], type: SignatureType, questionId?: string) => void;
 }
 
 export function QuestionCard({
@@ -27,8 +30,22 @@ export function QuestionCard({
   onAnswer,
   isAnswering,
   onClick,
+  onOpenSignatureManager,
 }: QuestionCardProps) {
   const [answer, setAnswer] = useState(question.answer || "");
+
+  // Voice recording for text input types
+  const supportsVoice = ["text", "textarea"].includes(question.input_type);
+  const { state: voiceState, toggleRecording } = useVoiceRecording({
+    onTranscription: (text) => {
+      if (text.trim()) {
+        setAnswer((prev) => (prev ? `${prev} ${text}` : text));
+      }
+    },
+    onError: (error) => {
+      toast.error(error);
+    },
+  });
 
   const handleSubmit = async () => {
     if (!answer.trim()) return;
@@ -42,15 +59,18 @@ export function QuestionCard({
     }
   };
 
-  // Auto-submit when signature is drawn
+  // Auto-submit when signature/initials is drawn (when answer is set via SignatureManager)
   useEffect(() => {
-    if (question.input_type === "signature" && answer && answer.startsWith("data:image")) {
+    const isSignatureType = question.input_type === "signature" || question.input_type === "initials";
+    if (isSignatureType && answer && answer.startsWith("data:image") && question.status !== "answered") {
       onAnswer(answer);
     }
-  }, [answer, question.input_type, onAnswer]);
+  }, [answer, question.input_type, question.status, onAnswer]);
 
   if (question.status === "answered") {
-    const isSignature = question.input_type === "signature" && question.answer?.startsWith("data:image");
+    const isSignatureOrInitials =
+      (question.input_type === "signature" || question.input_type === "initials") &&
+      question.answer?.startsWith("data:image");
 
     return (
       <Card className="border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800">
@@ -63,11 +83,11 @@ export function QuestionCard({
               <p className="text-sm text-muted-foreground line-through">
                 {question.question}
               </p>
-              {isSignature ? (
+              {isSignatureOrInitials ? (
                 <div className="mt-1 bg-white rounded border p-1 inline-block">
                   <Image
                     src={question.answer || ""}
-                    alt="Signature"
+                    alt={question.input_type === "signature" ? "Signature" : "Initials"}
                     width={120}
                     height={40}
                     className="object-contain"
@@ -132,13 +152,45 @@ export function QuestionCard({
         );
 
       case "signature":
+      case "initials": {
+        const sigType = question.input_type as SignatureType;
+        const label = sigType === "signature" ? "signature" : "initials";
+        const hasValue = answer && answer.startsWith("data:image");
+
         return (
-          <SignatureField
-            value={answer}
-            onChange={setAnswer}
-            disabled={isAnswering}
-          />
+          <div
+            className={`relative border-2 border-dashed rounded-lg bg-muted/30 transition-colors ${
+              isAnswering ? "opacity-50" : "cursor-pointer hover:bg-muted/50 hover:border-primary/50"
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isAnswering && onOpenSignatureManager) {
+                onOpenSignatureManager(question.field_ids, sigType, question.id);
+              }
+            }}
+          >
+            {hasValue ? (
+              // Show signature preview
+              <div className="aspect-[3/1] relative bg-white rounded">
+                <Image
+                  src={answer}
+                  alt={sigType === "signature" ? "Your signature" : "Your initials"}
+                  fill
+                  className="object-contain p-2"
+                />
+              </div>
+            ) : (
+              // Empty state
+              <div className="aspect-[3/1] flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <PenLine className="h-6 w-6" />
+                <span className="text-sm">
+                  Tap to {hasValue ? "change" : "add"} {label}
+                </span>
+              </div>
+            )}
+          </div>
         );
+      }
 
       default:
         return (
@@ -176,11 +228,19 @@ export function QuestionCard({
 
           <p className="font-medium text-sm">{question.question}</p>
 
-          {question.input_type === "signature" ? (
+          {question.input_type === "signature" || question.input_type === "initials" ? (
             <div>{renderInput()}</div>
           ) : (
             <div className="flex gap-2">
               <div className="flex-1">{renderInput()}</div>
+              {supportsVoice && (
+                <MicrophoneButton
+                  state={voiceState}
+                  onClick={toggleRecording}
+                  size="sm"
+                  disabled={isAnswering}
+                />
+              )}
               <Button
                 onClick={handleSubmit}
                 disabled={!answer.trim() || isAnswering}

@@ -66,13 +66,65 @@ export async function GET(
       // Convert normalized coordinates (percentages) to PDF points
       const coords = field.coordinates;
       const x = (coords.left / 100) * width;
-      const y = height - ((coords.top / 100) * height) - ((coords.height / 100) * height * 0.7);
       const fieldWidth = (coords.width / 100) * width;
       const fieldHeight = (coords.height / 100) * height;
+      // Y position for PDF (bottom-up coordinate system)
+      const y = height - ((coords.top / 100) * height) - fieldHeight;
+
+      // Handle signature/initials fields (data URL images)
+      if (
+        (field.field_type === "signature" || field.field_type === "initials") &&
+        field.value.startsWith("data:image")
+      ) {
+        try {
+          // Extract base64 data from data URL
+          const base64Match = field.value.match(/^data:image\/\w+;base64,(.+)$/);
+          if (base64Match) {
+            const base64Data = base64Match[1];
+            const imageBytes = Buffer.from(base64Data, "base64");
+
+            // Embed the PNG image
+            const pngImage = await pdfDoc.embedPng(imageBytes);
+
+            // Calculate dimensions to fit within field while maintaining aspect ratio
+            const imageAspect = pngImage.width / pngImage.height;
+            const fieldAspect = fieldWidth / fieldHeight;
+
+            let drawWidth = fieldWidth;
+            let drawHeight = fieldHeight;
+
+            if (imageAspect > fieldAspect) {
+              // Image is wider than field - fit to width
+              drawHeight = fieldWidth / imageAspect;
+            } else {
+              // Image is taller than field - fit to height
+              drawWidth = fieldHeight * imageAspect;
+            }
+
+            // Center the image within the field
+            const offsetX = (fieldWidth - drawWidth) / 2;
+            const offsetY = (fieldHeight - drawHeight) / 2;
+
+            page.drawImage(pngImage, {
+              x: x + offsetX,
+              y: y + offsetY,
+              width: drawWidth,
+              height: drawHeight,
+            });
+          }
+        } catch (imgError) {
+          console.error("[AutoForm] Failed to embed signature image:", imgError);
+          // Fall through to text rendering as fallback
+        }
+        continue;
+      }
 
       // Calculate font size based on field height (use 70% of field height)
       let fontSize = Math.min(fieldHeight * 0.7, 12);
       fontSize = Math.max(fontSize, 6); // Minimum 6pt
+
+      // Adjust Y for text (add offset for baseline)
+      const textY = y + fieldHeight * 0.3;
 
       // Handle checkbox fields
       if (field.field_type === "checkbox") {
@@ -80,7 +132,7 @@ export async function GET(
           // Draw a checkmark
           page.drawText("✓", {
             x: x + fieldWidth * 0.3,
-            y: y,
+            y: textY,
             size: fontSize * 1.2,
             font,
             color: rgb(0, 0, 0),
@@ -108,7 +160,7 @@ export async function GET(
 
       page.drawText(displayText, {
         x: x + 2, // Small left padding
-        y: y,
+        y: textY,
         size: fontSize,
         font,
         color: rgb(0, 0, 0),

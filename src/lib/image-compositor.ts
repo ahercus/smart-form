@@ -86,6 +86,8 @@ function getFieldColor(fieldType: string): string {
       return "#06b6d4"; // cyan
     case "signature":
       return "#ef4444"; // red
+    case "initials":
+      return "#ec4899"; // pink
     default:
       return "#6b7280"; // gray
   }

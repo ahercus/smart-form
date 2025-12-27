@@ -9,11 +9,12 @@ import { PenLine, X, Loader2 } from "lucide-react";
 import { SignaturePad } from "./SignaturePad";
 import { SignaturePicker } from "./SignaturePicker";
 import { useSignatures } from "@/hooks/useSignatures";
-import type { Signature } from "@/lib/types";
+import type { Signature, SignatureType } from "@/lib/types";
 
 interface SignatureFieldProps {
   value: string; // data URL or storage path of current signature
   onChange: (value: string) => void;
+  type?: SignatureType; // 'signature' or 'initials'
   disabled?: boolean;
   className?: string;
 }
@@ -21,6 +22,7 @@ interface SignatureFieldProps {
 export function SignatureField({
   value,
   onChange,
+  type = "signature",
   disabled = false,
   className = "",
 }: SignatureFieldProps) {
@@ -30,12 +32,15 @@ export function SignatureField({
   const [isSaving, setIsSaving] = useState(false);
 
   const {
-    signatures,
+    signaturesByType,
     isLoading,
     createSignature,
     deleteSignature,
     setDefaultSignature,
   } = useSignatures();
+
+  // Get signatures filtered by type
+  const signatures = signaturesByType(type);
 
   // Detect mobile
   useEffect(() => {
@@ -50,7 +55,7 @@ export function SignatureField({
   const handleClick = () => {
     if (disabled) return;
 
-    // If user has saved signatures, show picker
+    // If user has saved signatures of this type, show picker
     // Otherwise, go directly to signature pad
     if (signatures.length > 0) {
       setShowPicker(true);
@@ -79,7 +84,7 @@ export function SignatureField({
     // If user wants to save for later, create signature record
     if (saveForLater) {
       setIsSaving(true);
-      await createSignature(blob, name, dataUrl);
+      await createSignature(blob, name, dataUrl, type);
       setIsSaving(false);
     }
 
@@ -91,7 +96,13 @@ export function SignatureField({
     onChange("");
   };
 
+  const handleSetDefault = async (id: string) => {
+    return setDefaultSignature(id, type);
+  };
+
   const hasSignature = value && value.length > 0;
+  const label = type === "signature" ? "signature" : "initials";
+  const Label = type === "signature" ? "Signature" : "Initials";
 
   return (
     <>
@@ -110,7 +121,7 @@ export function SignatureField({
           <div className="relative aspect-[3/1] bg-white">
             <Image
               src={value}
-              alt="Your signature"
+              alt={`Your ${label}`}
               fill
               className="object-contain p-2"
             />
@@ -120,7 +131,7 @@ export function SignatureField({
                 size="icon"
                 className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity"
                 onClick={handleClear}
-                title="Clear signature"
+                title={`Clear ${label}`}
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -132,15 +143,15 @@ export function SignatureField({
             {isSaving ? (
               <>
                 <Loader2 className="h-6 w-6 animate-spin" />
-                <span className="text-sm">Saving signature...</span>
+                <span className="text-sm">Saving {label}...</span>
               </>
             ) : (
               <>
                 <PenLine className="h-6 w-6" />
                 <span className="text-sm">
                   {signatures.length > 0
-                    ? "Tap to select signature"
-                    : "Tap to add signature"}
+                    ? `Tap to select ${label}`
+                    : `Tap to add ${label}`}
                 </span>
               </>
             )}
@@ -160,8 +171,9 @@ export function SignatureField({
           setShowPad(true);
         }}
         onDelete={deleteSignature}
-        onSetDefault={setDefaultSignature}
+        onSetDefault={handleSetDefault}
         isMobile={isMobile}
+        type={type}
       />
 
       {/* Signature Pad */}
@@ -171,6 +183,7 @@ export function SignatureField({
         onSave={handleSaveSignature}
         defaultSaveForLater={true}
         isMobile={isMobile}
+        type={type}
       />
     </>
   );

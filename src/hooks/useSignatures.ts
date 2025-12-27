@@ -1,21 +1,23 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Signature } from "@/lib/types";
+import type { Signature, SignatureType } from "@/lib/types";
 
 interface UseSignaturesReturn {
   signatures: Signature[];
+  signaturesByType: (type: SignatureType) => Signature[];
   isLoading: boolean;
   error: string | null;
   createSignature: (
     blob: Blob,
     name: string,
     previewDataUrl: string,
+    type: SignatureType,
     setAsDefault?: boolean
   ) => Promise<Signature | null>;
   deleteSignature: (id: string) => Promise<boolean>;
-  setDefaultSignature: (id: string) => Promise<boolean>;
+  setDefaultSignature: (id: string, type: SignatureType) => Promise<boolean>;
   refreshSignatures: () => Promise<void>;
 }
 
@@ -63,11 +65,18 @@ export function useSignatures(): UseSignaturesReturn {
     fetchSignatures();
   }, [fetchSignatures]);
 
+  // Filter signatures by type
+  const signaturesByType = useCallback(
+    (type: SignatureType) => signatures.filter((s) => s.type === type),
+    [signatures]
+  );
+
   const createSignature = useCallback(
     async (
       blob: Blob,
       name: string,
       previewDataUrl: string,
+      type: SignatureType,
       setAsDefault: boolean = false
     ): Promise<Signature | null> => {
       try {
@@ -80,7 +89,7 @@ export function useSignatures(): UseSignaturesReturn {
         }
 
         // Generate unique filename
-        const filename = `${user.id}/${crypto.randomUUID()}.png`;
+        const filename = `${user.id}/${type}/${crypto.randomUUID()}.png`;
 
         // Upload to storage
         const { error: uploadError } = await supabase.storage
@@ -94,12 +103,17 @@ export function useSignatures(): UseSignaturesReturn {
           throw uploadError;
         }
 
-        // If setting as default, first unset any existing default
-        if (setAsDefault) {
+        // Check if this is the first of this type
+        const existingOfType = signatures.filter((s) => s.type === type);
+        const isFirstOfType = existingOfType.length === 0;
+
+        // If setting as default, first unset any existing default of this type
+        if (setAsDefault || isFirstOfType) {
           await supabase
             .from("signatures")
             .update({ is_default: false })
             .eq("user_id", user.id)
+            .eq("type", type)
             .eq("is_default", true);
         }
 
@@ -111,7 +125,8 @@ export function useSignatures(): UseSignaturesReturn {
             name,
             storage_path: filename,
             preview_data_url: previewDataUrl,
-            is_default: setAsDefault || signatures.length === 0, // First signature is default
+            type,
+            is_default: setAsDefault || isFirstOfType, // First of type is default
           })
           .select()
           .single();
@@ -124,14 +139,19 @@ export function useSignatures(): UseSignaturesReturn {
 
         // Update local state
         setSignatures((prev) => {
-          // If new signature is default, unset others
+          // If new signature is default, unset others of same type
           if (data.is_default) {
-            return [data, ...prev.map((s) => ({ ...s, is_default: false }))];
+            return [
+              data,
+              ...prev.map((s) =>
+                s.type === type ? { ...s, is_default: false } : s
+              ),
+            ];
           }
           return [data, ...prev];
         });
 
-        console.log("[AutoForm] Signature created:", { id: data.id, name });
+        console.log("[AutoForm] Signature created:", { id: data.id, name, type });
         return data;
       } catch (err) {
         console.error("[AutoForm] Failed to create signature:", err);
@@ -141,7 +161,7 @@ export function useSignatures(): UseSignaturesReturn {
         return null;
       }
     },
-    [supabase, signatures.length]
+    [supabase, signatures]
   );
 
   const deleteSignature = useCallback(
@@ -189,7 +209,7 @@ export function useSignatures(): UseSignaturesReturn {
   );
 
   const setDefaultSignature = useCallback(
-    async (id: string): Promise<boolean> => {
+    async (id: string, type: SignatureType): Promise<boolean> => {
       try {
         const {
           data: { user },
@@ -199,11 +219,12 @@ export function useSignatures(): UseSignaturesReturn {
           throw new Error("Not authenticated");
         }
 
-        // Unset current default
+        // Unset current default of this type
         await supabase
           .from("signatures")
           .update({ is_default: false })
           .eq("user_id", user.id)
+          .eq("type", type)
           .eq("is_default", true);
 
         // Set new default
@@ -220,11 +241,11 @@ export function useSignatures(): UseSignaturesReturn {
         setSignatures((prev) =>
           prev.map((s) => ({
             ...s,
-            is_default: s.id === id,
+            is_default: s.id === id ? true : s.type === type ? false : s.is_default,
           }))
         );
 
-        console.log("[AutoForm] Default signature set:", { id });
+        console.log("[AutoForm] Default signature set:", { id, type });
         return true;
       } catch (err) {
         console.error("[AutoForm] Failed to set default signature:", err);
@@ -243,6 +264,7 @@ export function useSignatures(): UseSignaturesReturn {
 
   return {
     signatures,
+    signaturesByType,
     isLoading,
     error,
     createSignature,

@@ -14,11 +14,12 @@ import { FolderOpen, Save, Download, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { PDFWithOverlays } from "./PDFWithOverlays";
 import { QuestionsPanel } from "./QuestionsPanel";
+import { SignatureManager } from "@/components/signature";
 import { useDocumentRealtime } from "@/hooks/useDocumentRealtime";
 import { useQuestions } from "@/hooks/useQuestions";
 import { useFieldSync } from "@/hooks/useFieldSync";
 import { usePageImageUpload } from "@/hooks/usePageImageUpload";
-import type { NormalizedCoordinates } from "@/lib/types";
+import type { NormalizedCoordinates, SignatureType } from "@/lib/types";
 
 interface DocumentPageProps {
   documentId: string;
@@ -31,6 +32,14 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
   const [scrollToQuestionId, setScrollToQuestionId] = useState<string | null>(null);
   const [scrollToFieldId, setScrollToFieldId] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+
+  // Signature Manager state
+  const [showSignatureManager, setShowSignatureManager] = useState(false);
+  const [signatureContext, setSignatureContext] = useState<{
+    fieldIds: string[];
+    type: SignatureType;
+    questionId?: string;
+  } | null>(null);
 
   // Detect mobile screen size
   useEffect(() => {
@@ -285,6 +294,48 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
     },
     [answerQuestion]
   );
+
+  // Handle opening signature manager for a question
+  const handleOpenSignatureManager = useCallback(
+    (fieldIds: string[], type: SignatureType, questionId?: string) => {
+      setSignatureContext({ fieldIds, type, questionId });
+      setShowSignatureManager(true);
+    },
+    []
+  );
+
+  // Handle signature insert from manager
+  const handleSignatureInsert = useCallback(
+    async (dataUrl: string, type: SignatureType) => {
+      if (signatureContext) {
+        // Update all field values for the signature fields
+        for (const fieldId of signatureContext.fieldIds) {
+          onFieldChange(fieldId, dataUrl);
+        }
+
+        // If this was from a question, also answer it
+        if (signatureContext.questionId) {
+          try {
+            await answerQuestion(signatureContext.questionId, dataUrl);
+          } catch {
+            // Field values are already updated, just log the error
+            console.error("[AutoForm] Failed to mark question as answered");
+          }
+        }
+
+        setSignatureContext(null);
+      }
+    },
+    [signatureContext, onFieldChange, answerQuestion]
+  );
+
+  // Handle signature manager close
+  const handleSignatureManagerClose = useCallback((open: boolean) => {
+    setShowSignatureManager(open);
+    if (!open) {
+      setSignatureContext(null);
+    }
+  }, []);
 
   // Handle save
   const handleSave = useCallback(async () => {
@@ -559,10 +610,19 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
               answering={answering}
               onGoToQuestion={handleGoToQuestion}
               scrollToQuestionId={scrollToQuestionId}
+              onOpenSignatureManager={handleOpenSignatureManager}
             />
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
+
+      {/* Global Signature Manager */}
+      <SignatureManager
+        open={showSignatureManager}
+        onOpenChange={handleSignatureManagerClose}
+        onInsert={signatureContext ? handleSignatureInsert : undefined}
+        initialTab={signatureContext?.type || "signature"}
+      />
     </div>
   );
 }

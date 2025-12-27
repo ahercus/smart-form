@@ -18,6 +18,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Eraser, Undo2, X } from "lucide-react";
+import type { SignatureType } from "@/lib/types";
 
 interface Point {
   x: number;
@@ -31,6 +32,7 @@ interface SignaturePadProps {
   onSave: (dataUrl: string, blob: Blob, name: string, saveForLater: boolean) => void;
   defaultSaveForLater?: boolean;
   isMobile?: boolean;
+  type?: SignatureType;
 }
 
 export function SignaturePad({
@@ -39,15 +41,19 @@ export function SignaturePad({
   onSave,
   defaultSaveForLater = true,
   isMobile = false,
+  type = "signature",
 }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
   const [saveForLater, setSaveForLater] = useState(defaultSaveForLater);
-  const [signatureName, setSignatureName] = useState("My Signature");
+  const [signatureName, setSignatureName] = useState(type === "signature" ? "My Signature" : "My Initials");
   const [history, setHistory] = useState<ImageData[]>([]);
   const lastPoint = useRef<Point | null>(null);
+
+  const label = type === "signature" ? "signature" : "initials";
+  const labelCapitalized = type === "signature" ? "Signature" : "Initials";
 
   // Initialize canvas with high DPI support
   const initCanvas = useCallback(() => {
@@ -97,10 +103,10 @@ export function SignaturePad({
     if (open) {
       setHasDrawn(false);
       setSaveForLater(defaultSaveForLater);
-      setSignatureName("My Signature");
+      setSignatureName(type === "signature" ? "My Signature" : "My Initials");
       setHistory([]);
     }
-  }, [open, defaultSaveForLater]);
+  }, [open, defaultSaveForLater, type]);
 
   const getCoordinates = (
     e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent
@@ -283,7 +289,7 @@ export function SignaturePad({
           {!hasDrawn && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <p className="text-muted-foreground text-sm">
-                Draw your signature here
+                Draw your {label} here
               </p>
             </div>
           )}
@@ -337,7 +343,7 @@ export function SignaturePad({
           </Button>
         </div>
         <Button onClick={handleSave} disabled={!hasDrawn}>
-          Use This Signature
+          Use This {labelCapitalized}
         </Button>
       </div>
     </div>
@@ -348,7 +354,7 @@ export function SignaturePad({
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent className="h-[85vh]">
           <DrawerHeader className="flex items-center justify-between">
-            <DrawerTitle>Draw Your Signature</DrawerTitle>
+            <DrawerTitle>Draw Your {labelCapitalized}</DrawerTitle>
             <Button
               variant="ghost"
               size="icon"
@@ -367,7 +373,7 @@ export function SignaturePad({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl h-[70vh] flex flex-col p-0">
         <DialogHeader className="px-4 pt-4 pb-0">
-          <DialogTitle>Draw Your Signature</DialogTitle>
+          <DialogTitle>Draw Your {labelCapitalized}</DialogTitle>
         </DialogHeader>
         {content}
       </DialogContent>

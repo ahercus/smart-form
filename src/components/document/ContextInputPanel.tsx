@@ -4,8 +4,10 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
+import { MicrophoneButton } from "@/components/ui/microphone-button";
 import { Sparkles, Loader2, ChevronRight, Lightbulb, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import type { ProcessingProgress, Document } from "@/lib/types";
 
 interface ContextInputPanelProps {
@@ -26,6 +28,18 @@ export function ContextInputPanel({
   const [submitting, setSubmitting] = useState(false);
   const [tailoredQuestion, setTailoredQuestion] = useState<string | null>(null);
   const [loadingQuestion, setLoadingQuestion] = useState(true);
+
+  // Voice recording
+  const { state: voiceState, toggleRecording } = useVoiceRecording({
+    onTranscription: (text) => {
+      if (text.trim()) {
+        setContext((prev) => (prev ? `${prev} ${text}` : text));
+      }
+    },
+    onError: (error) => {
+      toast.error(error);
+    },
+  });
 
   // Fetch tailored context question on mount
   useEffect(() => {
@@ -179,14 +193,24 @@ export function ContextInputPanel({
             </div>
           </div>
 
-          <Textarea
-            value={context}
-            onChange={(e) => setContext(e.target.value)}
-            placeholder={loadingQuestion ? "Loading..." : "Type your answer here..."}
-            rows={6}
-            className="resize-none"
-            disabled={submitting || loadingQuestion}
-          />
+          <div className="relative">
+            <Textarea
+              value={context}
+              onChange={(e) => setContext(e.target.value)}
+              placeholder={loadingQuestion ? "Loading..." : "Type or speak your answer..."}
+              rows={6}
+              className="resize-none pr-14"
+              disabled={submitting || loadingQuestion}
+            />
+            <div className="absolute bottom-2 right-2">
+              <MicrophoneButton
+                state={voiceState}
+                onClick={toggleRecording}
+                size="lg"
+                disabled={submitting || loadingQuestion}
+              />
+            </div>
+          </div>
 
           <div className="space-y-2">
             <Button

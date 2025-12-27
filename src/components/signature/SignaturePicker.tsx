@@ -29,7 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Plus, Star, Trash2, X } from "lucide-react";
-import type { Signature } from "@/lib/types";
+import type { Signature, SignatureType } from "@/lib/types";
 
 interface SignaturePickerProps {
   open: boolean;
@@ -41,6 +41,7 @@ interface SignaturePickerProps {
   onDelete: (id: string) => Promise<boolean>;
   onSetDefault: (id: string) => Promise<boolean>;
   isMobile?: boolean;
+  type?: SignatureType;
 }
 
 interface SignatureCardProps {
@@ -143,9 +144,13 @@ export function SignaturePicker({
   onDelete,
   onSetDefault,
   isMobile = false,
+  type = "signature",
 }: SignaturePickerProps) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const label = type === "signature" ? "Signature" : "Initials";
+  const labelLower = type === "signature" ? "signature" : "initials";
 
   const handleDelete = async () => {
     if (!deleteConfirmId) return;
@@ -174,9 +179,9 @@ export function SignaturePicker({
               <Plus className="h-8 w-8 text-muted-foreground" />
             </div>
             <p className="text-muted-foreground mb-4">
-              No saved signatures yet
+              No saved {labelLower}s yet
             </p>
-            <Button onClick={onCreateNew}>Create Your First Signature</Button>
+            <Button onClick={onCreateNew}>Create Your First {label}</Button>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
@@ -208,7 +213,7 @@ export function SignaturePicker({
             }}
           >
             <Plus className="h-4 w-4 mr-2" />
-            Create New Signature
+            Create New {label}
           </Button>
         </div>
       )}
@@ -220,9 +225,9 @@ export function SignaturePicker({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete signature?</AlertDialogTitle>
+            <AlertDialogTitle>Delete {labelLower}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This signature will be permanently deleted. This action cannot be
+              This {labelLower} will be permanently deleted. This action cannot be
               undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -246,7 +251,7 @@ export function SignaturePicker({
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent className="h-[70vh]">
           <DrawerHeader className="flex items-center justify-between">
-            <DrawerTitle>Select Signature</DrawerTitle>
+            <DrawerTitle>Select {label}</DrawerTitle>
             <Button
               variant="ghost"
               size="icon"
@@ -265,7 +270,7 @@ export function SignaturePicker({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[70vh] flex flex-col p-0">
         <DialogHeader className="px-4 pt-4 pb-0">
-          <DialogTitle>Select Signature</DialogTitle>
+          <DialogTitle>Select {label}</DialogTitle>
         </DialogHeader>
         {content}
       </DialogContent>

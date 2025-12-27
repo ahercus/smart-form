@@ -61,6 +61,7 @@ When you find fragmented table cells:
 - Green boxes = checkboxes
 - Cyan boxes = radio buttons
 - Red boxes = signature fields
+- Pink boxes = initials fields
 - Gray boxes = unknown type
 
 ## Response Format
@@ -107,7 +108,8 @@ Document AI did not detect any fields on this page. You need to:
 - date: Date input fields
 - checkbox: Checkboxes or tick boxes
 - radio: Radio button groups
-- signature: Signature lines or boxes
+- signature: Signature lines or boxes (full signature)
+- initials: Initial boxes (small boxes for writing initials, often near signature lines or at bottom of pages)
 
 ## Response Format
 Return ONLY valid JSON:
@@ -199,7 +201,8 @@ Each field has a "charLimits" property showing MAX and RECOMMENDED character cou
 - "textarea": Multi-line text for longer responses (comments, descriptions)
 - "checkbox": Yes/no questions
 - "date": Date inputs
-- "signature": Signature fields
+- "signature": Signature fields (full signature)
+- "initials": Initials fields (small boxes for writing initials)
 
 ## Grouping Multiple Fields
 You CAN ask ONE question that fills MULTIPLE fields (even different field types):

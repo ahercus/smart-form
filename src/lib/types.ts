@@ -82,7 +82,11 @@ export type FieldType =
   | "radio"
   | "date"
   | "signature"
+  | "initials"
   | "unknown";
+
+// Signature type (signature vs initials)
+export type SignatureType = "signature" | "initials";
 
 // Detection source for fields
 export type DetectionSource = "document_ai" | "azure_document_intelligence" | "gemini_refinement" | "gemini_vision" | "manual";
@@ -107,6 +111,7 @@ export interface Signature {
   storage_path: string;
   preview_data_url: string | null; // Base64 thumbnail for instant display
   is_default: boolean;
+  type: SignatureType; // 'signature' or 'initials'
   created_at: string;
   updated_at: string;
 }

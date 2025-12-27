@@ -6,7 +6,7 @@ import { Sparkles } from "lucide-react";
 import { QuestionCard } from "./QuestionCard";
 import { ProcessingOverlay } from "./ProcessingOverlay";
 import { ContextInputPanel } from "./ContextInputPanel";
-import type { QuestionGroup, ProcessingProgress, Document } from "@/lib/types";
+import type { QuestionGroup, ProcessingProgress, Document, SignatureType } from "@/lib/types";
 
 export interface QuestionsPanelRef {
   scrollToQuestion: (questionId: string) => void;
@@ -22,6 +22,7 @@ interface QuestionsPanelProps {
   answering: string | null;
   onGoToQuestion: (questionId: string) => void;
   scrollToQuestionId?: string | null;
+  onOpenSignatureManager?: (fieldIds: string[], type: SignatureType, questionId?: string) => void;
 }
 
 export function QuestionsPanel({
@@ -34,6 +35,7 @@ export function QuestionsPanel({
   answering,
   onGoToQuestion,
   scrollToQuestionId,
+  onOpenSignatureManager,
 }: QuestionsPanelProps) {
   const questionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -115,6 +117,7 @@ export function QuestionsPanel({
                   onAnswer={(answer) => onAnswer(question.id, answer)}
                   isAnswering={answering === question.id}
                   onClick={() => onGoToQuestion(question.id)}
+                  onOpenSignatureManager={onOpenSignatureManager}
                 />
               </div>
             ))}
@@ -152,6 +155,7 @@ export function QuestionsPanel({
                   isActive={false}
                   onAnswer={() => Promise.resolve()}
                   isAnswering={false}
+                  onOpenSignatureManager={onOpenSignatureManager}
                 />
               ))}
             </div>

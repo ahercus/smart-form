@@ -67,17 +67,27 @@ export function useDocuments(): UseDocumentsReturn {
 
   const deleteDocument = useCallback(
     async (id: string): Promise<void> => {
-      const res = await fetch(`/api/documents/${id}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to delete document");
-      }
-
+      // Optimistic update - remove from UI immediately
+      const previousDocuments = documents;
       setDocuments((prev) => prev.filter((d) => d.id !== id));
+
+      try {
+        const res = await fetch(`/api/documents/${id}`, {
+          method: "DELETE",
+        });
+
+        if (!res.ok) {
+          // Revert on failure
+          setDocuments(previousDocuments);
+          throw new Error("Failed to delete document");
+        }
+      } catch (err) {
+        // Revert on error
+        setDocuments(previousDocuments);
+        throw err;
+      }
     },
-    []
+    [documents]
   );
 
   return {

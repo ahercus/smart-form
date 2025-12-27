@@ -11,6 +11,7 @@ import {
   Copy,
   Plus,
   Trash2,
+  PenLine,
 } from "lucide-react";
 
 export type EditMode = "type" | "pointer";
@@ -27,6 +28,7 @@ interface PDFControlsProps {
   onAddField: () => void;
   onCopyField: () => void;
   onDeleteField: () => void;
+  onOpenSignatureManager?: () => void;
 }
 
 export function PDFControls({
@@ -41,6 +43,7 @@ export function PDFControls({
   onAddField,
   onCopyField,
   onDeleteField,
+  onOpenSignatureManager,
 }: PDFControlsProps) {
   return (
     <div className="flex items-center justify-between p-2 border-b bg-muted/50">
@@ -117,6 +120,20 @@ export function PDFControls({
         >
           <Trash2 className="h-4 w-4" />
         </Button>
+        {onOpenSignatureManager && (
+          <>
+            <div className="w-px h-6 bg-border mx-1" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onOpenSignatureManager}
+              title="Manage signatures & initials"
+            >
+              <PenLine className="h-4 w-4" />
+            </Button>
+          </>
+        )}
       </div>
 
       {/* Right: Zoom controls */}

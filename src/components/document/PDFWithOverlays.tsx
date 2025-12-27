@@ -10,9 +10,10 @@ import {
   DraggableFieldOverlay,
   ReadonlyFieldOverlay,
 } from "./field-overlays";
+import { SignatureManager } from "@/components/signature";
 import { useCoordinateConversion } from "@/hooks/pdf/useCoordinateConversion";
 import { useFieldKeyboardShortcuts } from "@/hooks/pdf/useFieldKeyboardShortcuts";
-import type { ExtractedField, NormalizedCoordinates } from "@/lib/types";
+import type { ExtractedField, NormalizedCoordinates, SignatureType } from "@/lib/types";
 
 // Dynamically import react-pdf to avoid SSR issues
 const Page = dynamic(
@@ -110,6 +111,11 @@ export function PDFWithOverlays({
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [localCoords, setLocalCoords] = useState<Record<string, NormalizedCoordinates>>({});
   const [deletedFieldIds, setDeletedFieldIds] = useState<Set<string>>(new Set());
+  const [showSignatureManager, setShowSignatureManager] = useState(false);
+  const [signatureFieldContext, setSignatureFieldContext] = useState<{
+    fieldId: string;
+    type: SignatureType;
+  } | null>(null);
   const pageRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -282,6 +288,26 @@ export function PDFWithOverlays({
     }
   };
 
+  const handleSignatureClick = (fieldId: string, type: SignatureType) => {
+    setSignatureFieldContext({ fieldId, type });
+    setShowSignatureManager(true);
+    onFieldClick?.(fieldId);
+  };
+
+  const handleSignatureInsert = (dataUrl: string) => {
+    if (signatureFieldContext) {
+      onFieldChange(signatureFieldContext.fieldId, dataUrl);
+      setSignatureFieldContext(null);
+    }
+  };
+
+  const handleSignatureManagerClose = (open: boolean) => {
+    setShowSignatureManager(open);
+    if (!open) {
+      setSignatureFieldContext(null);
+    }
+  };
+
   const renderFieldOverlay = (field: ExtractedField) => {
     const coords = localCoords[field.id] || field.coordinates;
     const isActive = field.id === activeFieldId;
@@ -307,6 +333,7 @@ export function PDFWithOverlays({
           onValueChange={onFieldChange}
           onBlur={handleFieldBlur}
           containerWidth={containerSize.width}
+          onSignatureClick={handleSignatureClick}
         />
       );
     }
@@ -329,6 +356,7 @@ export function PDFWithOverlays({
           onCoordinatesChange={onFieldCoordinatesChange || (() => {})}
           onLocalCoordsChange={handleLocalCoordsChange}
           pixelToPercent={pixelToPercent}
+          onSignatureClick={handleSignatureClick}
         />
       );
     }
@@ -345,6 +373,7 @@ export function PDFWithOverlays({
         isFilled={isFilled}
         onClick={handleFieldClick}
         onDoubleClick={handleFieldDoubleClick}
+        onSignatureClick={handleSignatureClick}
       />
     );
   };
@@ -363,6 +392,14 @@ export function PDFWithOverlays({
         onAddField={handleAddField}
         onCopyField={handleCopyField}
         onDeleteField={handleDeleteField}
+        onOpenSignatureManager={() => setShowSignatureManager(true)}
+      />
+
+      <SignatureManager
+        open={showSignatureManager}
+        onOpenChange={handleSignatureManagerClose}
+        onInsert={signatureFieldContext ? handleSignatureInsert : undefined}
+        initialTab={signatureFieldContext?.type || "signature"}
       />
 
       {/* PDF Display */}

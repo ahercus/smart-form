@@ -1,4 +1,4 @@
-import type { ExtractedField, NormalizedCoordinates } from "@/lib/types";
+import type { ExtractedField, NormalizedCoordinates, SignatureType } from "@/lib/types";
 
 export interface PixelCoordinates {
   x: number;
@@ -16,6 +16,8 @@ export interface BaseFieldOverlayProps {
   isFilled: boolean;
   onClick: (fieldId: string) => void;
   onDoubleClick: (fieldId: string) => void;
+  /** Called when clicking on a signature/initials field - opens SignatureManager */
+  onSignatureClick?: (fieldId: string, type: SignatureType) => void;
 }
 
 export interface EditableFieldOverlayProps extends BaseFieldOverlayProps {
@@ -41,5 +43,21 @@ export function getFieldClasses(isActive: boolean, isHighlighted: boolean, isFil
         : isFilled
           ? "border-green-500 bg-green-500/10 hover:bg-green-500/20"
           : "border-orange-400 bg-orange-400/10 hover:bg-orange-400/20"
+  }`;
+}
+
+export function isSignatureField(fieldType: string): boolean {
+  return fieldType === "signature" || fieldType === "initials";
+}
+
+export function getSignatureFieldClasses(isActive: boolean, isHighlighted: boolean, isFilled: boolean): string {
+  return `w-full h-full border-2 border-dashed transition-colors ${
+    isActive
+      ? "border-blue-500 bg-blue-500/10 ring-2 ring-blue-500 ring-offset-1"
+      : isHighlighted
+        ? "border-purple-500 bg-purple-500/10 ring-2 ring-purple-400 ring-offset-1"
+        : isFilled
+          ? "border-green-500 bg-green-500/5 hover:bg-green-500/10"
+          : "border-red-400 bg-red-400/5 hover:bg-red-400/10"
   }`;
 }

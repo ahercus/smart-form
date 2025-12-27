@@ -73,6 +73,16 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
           <SignatureField
             value={value}
             onChange={onChange}
+            type="signature"
+          />
+        );
+
+      case "initials":
+        return (
+          <SignatureField
+            value={value}
+            onChange={onChange}
+            type="initials"
           />
         );
 

@@ -1,11 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { FileText, Trash2, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { Document, DocumentStatus } from "@/lib/types";
 
 interface DocumentCardProps {
@@ -26,8 +37,18 @@ const STATUS_CONFIG: Record<
 };
 
 export function DocumentCard({ document, onDelete }: DocumentCardProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const config = STATUS_CONFIG[document.status];
   const isProcessing = !["ready", "failed"].includes(document.status);
+
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = () => {
+    setShowDeleteConfirm(false);
+    onDelete?.(document.id);
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString(undefined, {
@@ -86,7 +107,7 @@ export function DocumentCard({ document, onDelete }: DocumentCardProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => onDelete(document.id)}
+                onClick={handleDeleteClick}
                 disabled={isProcessing}
               >
                 <Trash2 className="h-4 w-4" />
@@ -95,6 +116,27 @@ export function DocumentCard({ document, onDelete }: DocumentCardProps) {
           </div>
         </div>
       </CardContent>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              &ldquo;{document.original_filename}&rdquo; will be permanently deleted.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
