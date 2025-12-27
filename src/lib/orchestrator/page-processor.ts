@@ -84,41 +84,64 @@ export async function processPage(
     contextNotes,
   });
 
-  // Save questions to database
+  // Save questions to database (continue on individual failures)
+  let savedCount = 0;
   for (const q of result.questions) {
-    await saveQuestion(documentId, {
-      question: q.question,
-      fieldIds: q.fieldIds,
-      inputType: q.inputType,
-      profileKey: q.profileKey,
-      pageNumber,
-    });
+    try {
+      await saveQuestion(documentId, {
+        question: q.question,
+        fieldIds: q.fieldIds,
+        inputType: q.inputType,
+        profileKey: q.profileKey,
+        pageNumber,
+      });
+      savedCount++;
+    } catch (error) {
+      console.error(`[AutoForm] Failed to save question, continuing:`, {
+        documentId,
+        pageNumber,
+        question: q.question.slice(0, 50),
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      // Continue with next question instead of failing entirely
+    }
   }
 
-  // Apply any auto-answered fields from context
+  // Apply any auto-answered fields from context (non-critical)
+  let autoAnsweredCount = 0;
   if (result.autoAnswered.length > 0) {
-    await batchUpdateFieldValues(
-      result.autoAnswered.map((a) => ({
-        fieldId: a.fieldId,
-        value: a.value,
-      }))
-    );
+    try {
+      await batchUpdateFieldValues(
+        result.autoAnswered.map((a) => ({
+          fieldId: a.fieldId,
+          value: a.value,
+        }))
+      );
+      autoAnsweredCount = result.autoAnswered.length;
+    } catch (error) {
+      console.error(`[AutoForm] Failed to apply auto-answers, continuing:`, {
+        documentId,
+        pageNumber,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   }
 
   const questionDuration = questionTimer.end({
-    questionsGenerated: result.questions.length,
-    autoAnswered: result.autoAnswered.length,
+    questionsGenerated: savedCount,
+    autoAnswered: autoAnsweredCount,
   });
 
   const totalDuration = totalTimer.end({
     fieldsProcessed: fields.length,
-    questionsGenerated: result.questions.length,
+    questionsGenerated: savedCount,
   });
 
   console.log(`[AutoForm] Page ${pageNumber} complete:`, {
     documentId,
-    questionsGenerated: result.questions.length,
-    autoAnswered: result.autoAnswered.length,
+    questionsGenerated: savedCount,
+    questionsFailed: result.questions.length - savedCount,
+    autoAnswered: autoAnsweredCount,
     duration: formatDuration(totalDuration),
   });
 
@@ -129,8 +152,8 @@ export async function processPage(
       total: totalDuration,
     },
     fieldsProcessed: fields.length,
-    questionsGenerated: result.questions.length,
-    autoAnswered: result.autoAnswered.length,
+    questionsGenerated: savedCount,
+    autoAnswered: autoAnsweredCount,
   };
 }
 

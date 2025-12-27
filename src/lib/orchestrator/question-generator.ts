@@ -165,32 +165,37 @@ export async function generateQuestions(
       questionsGenerated: totalQuestions,
     };
   } catch (error) {
-    console.error("[AutoForm] Question generation failed:", {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("[AutoForm] Question generation failed (graceful degradation):", {
       documentId,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: errorMessage,
     });
 
+    // GRACEFUL DEGRADATION: Set status to "ready" so user can still fill form manually
+    // The AI assistant won't have questions, but fields are still usable
     await updateProcessingProgress(documentId, {
-      phase: "failed",
-      error: error instanceof Error ? error.message : "Unknown error",
+      phase: "ready",
+      error: `AI assistant unavailable: ${errorMessage}`,
     });
 
-    await updateDocumentStatus(
-      documentId,
-      "failed",
-      error instanceof Error ? error.message : "Question generation failed"
-    );
+    // Document is still usable - just without AI questions
+    await updateDocumentStatus(documentId, "ready");
 
-    // Clear processing lock on failure
+    // Clear processing lock
     await supabase
       .from("documents")
       .update({ processing_lock: null })
       .eq("id", documentId);
 
+    console.log("[AutoForm] Document marked ready despite question generation failure:", {
+      documentId,
+      reason: "User can still fill form manually",
+    });
+
     return {
       success: false,
       questionsGenerated: 0,
-      error: error instanceof Error ? error.message : "Question generation failed",
+      error: errorMessage,
     };
   }
 }
