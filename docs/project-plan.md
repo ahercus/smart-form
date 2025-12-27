@@ -807,10 +807,25 @@ app/
 - Visual verification, not primary editing
 
 **SignaturePad.tsx**
-- Modal with canvas for drawing
-- Clear / Cancel / Save actions
-- Converts to PNG, uploads to storage
-- Returns storage path for embedding in PDF
+- Full-screen canvas for drawing signatures
+- Smooth bezier curve rendering for natural strokes
+- Clear / Undo / Save actions
+- Converts to PNG, uploads to Supabase Storage
+- Optional "Save for later" with name input
+- Returns signature data for embedding in PDF
+
+**SignaturePicker.tsx**
+- Grid display of saved signature thumbnails
+- "Create New" button prominently displayed
+- Tap to select and insert immediately
+- Delete button on each signature (with confirmation)
+- Empty state when no signatures saved
+
+**SignatureField.tsx**
+- Wrapper component that orchestrates picker and pad
+- Shows signature preview if value is set
+- Tap to open picker (if saved signatures exist) or pad (if none)
+- Clear button to remove current signature
 
 **MissingInfoDialog.tsx**
 - Single-question dialog (not a form)
@@ -1161,6 +1176,133 @@ Apply via Tailwind:
 <Button className="min-h-[44px] min-w-[44px]">
 <Input className="h-12" />
 ```
+
+---
+
+## 11.8 Signature System (macOS Preview-Style)
+
+The signature system is modeled after macOS Preview's excellent signature UX: easy creation, persistent storage, and quick access to saved signatures.
+
+### Design Principles
+
+1. **Zero friction for repeat users** - Saved signatures appear first, one tap to use
+2. **Clear creation flow** - Full-screen canvas with smooth drawing
+3. **Persistent storage** - Signatures sync across sessions
+4. **Easy management** - Delete unwanted signatures without hunting through settings
+
+### Database Schema
+
+A dedicated `signatures` table provides better querying and management than storing in profiles.signatures JSONB:
+
+```sql
+create table signatures (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade not null,
+  name text not null default 'Signature',
+  storage_path text not null,
+  preview_data_url text, -- Base64 thumbnail for quick display
+  is_default boolean default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- Only one default signature per user
+create unique index signatures_user_default_unique
+  on signatures (user_id)
+  where is_default = true;
+
+create index signatures_user_id on signatures(user_id);
+```
+
+### User Flow
+
+**First-time signature (no saved signatures):**
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Draw Your Signature                               [Cancel] │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │                                                         ││
+│  │            [Canvas area - draw here]                    ││
+│  │                                                         ││
+│  │                                                         ││
+│  └─────────────────────────────────────────────────────────┘│
+│                                                             │
+│  ☑ Save for future forms                                   │
+│                                                             │
+│  Name: [My Signature          ]                            │
+│                                                             │
+│  [Clear]                              [Use This Signature] │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Returning user (has saved signatures):**
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Select Signature                              [+ Create New]│
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌──────────────────┐  ┌──────────────────┐                │
+│  │  [signature      │  │  [signature      │                │
+│  │   preview img]   │  │   preview img]   │                │
+│  ├──────────────────┤  ├──────────────────┤                │
+│  │ "Formal"    [×]  │  │ "Initials"  [×]  │                │
+│  │    ★ Default     │  │                  │                │
+│  └──────────────────┘  └──────────────────┘                │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Component Architecture
+
+```
+SignatureField (wrapper)
+├── If no saved signatures → Opens SignaturePad directly
+├── If has saved signatures → Opens SignaturePicker
+│   ├── Grid of SavedSignatureCard components
+│   └── "Create New" button → Opens SignaturePad
+└── Shows SignaturePreview when value is set
+```
+
+### Canvas Implementation
+
+The signature canvas uses these techniques for smooth drawing:
+
+1. **Bezier curve smoothing** - Raw touch/mouse points are interpolated with quadratic bezier curves
+2. **Pressure sensitivity** - On supported devices, stroke width varies with pressure
+3. **High-DPI rendering** - Canvas is scaled for retina displays (devicePixelRatio)
+4. **Touch optimization** - Prevents scrolling while drawing, handles multi-touch gracefully
+
+```typescript
+interface SignatureCanvasProps {
+  onSave: (dataUrl: string, blob: Blob) => void;
+  onCancel: () => void;
+  strokeColor?: string;     // Default: #000000
+  strokeWidth?: number;     // Default: 2
+  backgroundColor?: string; // Default: transparent
+}
+```
+
+### Storage Strategy
+
+1. **On draw complete:**
+   - Canvas converted to PNG blob
+   - Uploaded to Supabase Storage bucket `signatures/{user_id}/{uuid}.png`
+   - Thumbnail (base64) stored in `signatures.preview_data_url` for instant display
+
+2. **Storage bucket configuration:**
+   - Private bucket (requires auth)
+   - Max file size: 500KB (signatures are small)
+   - Allowed MIME types: image/png only
+
+### Mobile Considerations
+
+- **Bottom Drawer** for signature picker (not modal)
+- **Full-screen canvas** for drawing (maximize space)
+- **Large touch targets** for signature cards (min 88px height)
+- **Swipe to delete** as alternative to X button
+- **Haptic feedback** on signature selection
 
 ---
 

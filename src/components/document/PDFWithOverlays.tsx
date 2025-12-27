@@ -15,12 +15,48 @@ import { useFieldKeyboardShortcuts } from "@/hooks/pdf/useFieldKeyboardShortcuts
 import type { ExtractedField, NormalizedCoordinates } from "@/lib/types";
 
 // Dynamically import react-pdf to avoid SSR issues
-const Document = dynamic(
-  () => import("react-pdf").then((mod) => mod.Document),
-  { ssr: false }
-);
 const Page = dynamic(
   () => import("react-pdf").then((mod) => mod.Page),
+  { ssr: false }
+);
+
+// Hidden page capture component - waits for full render before capturing
+function HiddenPageCapture({
+  pageNum,
+  width,
+  onPageRender,
+}: {
+  pageNum: number;
+  width: number;
+  onPageRender?: (pageNumber: number, canvas: HTMLCanvasElement) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleRenderSuccess = useCallback(() => {
+    if (onPageRender && containerRef.current) {
+      const canvas = containerRef.current.querySelector("canvas");
+      if (canvas) {
+        onPageRender(pageNum, canvas);
+      }
+    }
+  }, [pageNum, onPageRender]);
+
+  return (
+    <div ref={containerRef}>
+      <Page
+        pageNumber={pageNum}
+        width={width}
+        renderTextLayer={false}
+        renderAnnotationLayer={false}
+        onRenderSuccess={handleRenderSuccess}
+      />
+    </div>
+  );
+}
+
+// Dynamically import Document (Page already imported above)
+const Document = dynamic(
+  () => import("react-pdf").then((mod) => mod.Document),
   { ssr: false }
 );
 
@@ -195,13 +231,11 @@ export function PDFWithOverlays({
   }, [currentPage, onPageRender]);
 
   // Filter fields for current page
+  // Show all non-deleted fields (azure_di, gemini_vision, gemini_refinement, manual)
   const pageFields = fields.filter(
     (f) =>
       f.page_number === currentPage &&
-      !deletedFieldIds.has(f.id) &&
-      (f.detection_source === "gemini_vision" ||
-        f.detection_source === "gemini_refinement" ||
-        f.detection_source === "manual")
+      !deletedFieldIds.has(f.id)
   );
 
   const handleFieldClick = (fieldId: string) => {
@@ -379,7 +413,7 @@ export function PDFWithOverlays({
               )}
             </div>
 
-            {/* Hidden pages for background capture */}
+            {/* Hidden pages for background capture - uses onRenderSuccess to ensure full quality */}
             {isDocumentLoaded && numPages > 1 && (
               <div
                 className="absolute -left-[9999px] opacity-0 pointer-events-none"
@@ -388,33 +422,12 @@ export function PDFWithOverlays({
                 {Array.from({ length: numPages }, (_, i) => i + 1)
                   .filter((pageNum) => pageNum !== currentPage)
                   .map((pageNum) => (
-                    <div
+                    <HiddenPageCapture
                       key={`hidden-${pageNum}`}
-                      ref={(el) => {
-                        if (el && onPageRender) {
-                          const observer = new MutationObserver(() => {
-                            const canvas = el.querySelector("canvas");
-                            if (canvas) {
-                              onPageRender(pageNum, canvas);
-                              observer.disconnect();
-                            }
-                          });
-                          observer.observe(el, { childList: true, subtree: true });
-                          const canvas = el.querySelector("canvas");
-                          if (canvas) {
-                            onPageRender(pageNum, canvas);
-                            observer.disconnect();
-                          }
-                        }
-                      }}
-                    >
-                      <Page
-                        pageNumber={pageNum}
-                        width={containerWidth * scale}
-                        renderTextLayer={false}
-                        renderAnnotationLayer={false}
-                      />
-                    </div>
+                      pageNum={pageNum}
+                      width={containerWidth * scale}
+                      onPageRender={onPageRender}
+                    />
                   ))}
               </div>
             )}

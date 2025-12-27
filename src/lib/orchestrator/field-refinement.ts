@@ -2,11 +2,8 @@
 // This runs immediately after Azure DI, before user submits context
 
 import { reviewFieldsWithVision } from "../gemini/vision";
-import { compositeFieldsOntoImage } from "../image-compositor";
-import { uploadCompositeImage, getPageImageBase64 } from "../storage";
 import { createAdminClient } from "../supabase/admin";
-import { StepTimer, formatDuration } from "../timing";
-import type { ExtractedField, NormalizedCoordinates } from "../types";
+import type { ExtractedField } from "../types";
 
 interface RefineFieldsParams {
   documentId: string;
@@ -77,28 +74,7 @@ export async function refineFields(
         continue;
       }
 
-      // Create composite image for Gemini Vision
-      const compositeResult = await compositeFieldsOntoImage({
-        imageBase64,
-        fields: pageFields as ExtractedField[],
-        showGrid: true,
-      });
-
-      // Upload composite for debugging/reference
-      const compositePath = await uploadCompositeImage(
-        userId,
-        documentId,
-        pageNumber,
-        compositeResult.imageBase64
-      );
-
-      console.log("[AutoForm] Composite image uploaded:", {
-        documentId,
-        pageNumber,
-        storagePath: compositePath,
-      });
-
-      // Call Gemini Vision for field review
+      // Call Gemini Vision for field review (it creates its own composite internally)
       const reviewResult = await reviewFieldsWithVision({
         documentId,
         pageNumber,

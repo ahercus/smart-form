@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
+import { SignatureField } from "@/components/signature";
 import type { ExtractedField } from "@/lib/types";
 
 interface FieldInputProps {
@@ -69,10 +70,10 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
 
       case "signature":
         return (
-          <div className="border-2 border-dashed rounded-md p-4 text-center text-muted-foreground">
-            <p className="text-sm">Signature field</p>
-            <p className="text-xs mt-1">Signature capture coming soon</p>
-          </div>
+          <SignatureField
+            value={value}
+            onChange={onChange}
+          />
         );
 
       default:

@@ -4,21 +4,24 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { Sparkles, Loader2, ChevronRight, Lightbulb } from "lucide-react";
+import { Sparkles, Loader2, ChevronRight, Lightbulb, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
-import type { ProcessingProgress } from "@/lib/types";
+import type { ProcessingProgress, Document } from "@/lib/types";
 
 interface ContextInputPanelProps {
   documentId: string;
+  document: Document | null;
   progress: ProcessingProgress | null;
   onContextSubmitted?: () => void;
 }
 
 export function ContextInputPanel({
   documentId,
+  document,
   progress,
   onContextSubmitted,
 }: ContextInputPanelProps) {
+  const fieldsReady = document?.fields_qc_complete ?? false;
   const [context, setContext] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [tailoredQuestion, setTailoredQuestion] = useState<string | null>(null);
@@ -132,17 +135,28 @@ export function ContextInputPanel({
       </div>
 
       {/* Processing Status */}
-      <div className="px-4 py-3 border-b bg-muted/30">
-        <div className="flex items-center gap-2 mb-2">
-          <Loader2 className="w-4 h-4 animate-spin text-primary" />
-          <span className="text-sm font-medium">{getPhaseLabel()}</span>
-        </div>
-        <Progress value={progressPercent} className="h-1.5" />
-        {progress?.pagesTotal ? (
-          <p className="text-xs text-muted-foreground mt-1">
-            {progress.pagesComplete} of {progress.pagesTotal} pages
-          </p>
-        ) : null}
+      <div className={`px-4 py-3 border-b ${fieldsReady ? "bg-green-50 dark:bg-green-950/30" : "bg-muted/30"}`}>
+        {fieldsReady ? (
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+            <span className="text-sm font-medium text-green-700 dark:text-green-300">
+              Fields detected and ready!
+            </span>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 mb-2">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              <span className="text-sm font-medium">{getPhaseLabel()}</span>
+            </div>
+            <Progress value={progressPercent} className="h-1.5" />
+            {progress?.pagesTotal ? (
+              <p className="text-xs text-muted-foreground mt-1">
+                {progress.pagesComplete} of {progress.pagesTotal} pages
+              </p>
+            ) : null}
+          </>
+        )}
       </div>
 
       {/* Context Input */}
@@ -178,15 +192,21 @@ export function ContextInputPanel({
             <Button
               onClick={handleSubmit}
               disabled={submitting || !context.trim()}
-              className="w-full"
+              className={`w-full ${fieldsReady ? "bg-green-600 hover:bg-green-700" : ""}`}
               size="lg"
             >
               {submitting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : fieldsReady ? (
+                <Sparkles className="mr-2 h-4 w-4" />
               ) : (
                 <ChevronRight className="mr-2 h-4 w-4" />
               )}
-              {submitting ? "Submitting..." : "Submit & Generate Questions"}
+              {submitting
+                ? "Generating questions..."
+                : fieldsReady
+                  ? "Continue to Questions"
+                  : "Submit & Generate Questions"}
             </Button>
 
             <Button
@@ -196,7 +216,7 @@ export function ContextInputPanel({
               className="w-full"
               size="sm"
             >
-              Skip for now
+              {fieldsReady ? "Skip context" : "Skip for now"}
             </Button>
           </div>
 

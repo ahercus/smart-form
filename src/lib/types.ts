@@ -99,7 +99,19 @@ export type DocumentStatus =
 // Subscription tiers
 export type SubscriptionTier = "free" | "pro" | "team";
 
-// Signature reference stored in profile
+// Signature stored in database (macOS Preview-style)
+export interface Signature {
+  id: string;
+  user_id: string;
+  name: string;
+  storage_path: string;
+  preview_data_url: string | null; // Base64 thumbnail for instant display
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Legacy signature reference stored in profile (deprecated, use Signature table)
 export interface SignatureReference {
   id: string;
   name: string;

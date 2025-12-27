@@ -1,0 +1,253 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { createClient } from "@/lib/supabase/client";
+import type { Signature } from "@/lib/types";
+
+interface UseSignaturesReturn {
+  signatures: Signature[];
+  isLoading: boolean;
+  error: string | null;
+  createSignature: (
+    blob: Blob,
+    name: string,
+    previewDataUrl: string,
+    setAsDefault?: boolean
+  ) => Promise<Signature | null>;
+  deleteSignature: (id: string) => Promise<boolean>;
+  setDefaultSignature: (id: string) => Promise<boolean>;
+  refreshSignatures: () => Promise<void>;
+}
+
+export function useSignatures(): UseSignaturesReturn {
+  const [signatures, setSignatures] = useState<Signature[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const supabase = createClient();
+
+  const fetchSignatures = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setSignatures([]);
+        return;
+      }
+
+      const { data, error: fetchError } = await supabase
+        .from("signatures")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      setSignatures(data || []);
+    } catch (err) {
+      console.error("[AutoForm] Failed to fetch signatures:", err);
+      setError(err instanceof Error ? err.message : "Failed to load signatures");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchSignatures();
+  }, [fetchSignatures]);
+
+  const createSignature = useCallback(
+    async (
+      blob: Blob,
+      name: string,
+      previewDataUrl: string,
+      setAsDefault: boolean = false
+    ): Promise<Signature | null> => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          throw new Error("Not authenticated");
+        }
+
+        // Generate unique filename
+        const filename = `${user.id}/${crypto.randomUUID()}.png`;
+
+        // Upload to storage
+        const { error: uploadError } = await supabase.storage
+          .from("signatures")
+          .upload(filename, blob, {
+            contentType: "image/png",
+            upsert: false,
+          });
+
+        if (uploadError) {
+          throw uploadError;
+        }
+
+        // If setting as default, first unset any existing default
+        if (setAsDefault) {
+          await supabase
+            .from("signatures")
+            .update({ is_default: false })
+            .eq("user_id", user.id)
+            .eq("is_default", true);
+        }
+
+        // Create database record
+        const { data, error: insertError } = await supabase
+          .from("signatures")
+          .insert({
+            user_id: user.id,
+            name,
+            storage_path: filename,
+            preview_data_url: previewDataUrl,
+            is_default: setAsDefault || signatures.length === 0, // First signature is default
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          // Clean up uploaded file if insert fails
+          await supabase.storage.from("signatures").remove([filename]);
+          throw insertError;
+        }
+
+        // Update local state
+        setSignatures((prev) => {
+          // If new signature is default, unset others
+          if (data.is_default) {
+            return [data, ...prev.map((s) => ({ ...s, is_default: false }))];
+          }
+          return [data, ...prev];
+        });
+
+        console.log("[AutoForm] Signature created:", { id: data.id, name });
+        return data;
+      } catch (err) {
+        console.error("[AutoForm] Failed to create signature:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to create signature"
+        );
+        return null;
+      }
+    },
+    [supabase, signatures.length]
+  );
+
+  const deleteSignature = useCallback(
+    async (id: string): Promise<boolean> => {
+      try {
+        const signature = signatures.find((s) => s.id === id);
+        if (!signature) {
+          throw new Error("Signature not found");
+        }
+
+        // Delete from storage
+        const { error: storageError } = await supabase.storage
+          .from("signatures")
+          .remove([signature.storage_path]);
+
+        if (storageError) {
+          console.warn("[AutoForm] Failed to delete signature file:", storageError);
+          // Continue anyway - file might already be deleted
+        }
+
+        // Delete from database
+        const { error: deleteError } = await supabase
+          .from("signatures")
+          .delete()
+          .eq("id", id);
+
+        if (deleteError) {
+          throw deleteError;
+        }
+
+        // Update local state
+        setSignatures((prev) => prev.filter((s) => s.id !== id));
+
+        console.log("[AutoForm] Signature deleted:", { id });
+        return true;
+      } catch (err) {
+        console.error("[AutoForm] Failed to delete signature:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to delete signature"
+        );
+        return false;
+      }
+    },
+    [supabase, signatures]
+  );
+
+  const setDefaultSignature = useCallback(
+    async (id: string): Promise<boolean> => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          throw new Error("Not authenticated");
+        }
+
+        // Unset current default
+        await supabase
+          .from("signatures")
+          .update({ is_default: false })
+          .eq("user_id", user.id)
+          .eq("is_default", true);
+
+        // Set new default
+        const { error: updateError } = await supabase
+          .from("signatures")
+          .update({ is_default: true })
+          .eq("id", id);
+
+        if (updateError) {
+          throw updateError;
+        }
+
+        // Update local state
+        setSignatures((prev) =>
+          prev.map((s) => ({
+            ...s,
+            is_default: s.id === id,
+          }))
+        );
+
+        console.log("[AutoForm] Default signature set:", { id });
+        return true;
+      } catch (err) {
+        console.error("[AutoForm] Failed to set default signature:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to set default signature"
+        );
+        return false;
+      }
+    },
+    [supabase]
+  );
+
+  const refreshSignatures = useCallback(async () => {
+    await fetchSignatures();
+  }, [fetchSignatures]);
+
+  return {
+    signatures,
+    isLoading,
+    error,
+    createSignature,
+    deleteSignature,
+    setDefaultSignature,
+    refreshSignatures,
+  };
+}

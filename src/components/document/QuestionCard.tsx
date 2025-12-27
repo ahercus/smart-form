@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Check, Loader2, ChevronRight } from "lucide-react";
+import { Check, Loader2, ChevronRight, PenLine } from "lucide-react";
+import { SignatureField } from "@/components/signature";
 import type { QuestionGroup } from "@/lib/types";
 
 interface QuestionCardProps {
@@ -40,7 +42,16 @@ export function QuestionCard({
     }
   };
 
+  // Auto-submit when signature is drawn
+  useEffect(() => {
+    if (question.input_type === "signature" && answer && answer.startsWith("data:image")) {
+      onAnswer(answer);
+    }
+  }, [answer, question.input_type, onAnswer]);
+
   if (question.status === "answered") {
+    const isSignature = question.input_type === "signature" && question.answer?.startsWith("data:image");
+
     return (
       <Card className="border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800">
         <CardContent className="p-3">
@@ -52,9 +63,21 @@ export function QuestionCard({
               <p className="text-sm text-muted-foreground line-through">
                 {question.question}
               </p>
-              <p className="text-sm font-medium mt-0.5 truncate">
-                {question.answer}
-              </p>
+              {isSignature ? (
+                <div className="mt-1 bg-white rounded border p-1 inline-block">
+                  <Image
+                    src={question.answer || ""}
+                    alt="Signature"
+                    width={120}
+                    height={40}
+                    className="object-contain"
+                  />
+                </div>
+              ) : (
+                <p className="text-sm font-medium mt-0.5 truncate">
+                  {question.answer}
+                </p>
+              )}
             </div>
           </div>
         </CardContent>
@@ -108,6 +131,15 @@ export function QuestionCard({
           />
         );
 
+      case "signature":
+        return (
+          <SignatureField
+            value={answer}
+            onChange={setAnswer}
+            disabled={isAnswering}
+          />
+        );
+
       default:
         return (
           <Input
@@ -144,21 +176,25 @@ export function QuestionCard({
 
           <p className="font-medium text-sm">{question.question}</p>
 
-          <div className="flex gap-2">
-            <div className="flex-1">{renderInput()}</div>
-            <Button
-              onClick={handleSubmit}
-              disabled={!answer.trim() || isAnswering}
-              size="icon"
-              className="flex-shrink-0 h-9 w-9"
-            >
-              {isAnswering ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
+          {question.input_type === "signature" ? (
+            <div>{renderInput()}</div>
+          ) : (
+            <div className="flex gap-2">
+              <div className="flex-1">{renderInput()}</div>
+              <Button
+                onClick={handleSubmit}
+                disabled={!answer.trim() || isAnswering}
+                size="icon"
+                className="flex-shrink-0 h-9 w-9"
+              >
+                {isAnswering ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          )}
 
           {question.field_ids.length > 1 && (
             <p className="text-xs text-muted-foreground">

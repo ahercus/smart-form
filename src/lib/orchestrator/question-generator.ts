@@ -1,11 +1,12 @@
-// Question generation orchestrator - runs after Document AI has extracted fields
-// This is called when page images are uploaded from the client
+// Question generation orchestrator
 //
-// OPTIMIZED FLOW:
-// 1. Set phase to "displaying" - fields visible, questions coming
-// 2. Process pages (questions generated first, then enhancement)
-// 3. Set phase to "enhancing" - Gemini Vision QC running
-// 4. Set phase to "ready" - all done
+// This runs AFTER field QC is complete (triggered by /context route).
+// The /context route waits for fields_qc_complete before calling this.
+//
+// Flow:
+// 1. Set phase to "displaying" - fields visible, questions being generated
+// 2. Generate questions for each page (one Gemini call per page)
+// 3. Set phase to "ready" - all done
 
 import { updateProcessingProgress } from "./state";
 import { processPages } from "./page-processor";
@@ -123,52 +124,26 @@ export async function generateQuestions(
     }
 
     // Process pages with images
+    // Note: Field QC is already complete at this point (context route waits for it)
     const pagesToProcess = pageImages.map((img) => ({
       pageNumber: img.pageNumber,
       imageBase64: img.imageBase64,
       fields: fieldsByPage.get(img.pageNumber) || [],
     }));
 
-    // Check if QC already done - if so, skip enhancing phase
-    const { data: docStatus } = await supabase
-      .from("documents")
-      .select("fields_qc_complete")
-      .eq("id", documentId)
-      .single();
-
-    const fieldsAlreadyQCd = docStatus?.fields_qc_complete || false;
-
-    if (!fieldsAlreadyQCd) {
-      // Phase: ENHANCING - Gemini Vision QC running in background
-      await updateProcessingProgress(documentId, {
-        phase: "enhancing",
-      });
-    }
-
     const pageResults = await processPages(documentId, userId, pagesToProcess);
 
-    const totalQuestions = pageResults.reduce(
-      (sum, r) => sum + r.questionsGenerated,
-      0
-    );
-
-    // Log timing summary
+    const totalQuestions = pageResults.reduce((sum, r) => sum + r.questionsGenerated, 0);
+    const totalAutoAnswered = pageResults.reduce((sum, r) => sum + r.autoAnswered, 0);
     const totalTime = pageResults.reduce((sum, r) => sum + r.timings.total, 0);
-    console.log("[AutoForm] ==========================================");
-    console.log("[AutoForm] QUESTION GENERATION COMPLETE:", {
+
+    console.log("[AutoForm] Question generation complete:", {
       documentId,
       totalQuestions,
+      totalAutoAnswered,
       pagesProcessed: pageResults.length,
       totalTime: formatDuration(totalTime),
-      timingBreakdown: {
-        initialQuestions: formatDuration(pageResults.reduce((s, r) => s + r.timings.initialQuestions, 0)),
-        compositing: formatDuration(pageResults.reduce((s, r) => s + r.timings.compositing, 0)),
-        geminiVision: formatDuration(pageResults.reduce((s, r) => s + r.timings.geminiVision, 0)),
-        fieldUpdates: formatDuration(pageResults.reduce((s, r) => s + r.timings.fieldUpdates, 0)),
-        questionAdjustments: formatDuration(pageResults.reduce((s, r) => s + r.timings.questionAdjustments, 0)),
-      },
     });
-    console.log("[AutoForm] ==========================================");
 
     // Phase: READY - All done
     await updateProcessingProgress(documentId, {

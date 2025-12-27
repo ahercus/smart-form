@@ -35,6 +35,8 @@ interface GenerateContentOptions {
   prompt: string;
   imageParts?: Array<{ inlineData: { data: string; mimeType: string } }>;
   thinkingLevel?: ThinkingLevel;
+  /** Set to true to force JSON output (for structured data extraction) */
+  jsonOutput?: boolean;
 }
 
 /**
@@ -50,7 +52,7 @@ interface GenerateContentOptions {
 export async function generateWithVision(options: GenerateContentOptions) {
   const client = getGeminiClient();
   // Default to LOW for faster responses. Map MINIMAL/MEDIUM to LOW for Pro compatibility.
-  let { prompt, imageParts, thinkingLevel = ThinkingLevel.LOW } = options;
+  let { prompt, imageParts, thinkingLevel = ThinkingLevel.LOW, jsonOutput = false } = options;
 
   // Pro only supports LOW and HIGH - map others to LOW
   if (thinkingLevel === ThinkingLevel.MINIMAL || thinkingLevel === ThinkingLevel.MEDIUM) {
@@ -61,14 +63,21 @@ export async function generateWithVision(options: GenerateContentOptions) {
     ? [{ text: prompt }, ...imageParts.map((p) => ({ inlineData: p.inlineData }))]
     : prompt;
 
+  const config: Record<string, unknown> = {
+    thinkingConfig: {
+      thinkingLevel,
+    },
+  };
+
+  // Only set responseMimeType for JSON output to avoid breaking text responses
+  if (jsonOutput) {
+    config.responseMimeType = "application/json";
+  }
+
   const response = await client.models.generateContent({
     model: GEMINI_PRO,
     contents,
-    config: {
-      thinkingConfig: {
-        thinkingLevel,
-      },
-    },
+    config,
   });
 
   return response.text || "";
@@ -80,22 +89,30 @@ export async function generateWithVision(options: GenerateContentOptions) {
  */
 export async function generateFast(options: GenerateContentOptions) {
   const client = getGeminiClient();
-  const { prompt, thinkingLevel = ThinkingLevel.MINIMAL } = options;
+  const { prompt, thinkingLevel = ThinkingLevel.MINIMAL, jsonOutput = false } = options;
+
+  const config: Record<string, unknown> = {
+    thinkingConfig: {
+      thinkingLevel,
+    },
+  };
+
+  // Only set responseMimeType for JSON output
+  if (jsonOutput) {
+    config.responseMimeType = "application/json";
+  }
 
   const response = await client.models.generateContent({
     model: GEMINI_FLASH,
     contents: prompt,
-    config: {
-      thinkingConfig: {
-        thinkingLevel,
-      },
-    },
+    config,
   });
 
   return response.text || "";
 }
 
 // Legacy exports for compatibility - these wrap the new API
+// Note: These use jsonOutput: true because they're used by vision.ts which expects JSON
 export function getVisionModel() {
   return {
     async generateContent(parts: unknown[]) {
@@ -105,7 +122,7 @@ export function getVisionModel() {
           typeof p === "object" && p !== null && "inlineData" in p
       );
 
-      const text = await generateWithVision({ prompt, imageParts });
+      const text = await generateWithVision({ prompt, imageParts, jsonOutput: true });
       return { response: { text: () => text } };
     },
   };
@@ -114,7 +131,7 @@ export function getVisionModel() {
 export function getFastModel() {
   return {
     async generateContent(prompt: string) {
-      const text = await generateFast({ prompt });
+      const text = await generateFast({ prompt, jsonOutput: true });
       return { response: { text: () => text } };
     },
   };

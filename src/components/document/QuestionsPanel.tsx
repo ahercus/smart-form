@@ -73,6 +73,7 @@ export function QuestionsPanel({
     return (
       <ContextInputPanel
         documentId={documentId}
+        document={document}
         progress={progress}
       />
     );
