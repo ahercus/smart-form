@@ -168,25 +168,34 @@ export async function refineFields(
       fieldsRemoved: totalRemoved,
     };
   } catch (error) {
-    console.error("[AutoForm] Field refinement failed:", {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("[AutoForm] Field refinement failed (graceful degradation):", {
       documentId,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: errorMessage,
     });
 
+    // GRACEFUL DEGRADATION: Mark QC as complete anyway
+    // Azure DI fields are still usable even without Gemini refinement
     await supabase
       .from("documents")
       .update({
-        status: "failed",
-        error_message: error instanceof Error ? error.message : "Field refinement failed",
+        fields_qc_complete: true,
+        status: "extracting", // Ready for context
+        updated_at: new Date().toISOString(),
       })
       .eq("id", documentId);
 
+    console.log("[AutoForm] Field QC marked complete despite refinement failure:", {
+      documentId,
+      reason: "Azure DI fields are still usable",
+    });
+
     return {
-      success: false,
+      success: true, // Partial success - fields exist, just not refined
       fieldsAdjusted: 0,
       fieldsAdded: 0,
       fieldsRemoved: 0,
-      error: error instanceof Error ? error.message : "Field refinement failed",
+      error: errorMessage,
     };
   }
 }
