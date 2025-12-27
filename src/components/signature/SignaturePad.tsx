@@ -244,24 +244,10 @@ export function SignaturePad({
     const canvas = canvasRef.current;
     if (!canvas || !hasDrawn) return;
 
-    // Create a new canvas with white background for the saved image
-    const exportCanvas = document.createElement("canvas");
-    exportCanvas.width = canvas.width;
-    exportCanvas.height = canvas.height;
-    const exportCtx = exportCanvas.getContext("2d");
-    if (!exportCtx) return;
+    // Export with transparent background (directly from canvas)
+    const dataUrl = canvas.toDataURL("image/png");
 
-    // Fill with white background
-    exportCtx.fillStyle = "#ffffff";
-    exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-
-    // Draw the signature
-    exportCtx.drawImage(canvas, 0, 0);
-
-    // Convert to PNG blob
-    const dataUrl = exportCanvas.toDataURL("image/png");
-
-    exportCanvas.toBlob((blob) => {
+    canvas.toBlob((blob) => {
       if (blob) {
         onSave(dataUrl, blob, signatureName, saveForLater);
         onOpenChange(false);
@@ -272,8 +258,8 @@ export function SignaturePad({
   const content = (
     <div className="flex flex-col h-full">
       {/* Canvas container */}
-      <div className="flex-1 min-h-0 p-4">
-        <div className="relative w-full h-full border-2 border-dashed border-muted-foreground/30 rounded-lg bg-white">
+      <div className="p-4">
+        <div className="relative w-full aspect-[3/1] border-2 border-dashed border-muted-foreground/30 rounded-lg bg-white">
           <canvas
             ref={canvasRef}
             className="absolute inset-0 w-full h-full touch-none cursor-crosshair"
@@ -352,7 +338,7 @@ export function SignaturePad({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="h-[85vh]">
+        <DrawerContent className="h-auto max-h-[85vh]">
           <DrawerHeader className="flex items-center justify-between">
             <DrawerTitle>Draw Your {labelCapitalized}</DrawerTitle>
             <Button
@@ -371,7 +357,7 @@ export function SignaturePad({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl h-[70vh] flex flex-col p-0">
+      <DialogContent className="max-w-2xl flex flex-col p-0">
         <DialogHeader className="px-4 pt-4 pb-0">
           <DialogTitle>Draw Your {labelCapitalized}</DialogTitle>
         </DialogHeader>

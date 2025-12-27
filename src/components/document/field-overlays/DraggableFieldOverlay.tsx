@@ -28,10 +28,10 @@ export function DraggableFieldOverlay({
   onSignatureClick,
 }: DraggableFieldOverlayProps) {
   const isSignature = isSignatureField(field.field_type);
-  const baseClasses = isSignature
-    ? getSignatureFieldClasses(isActive, isHighlighted, isFilled)
-    : getFieldClasses(isActive, isHighlighted, isFilled);
   const isImageValue = value?.startsWith("data:image");
+  const baseClasses = isSignature
+    ? getSignatureFieldClasses(isActive, isHighlighted, isFilled, isImageValue)
+    : getFieldClasses(isActive, isHighlighted, isFilled);
 
   return (
     <Rnd

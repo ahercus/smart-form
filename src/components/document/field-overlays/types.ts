@@ -50,14 +50,28 @@ export function isSignatureField(fieldType: string): boolean {
   return fieldType === "signature" || fieldType === "initials";
 }
 
-export function getSignatureFieldClasses(isActive: boolean, isHighlighted: boolean, isFilled: boolean): string {
+export function getSignatureFieldClasses(
+  isActive: boolean,
+  isHighlighted: boolean,
+  isFilled: boolean,
+  hasImageValue: boolean = false
+): string {
+  // If filled with an image, show minimal styling (just the image, only show border when active)
+  if (isFilled && hasImageValue) {
+    return `w-full h-full transition-colors ${
+      isActive
+        ? "ring-2 ring-blue-500 ring-offset-1"
+        : isHighlighted
+          ? "ring-2 ring-purple-400 ring-offset-1"
+          : "hover:ring-1 hover:ring-gray-300"
+    }`;
+  }
+
   return `w-full h-full border-2 border-dashed transition-colors ${
     isActive
       ? "border-blue-500 bg-blue-500/10 ring-2 ring-blue-500 ring-offset-1"
       : isHighlighted
         ? "border-purple-500 bg-purple-500/10 ring-2 ring-purple-400 ring-offset-1"
-        : isFilled
-          ? "border-green-500 bg-green-500/5 hover:bg-green-500/10"
-          : "border-red-400 bg-red-400/5 hover:bg-red-400/10"
+        : "border-red-400 bg-red-400/5 hover:bg-red-400/10"
   }`;
 }

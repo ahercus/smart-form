@@ -22,12 +22,12 @@ export function ReadonlyFieldOverlay({
   onSignatureClick,
 }: BaseFieldOverlayProps) {
   const isSignature = isSignatureField(field.field_type);
-  const baseClasses = isSignature
-    ? getSignatureFieldClasses(isActive, isHighlighted, isFilled)
-    : getFieldClasses(isActive, isHighlighted, isFilled);
-
   // Check if the value is a data URL (signature image)
   const isImageValue = value?.startsWith("data:image");
+
+  const baseClasses = isSignature
+    ? getSignatureFieldClasses(isActive, isHighlighted, isFilled, isImageValue)
+    : getFieldClasses(isActive, isHighlighted, isFilled);
 
   const handleClick = () => {
     if (isSignature && onSignatureClick) {

@@ -8,6 +8,38 @@ import type {
   FieldType,
 } from "../types";
 
+// Retry helper for transient network errors
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  options: { maxRetries?: number; baseDelayMs?: number; context?: string } = {}
+): Promise<T> {
+  const { maxRetries = 3, baseDelayMs = 1000, context = "operation" } = options;
+  let lastError: Error | undefined;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const isTransient =
+        lastError.message.includes("fetch failed") ||
+        lastError.message.includes("TIMEOUT") ||
+        lastError.message.includes("ECONNRESET") ||
+        lastError.message.includes("ENOTFOUND");
+
+      if (!isTransient || attempt === maxRetries) {
+        throw lastError;
+      }
+
+      const delay = baseDelayMs * Math.pow(2, attempt - 1);
+      console.log(`[AutoForm] Retrying ${context} (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+}
+
 // Update processing progress
 export async function updateProcessingProgress(
   documentId: string,
@@ -124,7 +156,7 @@ export async function getConversationHistory(
   return (data?.gemini_conversation as GeminiMessage[]) || [];
 }
 
-// Save a question to the database
+// Save a question to the database (with retry for transient errors)
 export async function saveQuestion(
   documentId: string,
   question: {
@@ -135,46 +167,56 @@ export async function saveQuestion(
     pageNumber: number;
   }
 ): Promise<QuestionGroup> {
-  const supabase = createAdminClient();
+  return withRetry(
+    async () => {
+      const supabase = createAdminClient();
 
-  const { data, error } = await supabase
-    .from("document_questions")
-    .insert({
-      document_id: documentId,
-      question: question.question,
-      field_ids: question.fieldIds,
-      input_type: question.inputType,
-      profile_key: question.profileKey || null,
-      page_number: question.pageNumber,
-      status: "visible",
-    })
-    .select()
-    .single();
+      const { data, error } = await supabase
+        .from("document_questions")
+        .insert({
+          document_id: documentId,
+          question: question.question,
+          field_ids: question.fieldIds,
+          input_type: question.inputType,
+          profile_key: question.profileKey || null,
+          page_number: question.pageNumber,
+          status: "visible",
+        })
+        .select()
+        .single();
 
-  if (error) {
-    console.error("[AutoForm] Failed to save question:", error);
-    throw error;
-  }
+      if (error) {
+        console.error("[AutoForm] Failed to save question:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        });
+        throw new Error(error.message);
+      }
 
-  console.log("[AutoForm] Question saved:", {
-    documentId,
-    questionId: data.id,
-    question: question.question.slice(0, 50),
-  });
+      console.log("[AutoForm] Question saved:", {
+        documentId,
+        questionId: data.id,
+        question: question.question.slice(0, 50),
+      });
 
-  return {
-    id: data.id,
-    document_id: data.document_id,
-    question: data.question,
-    field_ids: data.field_ids,
-    input_type: data.input_type as FieldType,
-    profile_key: data.profile_key,
-    page_number: data.page_number,
-    status: data.status,
-    answer: data.answer,
-    created_at: data.created_at,
-    updated_at: data.updated_at,
-  };
+      return {
+        id: data.id,
+        document_id: data.document_id,
+        question: data.question,
+        field_ids: data.field_ids,
+        input_type: data.input_type as FieldType,
+        profile_key: data.profile_key,
+        page_number: data.page_number,
+        status: data.status,
+        answer: data.answer,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+      };
+    },
+    { context: "saveQuestion", maxRetries: 3 }
+  );
 }
 
 // Get all questions for a document
@@ -255,19 +297,24 @@ export async function updateFieldValue(
 export async function batchUpdateFieldValues(
   updates: Array<{ fieldId: string; value: string }>
 ): Promise<void> {
-  const supabase = createAdminClient();
+  return withRetry(
+    async () => {
+      const supabase = createAdminClient();
 
-  // Supabase doesn't support batch updates directly, so we do them in parallel
-  await Promise.all(
-    updates.map(({ fieldId, value }) =>
-      supabase
-        .from("extracted_fields")
-        .update({ value, updated_at: new Date().toISOString() })
-        .eq("id", fieldId)
-    )
+      // Supabase doesn't support batch updates directly, so we do them in parallel
+      await Promise.all(
+        updates.map(({ fieldId, value }) =>
+          supabase
+            .from("extracted_fields")
+            .update({ value, updated_at: new Date().toISOString() })
+            .eq("id", fieldId)
+        )
+      );
+
+      console.log("[AutoForm] Batch field update complete:", {
+        count: updates.length,
+      });
+    },
+    { context: "batchUpdateFieldValues", maxRetries: 3 }
   );
-
-  console.log("[AutoForm] Batch field update complete:", {
-    count: updates.length,
-  });
 }

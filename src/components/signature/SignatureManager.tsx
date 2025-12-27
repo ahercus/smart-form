@@ -254,22 +254,10 @@ export function SignatureManager({
 
     setIsSaving(true);
 
-    const exportCanvas = document.createElement("canvas");
-    exportCanvas.width = canvas.width;
-    exportCanvas.height = canvas.height;
-    const exportCtx = exportCanvas.getContext("2d");
-    if (!exportCtx) {
-      setIsSaving(false);
-      return;
-    }
+    // Export with transparent background (no fill)
+    const dataUrl = canvas.toDataURL("image/png");
 
-    exportCtx.fillStyle = "#ffffff";
-    exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-    exportCtx.drawImage(canvas, 0, 0);
-
-    const dataUrl = exportCanvas.toDataURL("image/png");
-
-    exportCanvas.toBlob(async (blob) => {
+    canvas.toBlob(async (blob) => {
       if (blob) {
         const result = await createSignature(
           blob,
@@ -316,17 +304,8 @@ export function SignatureManager({
     const canvas = canvasRef.current;
     if (!canvas || !hasDrawn || !onInsert) return;
 
-    const exportCanvas = document.createElement("canvas");
-    exportCanvas.width = canvas.width;
-    exportCanvas.height = canvas.height;
-    const exportCtx = exportCanvas.getContext("2d");
-    if (!exportCtx) return;
-
-    exportCtx.fillStyle = "#ffffff";
-    exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-    exportCtx.drawImage(canvas, 0, 0);
-
-    const dataUrl = exportCanvas.toDataURL("image/png");
+    // Export with transparent background (directly from canvas)
+    const dataUrl = canvas.toDataURL("image/png");
     onInsert(dataUrl, activeTab);
     onOpenChange(false);
   };
@@ -505,7 +484,7 @@ export function SignatureManager({
                     </div>
                   </div>
 
-                  <div className="flex-1 relative border-2 border-dashed border-muted-foreground/30 rounded-lg bg-white min-h-[200px]">
+                  <div className="relative border-2 border-dashed border-muted-foreground/30 rounded-lg bg-white aspect-[3/1]">
                     <canvas
                       ref={canvasRef}
                       className="absolute inset-0 w-full h-full touch-none cursor-crosshair"
