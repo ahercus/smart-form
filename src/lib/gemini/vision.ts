@@ -262,18 +262,29 @@ export interface ParsedFieldValue {
   value: string;
 }
 
+export interface ParseAnswerResult {
+  confident: boolean;
+  warning?: string;
+  parsedValues: ParsedFieldValue[];
+}
+
 /**
  * Parse a user's natural language answer and distribute values across multiple fields
  * e.g., "Jude Hercus 9/12/2022 he/him" → First Name: "Jude", Last Name: "Hercus", DOB: "9/12/2022", Pronouns: "he/him"
+ *
+ * Returns confidence flag and optional warning - if not confident, values will be empty
  */
 export async function parseAnswerForFields(
   params: ParseAnswerParams
-): Promise<ParsedFieldValue[]> {
+): Promise<ParseAnswerResult> {
   const { question, answer, fields } = params;
 
   // If only one field, no need to parse - use answer directly
   if (fields.length === 1) {
-    return [{ fieldId: fields[0].id, value: answer }];
+    return {
+      confident: true,
+      parsedValues: [{ fieldId: fields[0].id, value: answer }],
+    };
   }
 
   console.log("[AutoForm] Parsing answer for multiple fields:", {
@@ -305,22 +316,30 @@ export async function parseAnswerForFields(
     }
 
     const parsed = JSON.parse(cleaned.trim());
+    const confident = parsed.confident !== false; // Default to true for backwards compat
+    const warning = parsed.warning;
     const parsedValues = parsed.parsedValues || [];
 
-    console.log("[AutoForm] Answer parsed successfully:", {
+    console.log("[AutoForm] Answer parsed:", {
+      confident,
+      warning,
       inputAnswer: answer,
       outputFields: parsedValues.length,
       values: parsedValues.map((v: ParsedFieldValue) => ({
         label: fields.find((f) => f.id === v.fieldId)?.label,
-        value: v.value.slice(0, 20),
+        value: v.value?.slice(0, 20) || "",
       })),
     });
 
-    return parsedValues;
+    return { confident, warning, parsedValues };
   } catch (error) {
     console.error("[AutoForm] Answer parsing failed:", error);
-    // Fallback: apply the same answer to all fields (old behavior)
-    return fields.map((f) => ({ fieldId: f.id, value: answer }));
+    // Return empty values with warning - never dump raw answer to all fields
+    return {
+      confident: false,
+      warning: "Failed to parse answer. Please try rephrasing.",
+      parsedValues: fields.map((f) => ({ fieldId: f.id, value: "" })),
+    };
   }
 }
 

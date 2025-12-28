@@ -189,6 +189,17 @@ Complete this form in as few questions as possible:
 - Infer values (if DOB provided, calculate age; if address provided, parse into street/city/state/zip)
 - Don't ask twice for the same information even if phrased differently
 
+## CRITICAL: Unambiguous Questions
+Forms often collect info about MULTIPLE people (student, parent, emergency contacts, etc.).
+Your questions MUST clearly identify WHO the information is about:
+- BAD: "What is the name?" (ambiguous - whose name?)
+- GOOD: "What is the student's full name?"
+- GOOD: "Please provide the Primary Emergency Contact's details"
+- GOOD: "What is your (the parent/guardian's) phone number?"
+
+Look at the field labels AND their position on the page to determine which section/person they belong to.
+Each question should be completely unambiguous about which entity it's collecting data for.
+
 ## CRITICAL: Character Limits
 Each field has a "charLimits" property showing MAX and RECOMMENDED character counts.
 - NEVER exceed the MAX character limit - text will be clipped and unreadable
@@ -343,22 +354,49 @@ Parse the user's natural language answer and extract the appropriate value for E
 5. If information for a specific field is not provided, use empty string ""
 6. Respect character limits implied by field type (short fields need concise values)
 
+## CRITICAL: Confidence Check
+- Set "confident": true ONLY if you can clearly extract values for the fields
+- Set "confident": false if the answer doesn't match the expected fields or is ambiguous
+- If not confident, set ALL values to empty strings "" and provide a "warning" message
+- NEVER guess or make assumptions - if unsure, mark as not confident
+
 ## Response Format
 Return ONLY valid JSON:
 {
+  "confident": true,
   "parsedValues": [
     { "fieldId": "field-id-1", "value": "extracted value for this field" },
     { "fieldId": "field-id-2", "value": "extracted value for this field" }
   ]
 }
 
-Example: If answer is "John Michael Smith, born 03/15/1990, he/him" for fields [First Name, Last Name, DOB, Pronouns]:
+If NOT confident:
 {
+  "confident": false,
+  "warning": "Brief explanation of why parsing failed (e.g., 'Answer doesn't contain phone number information')",
+  "parsedValues": [
+    { "fieldId": "field-id-1", "value": "" },
+    { "fieldId": "field-id-2", "value": "" }
+  ]
+}
+
+Example (confident): Answer "John Smith" for fields [First Name, Last Name]:
+{
+  "confident": true,
   "parsedValues": [
     { "fieldId": "first-name-id", "value": "John" },
-    { "fieldId": "last-name-id", "value": "Smith" },
-    { "fieldId": "dob-id", "value": "03/15/1990" },
-    { "fieldId": "pronouns-id", "value": "he/him" }
+    { "fieldId": "last-name-id", "value": "Smith" }
+  ]
+}
+
+Example (not confident): Answer "yes" for fields [First Name, Last Name, Phone]:
+{
+  "confident": false,
+  "warning": "Answer 'yes' doesn't contain name or phone information",
+  "parsedValues": [
+    { "fieldId": "first-name-id", "value": "" },
+    { "fieldId": "last-name-id", "value": "" },
+    { "fieldId": "phone-id", "value": "" }
   ]
 }
 
@@ -372,22 +410,51 @@ export function buildAnswerReevaluationPrompt(
 ): string {
   const fieldsMap = Object.fromEntries(fields.map((f) => [f.id, f]));
 
-  const pendingWithFields = pendingQuestions.map((q) => ({
-    ...q,
-    relatedFields: q.fieldIds.map((id) => fieldsMap[id]?.label).filter(Boolean),
+  // Format pending questions to emphasize the question text
+  const formattedPending = pendingQuestions.map((q) => ({
+    id: q.id,
+    questionText: q.question, // Emphasize this is the key identifier
+    targetFields: q.fieldIds.map((id) => fieldsMap[id]?.label).filter(Boolean),
   }));
 
-  return `The user just answered a question. Check if this answer provides enough information to auto-answer other pending questions.
+  return `The user just answered a question. Check if this answer provides EXPLICIT, DIRECT information that can auto-answer other pending questions.
 
-## New Answer
-Question: "${newAnswer.question}"
-Answer: "${newAnswer.answer}"
+## User's Answer
+QUESTION ANSWERED: "${newAnswer.question}"
+USER'S RESPONSE: "${newAnswer.answer}"
 
-## Pending Questions
-${JSON.stringify(pendingWithFields, null, 2)}
+## Pending Questions (READ THE QUESTION TEXT CAREFULLY)
+Each pending question has a "questionText" that specifies EXACTLY what information it's asking for and WHO it's about.
 
-## Your Task
-Determine if the new answer contains information that can auto-fill any pending questions.
+${JSON.stringify(formattedPending, null, 2)}
+
+## CRITICAL RULES - READ CAREFULLY
+
+1. **PAY ATTENTION TO THE QUESTION TEXT - It tells you WHO the data is for**
+   - "Student's name" ≠ "Emergency contact's name" ≠ "Parent's name"
+   - These are DIFFERENT people even if the field labels are similar ("First Name", "Last Name")
+   - The QUESTION TEXT is your primary guide for determining if information matches
+
+2. **ONLY auto-answer when the EXACT information was EXPLICITLY provided for the SAME entity**
+   - If user answered about "Secondary Emergency Contact" with "Kerri Hercus"
+   - You can ONLY auto-fill other questions about "Secondary Emergency Contact"
+   - You CANNOT fill "Student Information", "Primary Emergency Contact", or any other entity
+
+3. **NEVER make inferences across different people/entities**
+   - Emergency contact info → CANNOT fill student info
+   - Parent info → CANNOT fill child info
+   - Primary contact → CANNOT fill secondary contact
+   - Each person's information is COMPLETELY SEPARATE
+
+4. **NEVER guess or infer based on relationships**
+   - Do NOT assume family members share last names
+   - Do NOT assume relationships between people mentioned
+   - Do NOT derive one person's info from another person's info
+   - The fact that names sound related is NOT a valid reason to auto-fill
+
+5. **When in doubt, DO NOT auto-answer**
+   - It's better to ask the user than to fill incorrect data
+   - Return an empty array if no CERTAIN matches exist
 
 ## Response Format
 Return ONLY valid JSON:
@@ -396,10 +463,13 @@ Return ONLY valid JSON:
     {
       "questionId": "pending-question-id",
       "answer": "derived answer value",
-      "reasoning": "How this was inferred from the new answer"
+      "reasoning": "EXPLICIT match: [explain the direct 1:1 correspondence]"
     }
   ]
 }
+
+Return an EMPTY array if no questions can be CERTAINLY auto-answered:
+{ "autoAnswer": [] }
 
 Return ONLY the JSON object, nothing else.`;
 }

@@ -265,8 +265,13 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
   const handleAnswerQuestion = useCallback(
     async (questionId: string, answer: string) => {
       try {
-        await answerQuestion(questionId, answer);
-        toast.success("Answer saved");
+        const result = await answerQuestion(questionId, answer);
+        if (result?.warning) {
+          // AI wasn't confident - fields not updated
+          toast.warning(result.warning, { duration: 5000 });
+        } else {
+          toast.success("Answer saved");
+        }
       } catch {
         toast.error("Failed to save answer");
       }
@@ -577,6 +582,7 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
               onGoToQuestion={handleGoToQuestion}
               scrollToQuestionId={scrollToQuestionId}
               onOpenSignatureManager={handleOpenSignatureManager}
+              loading={loading}
             />
           </ResizablePanel>
         </ResizablePanelGroup>

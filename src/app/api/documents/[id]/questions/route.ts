@@ -6,7 +6,7 @@ import {
   updateQuestion,
   batchUpdateFieldValues,
 } from "@/lib/orchestrator/state";
-import { reevaluatePendingQuestions, parseAnswerForFields } from "@/lib/gemini/vision";
+import { parseAnswerForFields } from "@/lib/gemini/vision";
 import { getDocumentFields } from "@/lib/storage";
 
 // GET /api/documents/[id]/questions - Get all questions for a document
@@ -106,6 +106,8 @@ export async function PATCH(
       .map((fieldId) => allFields.find((f) => f.id === fieldId))
       .filter(Boolean) as typeof allFields;
 
+    let warning: string | undefined;
+
     // Parse the answer and distribute to correct fields using Gemini
     if (linkedFields.length > 0) {
       const fieldsForParsing = linkedFields.map((f) => ({
@@ -114,87 +116,48 @@ export async function PATCH(
         fieldType: f.field_type,
       }));
 
-      const parsedValues = await parseAnswerForFields({
+      const parseResult = await parseAnswerForFields({
         question: question.question,
         answer,
         fields: fieldsForParsing,
       });
 
-      // Apply parsed values to each field
-      await batchUpdateFieldValues(
-        parsedValues.map(({ fieldId, value }) => ({
-          fieldId,
-          value,
-        }))
-      );
-
-      console.log("[AutoForm] Question answered with parsed values:", {
-        documentId,
-        questionId,
-        answer: answer.slice(0, 50),
-        linkedFields: linkedFields.length,
-        parsedFields: parsedValues.length,
-      });
-    } else {
-      console.log("[AutoForm] Question answered (no fields):", {
-        documentId,
-        questionId,
-        answer: answer.slice(0, 50),
-      });
-    }
-
-    // Re-evaluate pending questions to see if this answer can auto-fill others
-    const pendingQuestions = questions.filter(
-      (q) => q.status === "visible" && q.id !== questionId
-    );
-
-    if (pendingQuestions.length > 0) {
-      const fields = await getDocumentFields(documentId);
-      const autoAnswers = await reevaluatePendingQuestions({
-        newAnswer: { question: question.question, answer },
-        pendingQuestions: pendingQuestions.map((q) => ({
-          id: q.id,
-          question: q.question,
-          fieldIds: q.field_ids,
-        })),
-        fields,
-      });
-
-      // Apply auto-answers
-      for (const autoAnswer of autoAnswers) {
-        const targetQuestion = pendingQuestions.find(
-          (q) => q.id === autoAnswer.questionId
+      // Only write values if AI is confident in the parsing
+      if (parseResult.confident) {
+        await batchUpdateFieldValues(
+          parseResult.parsedValues.map(({ fieldId, value }) => ({
+            fieldId,
+            value,
+          }))
         );
-        if (targetQuestion) {
-          await updateQuestion(autoAnswer.questionId, {
-            status: "answered",
-            answer: autoAnswer.answer,
-          });
 
-          if (targetQuestion.field_ids.length > 0) {
-            await batchUpdateFieldValues(
-              targetQuestion.field_ids.map((fieldId) => ({
-                fieldId,
-                value: autoAnswer.answer,
-              }))
-            );
-          }
-
-          console.log("[AutoForm] Question auto-answered:", {
-            documentId,
-            questionId: autoAnswer.questionId,
-            reasoning: autoAnswer.reasoning,
-          });
-        }
+        console.log("[AutoForm] Question answered with parsed values:", {
+          documentId,
+          questionId,
+          answer: answer.slice(0, 50),
+          linkedFields: linkedFields.length,
+          parsedFields: parseResult.parsedValues.length,
+        });
+      } else {
+        // Not confident - don't write anything, return warning
+        warning = parseResult.warning;
+        console.log("[AutoForm] Answer parsing not confident, fields not updated:", {
+          documentId,
+          questionId,
+          warning,
+        });
       }
-
-      return NextResponse.json({
-        success: true,
-        autoAnswered: autoAnswers.length,
+    } else {
+      console.log("[AutoForm] Question answered (no linked fields):", {
+        documentId,
+        questionId,
+        answer: answer.slice(0, 50),
       });
     }
 
-    return NextResponse.json({ success: true, autoAnswered: 0 });
+    // Scoped write: Only the linked fields are populated
+    // No cross-question auto-fill - that's handled during initial context gathering
+    return NextResponse.json({ success: true, warning });
   } catch (error) {
     console.error(`[AutoForm] Answer question error:`, error);
     return NextResponse.json(

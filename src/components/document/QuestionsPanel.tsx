@@ -2,7 +2,8 @@
 
 import { useRef, useEffect, useMemo } from "react";
 import { Progress } from "@/components/ui/progress";
-import { Sparkles } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Sparkles, Loader2 } from "lucide-react";
 import { QuestionCard } from "./QuestionCard";
 import { ProcessingOverlay } from "./ProcessingOverlay";
 import { ContextInputPanel } from "./ContextInputPanel";
@@ -24,6 +25,7 @@ interface QuestionsPanelProps {
   onGoToQuestion: (questionId: string) => void;
   scrollToQuestionId?: string | null;
   onOpenSignatureManager?: (fieldIds: string[], type: SignatureType, questionId?: string) => void;
+  loading?: boolean;
 }
 
 export function QuestionsPanel({
@@ -38,6 +40,7 @@ export function QuestionsPanel({
   onGoToQuestion,
   scrollToQuestionId,
   onOpenSignatureManager,
+  loading,
 }: QuestionsPanelProps) {
   const questionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -188,6 +191,18 @@ export function QuestionsPanel({
             <p className="text-sm text-muted-foreground mt-1">
               You can still edit fields directly on the PDF
             </p>
+          </div>
+        ) : loading ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Loading questions...</span>
+            </div>
+            <div className="space-y-3">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-3/4" />
+            </div>
           </div>
         ) : (
           <div className="text-center py-8 text-muted-foreground">
