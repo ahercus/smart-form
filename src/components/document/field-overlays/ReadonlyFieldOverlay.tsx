@@ -33,12 +33,8 @@ export function ReadonlyFieldOverlay({
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent background deselect
-    // Filled signature: single click just selects and switches to pointer mode
-    if (hasFilledSignature) {
-      onClick(field.id);
-      onSwitchToPointerMode?.();
-    } else if (isSignature && onSignatureClick) {
-      // Empty signature: open manager to insert
+    // Signature fields: single click opens manager to insert or replace
+    if (isSignature && onSignatureClick) {
       onSignatureClick(field.id, field.field_type as SignatureType);
     } else {
       onClick(field.id);

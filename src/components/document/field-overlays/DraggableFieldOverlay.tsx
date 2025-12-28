@@ -159,11 +159,8 @@ export function DraggableFieldOverlay({
         className={`${baseClasses} cursor-move group relative`}
         onClick={(e) => {
           e.stopPropagation(); // Prevent background deselect
-          // Filled signature: single click just selects (drag/resize handled by Rnd)
-          if (hasFilledSignature) {
-            onClick(field.id);
-          } else if (isSignature && onSignatureClick) {
-            // Empty signature: open manager to insert
+          // Signature fields: single click opens manager to insert or replace
+          if (isSignature && onSignatureClick) {
             onSignatureClick(field.id, field.field_type as SignatureType);
           } else {
             onClick(field.id);
