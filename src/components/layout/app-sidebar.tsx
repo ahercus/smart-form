@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, User, PenTool, LogOut } from "lucide-react";
+import { FileText, User, Brain, PenTool, LogOut } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -32,6 +32,11 @@ const navItems = [
     title: "Profile",
     href: "/profile",
     icon: User,
+  },
+  {
+    title: "Memory",
+    href: "/memory",
+    icon: Brain,
   },
   {
     title: "Signatures",
