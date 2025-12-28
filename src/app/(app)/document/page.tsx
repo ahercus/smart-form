@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Save, Download, Sparkles } from "lucide-react";
+import { Download, Sparkles } from "lucide-react";
 import { AppHeader } from "@/components/layout";
 
 export default function NewDocumentPage() {
@@ -39,11 +39,7 @@ export default function NewDocumentPage() {
               Upload a PDF to get started
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 flex-shrink-0">
-            <Button variant="outline" disabled size={isMobile ? "sm" : "default"}>
-              <Save className="mr-2 h-4 w-4" />
-              Saved
-            </Button>
+          <div className="flex items-center gap-2 flex-shrink-0">
             <Button disabled size={isMobile ? "sm" : "default"}>
               <Download className="mr-2 h-4 w-4" />
               Export PDF

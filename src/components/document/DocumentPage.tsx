@@ -10,7 +10,12 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { FolderOpen, Save, Download, Loader2, Sparkles } from "lucide-react";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
+import { FolderOpen, Download, Loader2, Sparkles, MessageSquare, Cloud } from "lucide-react";
 import { toast } from "sonner";
 import { PDFWithOverlays } from "./PDFWithOverlays";
 import { QuestionsPanel } from "./QuestionsPanel";
@@ -32,6 +37,7 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
   const [scrollToQuestionId, setScrollToQuestionId] = useState<string | null>(null);
   const [scrollToFieldId, setScrollToFieldId] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Signature Manager state
   const [showSignatureManager, setShowSignatureManager] = useState(false);
@@ -500,16 +506,19 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
                 </p>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 flex-shrink-0">
-              <Button
-                variant="outline"
-                size={isMobile ? "sm" : "default"}
-                onClick={handleSave}
-                disabled={saving || !hasUnsavedChanges || isEarlyProcessing}
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {saving ? "Saving..." : hasUnsavedChanges ? "Save" : "Saved"}
-              </Button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Subtle autosave indicator */}
+              {saving && (
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-xs hidden sm:inline">Saving...</span>
+                </div>
+              )}
+              {!saving && !hasUnsavedChanges && completionStats.filled > 0 && (
+                <span title="All changes saved">
+                  <Cloud className="h-4 w-4 text-muted-foreground/50" />
+                </span>
+              )}
               <Button
                 size={isMobile ? "sm" : "default"}
                 onClick={handleExport}
@@ -528,15 +537,110 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
         </div>
       </div>
 
-      {/* Main Content - Resizable Panels */}
+      {/* Main Content */}
       <div className="h-[calc(100vh-100px)]">
-        <ResizablePanelGroup
-          orientation={isMobile ? "vertical" : "horizontal"}
-          className="h-full"
-        >
-          {/* PDF Panel */}
-          <ResizablePanel defaultSize={isMobile ? 50 : 65} minSize={isMobile ? 30 : 40}>
-            <div className={`h-full relative overflow-hidden ${isMobile ? "border-b" : "border-r"} ${isEarlyProcessing ? "blur-sm pointer-events-none" : ""}`}>
+        {isMobile ? (
+          /* Mobile: Full PDF with Drawer */
+          <div className="h-full relative">
+            {/* PDF Viewer - Full height on mobile */}
+            <div className={`h-full relative overflow-hidden ${isEarlyProcessing ? "blur-sm pointer-events-none" : ""}`}>
+              {pdfUrl ? (
+                <PDFWithOverlays
+                  url={pdfUrl}
+                  fields={fields}
+                  fieldValues={fieldValues}
+                  currentPage={currentPage}
+                  onPageChange={setCurrentPage}
+                  onFieldChange={onFieldChange}
+                  onFieldClick={handleFieldClick}
+                  onFieldCoordinatesChange={handleFieldCoordinatesChange}
+                  onFieldCopy={handleFieldCopy}
+                  onFieldDelete={handleFieldDelete}
+                  onFieldAdd={handleFieldAdd}
+                  onNavigateToQuestion={handleNavigateToQuestion}
+                  activeFieldId={activeFieldId}
+                  highlightedFieldIds={highlightedFieldIds}
+                  onPageRender={handlePageRender}
+                  onLoadError={handlePdfLoadError}
+                  scrollToFieldId={scrollToFieldId}
+                  isMobile={isMobile}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  <Skeleton className="h-[600px] w-full max-w-[600px]" />
+                </div>
+              )}
+
+              {/* Processing Overlay */}
+              {isEarlyProcessing && (
+                <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10">
+                  <div className="text-center space-y-4 p-6 rounded-xl bg-card border shadow-lg max-w-sm mx-4">
+                    <div className="flex items-center justify-center gap-3">
+                      <Sparkles className="h-6 w-6 text-primary animate-pulse" />
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold">{getProcessingLabel()}</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        This usually takes 10-30 seconds
+                      </p>
+                    </div>
+                    {progress && progress.pagesTotal > 0 && (
+                      <div className="space-y-2">
+                        <Progress
+                          value={(progress.pagesComplete / progress.pagesTotal) * 100}
+                          className="h-2"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {progress.pagesComplete} / {progress.pagesTotal} pages processed
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Mobile Drawer Trigger - Fixed at bottom */}
+            <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
+              <DrawerTrigger asChild>
+                <Button
+                  className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 shadow-lg gap-2 px-6"
+                  size="lg"
+                  disabled={isEarlyProcessing}
+                >
+                  <MessageSquare className="h-5 w-5" />
+                  <span>
+                    {completionStats.filled} / {completionStats.total} answered
+                  </span>
+                </Button>
+              </DrawerTrigger>
+              <DrawerContent className="h-[85vh]">
+                <QuestionsPanel
+                  documentId={documentId}
+                  document={document}
+                  questions={questions}
+                  progress={progress}
+                  currentQuestionIndex={currentQuestionIndex}
+                  currentPage={currentPage}
+                  onAnswer={handleAnswerQuestion}
+                  answering={answering}
+                  onGoToQuestion={(questionId) => {
+                    handleGoToQuestion(questionId);
+                    setDrawerOpen(false);
+                  }}
+                  scrollToQuestionId={scrollToQuestionId}
+                  onOpenSignatureManager={handleOpenSignatureManager}
+                />
+              </DrawerContent>
+            </Drawer>
+          </div>
+        ) : (
+          /* Desktop: Resizable Panels */
+          <ResizablePanelGroup orientation="horizontal" className="h-full">
+            {/* PDF Panel */}
+            <ResizablePanel defaultSize={65} minSize={40}>
+              <div className={`h-full relative overflow-hidden border-r ${isEarlyProcessing ? "blur-sm pointer-events-none" : ""}`}>
                 {pdfUrl ? (
                   <PDFWithOverlays
                     url={pdfUrl}
@@ -563,56 +667,57 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
                   </div>
                 )}
 
-              {/* Processing Overlay */}
-              {isEarlyProcessing && (
-                <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10">
-                  <div className="text-center space-y-4 p-8 rounded-xl bg-card border shadow-lg max-w-md">
-                    <div className="flex items-center justify-center gap-3">
-                      <Sparkles className="h-8 w-8 text-primary animate-pulse" />
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold">{getProcessingLabel()}</h3>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        This usually takes 10-30 seconds
-                      </p>
-                    </div>
-                    {progress && progress.pagesTotal > 0 && (
-                      <div className="space-y-2">
-                        <Progress
-                          value={(progress.pagesComplete / progress.pagesTotal) * 100}
-                          className="h-2"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          {progress.pagesComplete} / {progress.pagesTotal} pages processed
+                {/* Processing Overlay */}
+                {isEarlyProcessing && (
+                  <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10">
+                    <div className="text-center space-y-4 p-8 rounded-xl bg-card border shadow-lg max-w-md">
+                      <div className="flex items-center justify-center gap-3">
+                        <Sparkles className="h-8 w-8 text-primary animate-pulse" />
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold">{getProcessingLabel()}</h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          This usually takes 10-30 seconds
                         </p>
                       </div>
-                    )}
+                      {progress && progress.pagesTotal > 0 && (
+                        <div className="space-y-2">
+                          <Progress
+                            value={(progress.pagesComplete / progress.pagesTotal) * 100}
+                            className="h-2"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            {progress.pagesComplete} / {progress.pagesTotal} pages processed
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </ResizablePanel>
+                )}
+              </div>
+            </ResizablePanel>
 
-          <ResizableHandle withHandle />
+            <ResizableHandle withHandle />
 
-          {/* Questions Panel - higher z-index to stay on top of field overlays */}
-          <ResizablePanel defaultSize={isMobile ? 50 : 35} minSize={isMobile ? 30 : 25} className="relative z-20">
-            <QuestionsPanel
-              documentId={documentId}
-              document={document}
-              questions={questions}
-              progress={progress}
-              currentQuestionIndex={currentQuestionIndex}
-              currentPage={currentPage}
-              onAnswer={handleAnswerQuestion}
-              answering={answering}
-              onGoToQuestion={handleGoToQuestion}
-              scrollToQuestionId={scrollToQuestionId}
-              onOpenSignatureManager={handleOpenSignatureManager}
-            />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+            {/* Questions Panel */}
+            <ResizablePanel defaultSize={35} minSize={25} className="relative z-20">
+              <QuestionsPanel
+                documentId={documentId}
+                document={document}
+                questions={questions}
+                progress={progress}
+                currentQuestionIndex={currentQuestionIndex}
+                currentPage={currentPage}
+                onAnswer={handleAnswerQuestion}
+                answering={answering}
+                onGoToQuestion={handleGoToQuestion}
+                scrollToQuestionId={scrollToQuestionId}
+                onOpenSignatureManager={handleOpenSignatureManager}
+              />
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
       </div>
 
       {/* Global Signature Manager */}
