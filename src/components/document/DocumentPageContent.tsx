@@ -501,8 +501,8 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
             <div
               className={`h-full relative overflow-hidden ${isMobile ? "border-b" : "border-r"}`}
             >
-              {/* PDF content - blurred during processing */}
-              <div className={isEarlyProcessing ? "blur-sm pointer-events-none h-full" : "h-full"}>
+              {/* PDF content */}
+              <div className={isEarlyProcessing ? "pointer-events-none h-full" : "h-full"}>
                 {pdfUrl ? (
                   <PDFWithOverlays
                     url={pdfUrl}
@@ -530,10 +530,13 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
                 )}
               </div>
 
-              {/* Loading overlay - outside blur container */}
+              {/* Loading overlay with backdrop blur - card stays crisp */}
               {isEarlyProcessing && (
-                <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10">
-                  <div className="text-center space-y-4 p-8 rounded-xl bg-card border shadow-lg max-w-md">
+                <div className="absolute inset-0 z-10 flex items-center justify-center">
+                  {/* Blur layer */}
+                  <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
+                  {/* Card - isolated from blur */}
+                  <div className="relative text-center space-y-4 p-8 rounded-xl bg-card border shadow-lg max-w-md">
                     <div className="flex items-center justify-center gap-3">
                       <Sparkles className="h-8 w-8 text-primary animate-pulse" />
                       <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
