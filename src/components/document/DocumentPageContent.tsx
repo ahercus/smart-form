@@ -10,7 +10,12 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { Save, Download, Loader2, Sparkles, FolderOpen } from "lucide-react";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
+import { Download, Loader2, Sparkles, FolderOpen, MessageSquare, Cloud } from "lucide-react";
 import { toast } from "sonner";
 import { PDFWithOverlays } from "./PDFWithOverlays";
 import { QuestionsPanel } from "./QuestionsPanel";
@@ -35,6 +40,7 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
   );
   const [scrollToFieldId, setScrollToFieldId] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const [showSignatureManager, setShowSignatureManager] = useState(false);
   const [signatureContext, setSignatureContext] = useState<{
@@ -471,15 +477,20 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
             </h1>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {/* Subtle autosave indicator */}
+            {saving && (
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-xs hidden sm:inline">Saving...</span>
+              </div>
+            )}
+            {!saving && !hasUnsavedChanges && completionStats.filled > 0 && (
+              <span title="All changes saved">
+                <Cloud className="h-4 w-4 text-muted-foreground/50" />
+              </span>
+            )}
             <Button
-              variant="outline"
-              onClick={handleSave}
-              disabled={saving || !hasUnsavedChanges || isEarlyProcessing}
-            >
-              <Save className="mr-2 h-4 w-4" />
-              {saving ? "Saving..." : hasUnsavedChanges ? "Save" : "Saved"}
-            </Button>
-            <Button
+              size={isMobile ? "sm" : "default"}
               onClick={handleExport}
               disabled={isEarlyProcessing || exporting}
             >
@@ -495,76 +506,58 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
       </AppHeader>
 
       <div className="flex-1 overflow-hidden">
-        <ResizablePanelGroup
-          orientation={isMobile ? "vertical" : "horizontal"}
-          className="h-full"
-        >
-          <ResizablePanel
-            defaultSize={isMobile ? 50 : 65}
-            minSize={isMobile ? 30 : 40}
-          >
-            <div
-              className={`h-full relative overflow-hidden ${isMobile ? "border-b" : "border-r"}`}
-            >
-              {/* PDF content */}
-              <div className={isEarlyProcessing ? "pointer-events-none h-full" : "h-full"}>
-                {pdfUrl ? (
-                  <PDFWithOverlays
-                    url={pdfUrl}
-                    fields={fields}
-                    fieldValues={fieldValues}
-                    currentPage={currentPage}
-                    onPageChange={setCurrentPage}
-                    onFieldChange={onFieldChange}
-                    onFieldClick={handleFieldClick}
-                    onFieldCoordinatesChange={handleFieldCoordinatesChange}
-                    onFieldCopy={handleFieldCopy}
-                    onFieldDelete={handleFieldDelete}
-                    onFieldAdd={handleFieldAdd}
-                    onNavigateToQuestion={handleNavigateToQuestion}
-                    activeFieldId={activeFieldId}
-                    highlightedFieldIds={highlightedFieldIds}
-                    onPageRender={handlePageRender}
-                    onLoadError={handlePdfLoadError}
-                    scrollToFieldId={scrollToFieldId}
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
-                    <Skeleton className="h-[600px] w-full max-w-[600px]" />
-                  </div>
-                )}
-              </div>
+        {isMobile ? (
+          /* Mobile: Full PDF with Drawer */
+          <div className="h-full relative">
+            {/* PDF Viewer - Full height on mobile */}
+            <div className={`h-full relative overflow-hidden ${isEarlyProcessing ? "pointer-events-none" : ""}`}>
+              {pdfUrl ? (
+                <PDFWithOverlays
+                  url={pdfUrl}
+                  fields={fields}
+                  fieldValues={fieldValues}
+                  currentPage={currentPage}
+                  onPageChange={setCurrentPage}
+                  onFieldChange={onFieldChange}
+                  onFieldClick={handleFieldClick}
+                  onFieldCoordinatesChange={handleFieldCoordinatesChange}
+                  onFieldCopy={handleFieldCopy}
+                  onFieldDelete={handleFieldDelete}
+                  onFieldAdd={handleFieldAdd}
+                  onNavigateToQuestion={handleNavigateToQuestion}
+                  activeFieldId={activeFieldId}
+                  highlightedFieldIds={highlightedFieldIds}
+                  onPageRender={handlePageRender}
+                  onLoadError={handlePdfLoadError}
+                  scrollToFieldId={scrollToFieldId}
+                  isMobile={isMobile}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  <Skeleton className="h-[600px] w-full max-w-[600px]" />
+                </div>
+              )}
 
-              {/* Loading overlay with backdrop blur - card stays crisp */}
+              {/* Processing Overlay */}
               {isEarlyProcessing && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center">
-                  {/* Blur layer */}
                   <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
-                  {/* Card - isolated from blur */}
-                  <div className="relative text-center space-y-4 p-8 rounded-xl bg-card border shadow-lg max-w-md">
+                  <div className="relative text-center space-y-4 p-6 rounded-xl bg-card border shadow-lg max-w-sm mx-4">
                     <div className="flex items-center justify-center gap-3">
-                      <Sparkles className="h-8 w-8 text-primary animate-pulse" />
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      <Sparkles className="h-6 w-6 text-primary animate-pulse" />
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold">
-                        {getProcessingLabel()}
-                      </h3>
+                      <h3 className="text-base font-semibold">{getProcessingLabel()}</h3>
                       <p className="text-sm text-muted-foreground mt-1">
                         This usually takes 10-30 seconds
                       </p>
                     </div>
                     {progress && progress.pagesTotal > 0 && (
                       <div className="space-y-2">
-                        <Progress
-                          value={
-                            (progress.pagesComplete / progress.pagesTotal) * 100
-                          }
-                          className="h-2"
-                        />
+                        <Progress value={(progress.pagesComplete / progress.pagesTotal) * 100} className="h-2" />
                         <p className="text-xs text-muted-foreground">
-                          {progress.pagesComplete} / {progress.pagesTotal} pages
-                          processed
+                          {progress.pagesComplete} / {progress.pagesTotal} pages processed
                         </p>
                       </div>
                     )}
@@ -572,33 +565,126 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
                 </div>
               )}
             </div>
-          </ResizablePanel>
 
-          <ResizableHandle withHandle />
+            {/* Mobile Drawer Trigger - Fixed at bottom */}
+            <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
+              <DrawerTrigger asChild>
+                <Button
+                  className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 shadow-lg gap-2 px-6"
+                  size="lg"
+                  disabled={isEarlyProcessing}
+                >
+                  <MessageSquare className="h-5 w-5" />
+                  <span>
+                    {completionStats.filled} / {completionStats.total} answered
+                  </span>
+                </Button>
+              </DrawerTrigger>
+              <DrawerContent className="h-[85vh]">
+                <QuestionsPanel
+                  documentId={documentId}
+                  document={document}
+                  questions={questions}
+                  progress={progress}
+                  currentQuestionIndex={currentQuestionIndex}
+                  currentPage={currentPage}
+                  onAnswer={handleAnswerQuestion}
+                  onAnswerMemoryChoice={handleAnswerMemoryChoice}
+                  answering={answering}
+                  onGoToQuestion={(questionId) => {
+                    handleGoToQuestion(questionId);
+                    setDrawerOpen(false);
+                  }}
+                  scrollToQuestionId={scrollToQuestionId}
+                  onOpenSignatureManager={handleOpenSignatureManager}
+                  loading={loading}
+                />
+              </DrawerContent>
+            </Drawer>
+          </div>
+        ) : (
+          /* Desktop: Resizable Panels */
+          <ResizablePanelGroup orientation="horizontal" className="h-full">
+            <ResizablePanel defaultSize={65} minSize={40}>
+              <div className="h-full relative overflow-hidden border-r">
+                <div className={isEarlyProcessing ? "pointer-events-none h-full" : "h-full"}>
+                  {pdfUrl ? (
+                    <PDFWithOverlays
+                      url={pdfUrl}
+                      fields={fields}
+                      fieldValues={fieldValues}
+                      currentPage={currentPage}
+                      onPageChange={setCurrentPage}
+                      onFieldChange={onFieldChange}
+                      onFieldClick={handleFieldClick}
+                      onFieldCoordinatesChange={handleFieldCoordinatesChange}
+                      onFieldCopy={handleFieldCopy}
+                      onFieldDelete={handleFieldDelete}
+                      onFieldAdd={handleFieldAdd}
+                      onNavigateToQuestion={handleNavigateToQuestion}
+                      activeFieldId={activeFieldId}
+                      highlightedFieldIds={highlightedFieldIds}
+                      onPageRender={handlePageRender}
+                      onLoadError={handlePdfLoadError}
+                      scrollToFieldId={scrollToFieldId}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      <Skeleton className="h-[600px] w-full max-w-[600px]" />
+                    </div>
+                  )}
+                </div>
 
-          {/* Questions Panel - higher z-index to stay on top of field overlays */}
-          <ResizablePanel
-            defaultSize={isMobile ? 50 : 35}
-            minSize={isMobile ? 30 : 25}
-            className="relative z-20"
-          >
-            <QuestionsPanel
-              documentId={documentId}
-              document={document}
-              questions={questions}
-              progress={progress}
-              currentQuestionIndex={currentQuestionIndex}
-              currentPage={currentPage}
-              onAnswer={handleAnswerQuestion}
-              onAnswerMemoryChoice={handleAnswerMemoryChoice}
-              answering={answering}
-              onGoToQuestion={handleGoToQuestion}
-              scrollToQuestionId={scrollToQuestionId}
-              onOpenSignatureManager={handleOpenSignatureManager}
-              loading={loading}
-            />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+                {/* Processing Overlay */}
+                {isEarlyProcessing && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
+                    <div className="relative text-center space-y-4 p-8 rounded-xl bg-card border shadow-lg max-w-md">
+                      <div className="flex items-center justify-center gap-3">
+                        <Sparkles className="h-8 w-8 text-primary animate-pulse" />
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold">{getProcessingLabel()}</h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          This usually takes 10-30 seconds
+                        </p>
+                      </div>
+                      {progress && progress.pagesTotal > 0 && (
+                        <div className="space-y-2">
+                          <Progress value={(progress.pagesComplete / progress.pagesTotal) * 100} className="h-2" />
+                          <p className="text-xs text-muted-foreground">
+                            {progress.pagesComplete} / {progress.pagesTotal} pages processed
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </ResizablePanel>
+
+            <ResizableHandle withHandle />
+
+            <ResizablePanel defaultSize={35} minSize={25} className="relative z-20">
+              <QuestionsPanel
+                documentId={documentId}
+                document={document}
+                questions={questions}
+                progress={progress}
+                currentQuestionIndex={currentQuestionIndex}
+                currentPage={currentPage}
+                onAnswer={handleAnswerQuestion}
+                onAnswerMemoryChoice={handleAnswerMemoryChoice}
+                answering={answering}
+                onGoToQuestion={handleGoToQuestion}
+                scrollToQuestionId={scrollToQuestionId}
+                onOpenSignatureManager={handleOpenSignatureManager}
+                loading={loading}
+              />
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
       </div>
 
       <SignatureManager
