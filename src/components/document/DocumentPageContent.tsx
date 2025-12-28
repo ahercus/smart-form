@@ -446,49 +446,41 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <AppHeader>
-        <div className="flex flex-col flex-1 min-w-0 gap-1">
-          <div className="flex items-center justify-between min-w-0">
-            <div className="min-w-0 mr-4">
-              <h1 className="font-semibold truncate">
-                {document?.original_filename || "Loading..."}
-              </h1>
+        <div className="flex flex-1 items-center justify-between min-w-0">
+          <div className="min-w-0 mr-4">
+            <h1 className="font-semibold truncate">
+              {document?.original_filename || "Loading..."}
+            </h1>
+            {isEarlyProcessing && (
               <p className="text-sm text-muted-foreground">
-                {isEarlyProcessing ? (
-                  <span className="flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    {getProcessingLabel()}
-                  </span>
-                ) : (
-                  `${completionStats.filled} of ${completionStats.total} fields completed`
-                )}
+                <span className="flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  {getProcessingLabel()}
+                </span>
               </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Button
-                variant="outline"
-                onClick={handleSave}
-                disabled={saving || !hasUnsavedChanges || isEarlyProcessing}
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {saving ? "Saving..." : hasUnsavedChanges ? "Save" : "Saved"}
-              </Button>
-              <Button
-                onClick={handleExport}
-                disabled={isEarlyProcessing || exporting}
-              >
-                {exporting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="mr-2 h-4 w-4" />
-                )}
-                {exporting ? "Exporting..." : "Export PDF"}
-              </Button>
-            </div>
+            )}
           </div>
-          <Progress
-            value={isEarlyProcessing ? 0 : completionStats.percentage}
-            className="h-1.5"
-          />
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              onClick={handleSave}
+              disabled={saving || !hasUnsavedChanges || isEarlyProcessing}
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {saving ? "Saving..." : hasUnsavedChanges ? "Save" : "Saved"}
+            </Button>
+            <Button
+              onClick={handleExport}
+              disabled={isEarlyProcessing || exporting}
+            >
+              {exporting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              {exporting ? "Exporting..." : "Export PDF"}
+            </Button>
+          </div>
         </div>
       </AppHeader>
 

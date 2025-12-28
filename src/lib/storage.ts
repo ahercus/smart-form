@@ -152,7 +152,41 @@ export async function getDocumentsByUser(userId: string): Promise<Document[]> {
     throw new Error(`Failed to get documents: ${error.message}`);
   }
 
-  return (data || []) as Document[];
+  const documents = (data || []) as Document[];
+
+  // Fetch field counts for all documents in parallel
+  if (documents.length > 0) {
+    const documentIds = documents.map((d) => d.id);
+
+    const { data: fieldData } = await supabase
+      .from("extracted_fields")
+      .select("document_id, value")
+      .in("document_id", documentIds);
+
+    if (fieldData) {
+      // Group by document_id and count
+      const fieldStats = new Map<string, { total: number; filled: number }>();
+      for (const field of fieldData) {
+        const stats = fieldStats.get(field.document_id) || { total: 0, filled: 0 };
+        stats.total++;
+        if (field.value && field.value.trim() !== "") {
+          stats.filled++;
+        }
+        fieldStats.set(field.document_id, stats);
+      }
+
+      // Add stats to documents
+      for (const doc of documents) {
+        const stats = fieldStats.get(doc.id);
+        if (stats) {
+          doc.total_fields = stats.total;
+          doc.filled_fields = stats.filled;
+        }
+      }
+    }
+  }
+
+  return documents;
 }
 
 export async function updateDocumentStatus(

@@ -86,6 +86,12 @@ export function DocumentCard({ document, onDelete }: DocumentCardProps) {
               <p className="text-sm text-muted-foreground">
                 {formatDate(document.created_at)}
                 {document.page_count && ` • ${document.page_count} page${document.page_count > 1 ? "s" : ""}`}
+                {document.status === "ready" && document.total_fields !== undefined && document.total_fields > 0 && (
+                  <span>
+                    {" • "}
+                    {document.filled_fields || 0} of {document.total_fields} fields
+                  </span>
+                )}
               </p>
               {document.error_message && (
                 <p className="text-sm text-destructive mt-1">

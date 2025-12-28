@@ -179,6 +179,9 @@ export interface Document {
   page_images: PageImage[];
   created_at: string;
   updated_at: string;
+  // Optional field completion stats (populated on dashboard)
+  total_fields?: number;
+  filled_fields?: number;
 }
 
 // Extracted field from a document
