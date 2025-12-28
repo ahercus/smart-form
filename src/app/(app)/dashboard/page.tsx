@@ -1,7 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { Plus, RefreshCw, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,9 +18,38 @@ import { DocumentCard } from "@/components/DocumentCard";
 import { useDocuments } from "@/hooks/useDocuments";
 import { AppHeader } from "@/components/layout";
 
+interface ProfileData {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { documents, loading, error, refresh, deleteDocument, updateDocumentMemory } = useDocuments();
+  const [profileComplete, setProfileComplete] = useState<boolean | null>(null);
+
+  // Check if profile is complete
+  useEffect(() => {
+    async function checkProfile() {
+      try {
+        const response = await fetch("/api/profile");
+        if (response.ok) {
+          const data = await response.json();
+          const profile = data.coreData as ProfileData | null;
+          // Consider profile complete if at least first name and last name are filled
+          const isComplete = !!(profile?.firstName && profile?.lastName);
+          setProfileComplete(isComplete);
+        } else {
+          setProfileComplete(false);
+        }
+      } catch {
+        setProfileComplete(false);
+      }
+    }
+    checkProfile();
+  }, []);
 
   const handleUploadClick = () => {
     router.push("/document");
@@ -98,6 +129,28 @@ export default function DashboardPage() {
                 />
               ))}
             </div>
+          )}
+
+          {/* Profile completion prompt */}
+          {profileComplete === false && (
+            <Card className="border-muted bg-muted/30">
+              <CardContent className="flex items-center justify-between gap-4 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                    <User className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Complete your profile</p>
+                    <p className="text-sm text-muted-foreground">
+                      Add your name and details to improve auto-fill accuracy
+                    </p>
+                  </div>
+                </div>
+                <Button variant="secondary" asChild>
+                  <Link href="/profile">Complete profile</Link>
+                </Button>
+              </CardContent>
+            </Card>
           )}
         </div>
       </div>

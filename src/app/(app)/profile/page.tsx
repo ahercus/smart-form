@@ -64,6 +64,26 @@ const defaultProfile: ProfileData = {
   zip: "",
 };
 
+function getMemoryPlaceholder(categoryName?: string): string {
+  switch (categoryName?.toLowerCase()) {
+    case "family":
+      return "E.g., My son Jack, born March 15, 2017, male";
+    case "work":
+    case "employment":
+      return "E.g., Software engineer at Acme Corp since 2020";
+    case "medical":
+      return "E.g., Allergic to penicillin, takes daily multivitamin";
+    case "education":
+      return "E.g., Jack attends Lincoln Elementary, 3rd grade";
+    case "address":
+      return "E.g., Work address: 123 Business Ave, Suite 400";
+    case "personal":
+      return "E.g., Prefer to be contacted by email";
+    default:
+      return "E.g., Information to remember for auto-fill...";
+  }
+}
+
 export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -226,8 +246,8 @@ export default function ProfilePage() {
                       </div>
                     ) : (
                       <>
-                        <div className="grid gap-4 grid-cols-[1fr,auto,1fr]">
-                          <div className="space-y-2">
+                        <div className="flex gap-3">
+                          <div className="flex-1 space-y-2">
                             <Label htmlFor="firstName">First Name</Label>
                             <Input
                               id="firstName"
@@ -236,7 +256,7 @@ export default function ProfilePage() {
                               onChange={(e) => handleChange("firstName", e.target.value)}
                             />
                           </div>
-                          <div className="space-y-2 w-16">
+                          <div className="w-16 space-y-2">
                             <Label htmlFor="middleInitial">M.I.</Label>
                             <Input
                               id="middleInitial"
@@ -247,7 +267,7 @@ export default function ProfilePage() {
                               onChange={(e) => handleChange("middleInitial", e.target.value.toUpperCase())}
                             />
                           </div>
-                          <div className="space-y-2">
+                          <div className="flex-1 space-y-2">
                             <Label htmlFor="lastName">Last Name</Label>
                             <Input
                               id="lastName"
@@ -435,7 +455,7 @@ export default function ProfilePage() {
               <Label htmlFor="content">Memory</Label>
               <Textarea
                 id="content"
-                placeholder="E.g., My son Jack is 7 years old, born March 15, 2017"
+                placeholder={getMemoryPlaceholder(bundles.find(b => b.id === memoryBundleId)?.name)}
                 value={memoryContent}
                 onChange={(e) => setMemoryContent(e.target.value)}
                 rows={3}
