@@ -5,6 +5,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { generateQuestions } from "@/lib/orchestrator/question-generator";
 import { getPageImageBase64 } from "@/lib/storage";
 
+// Allow up to 5 minutes for question generation (Vercel Pro limit)
+export const maxDuration = 300;
+
 // POST /api/documents/[id]/context - Submit context and trigger question generation
 export async function POST(
   request: NextRequest,
@@ -103,25 +106,36 @@ export async function POST(
       const validPageImages = pageImagesWithBase64.filter((p) => p.imageBase64);
 
       if (validPageImages.length > 0) {
-        // Trigger question generation in the background
-        generateQuestions({
+        console.log("[AutoForm] Starting question generation:", {
+          documentId,
+          pageCount: validPageImages.length,
+        });
+
+        // IMPORTANT: Must await to prevent Vercel serverless from killing the process
+        // before question generation completes
+        const result = await generateQuestions({
           documentId,
           userId: user.id,
           pageImages: validPageImages,
-        }).catch((error) => {
-          console.error("[AutoForm] Question generation failed:", error);
         });
 
-        console.log("[AutoForm] Question generation triggered:", {
+        console.log("[AutoForm] Question generation complete:", {
           documentId,
-          pageCount: validPageImages.length,
+          success: result.success,
+          questionsGenerated: result.questionsGenerated,
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: skip ? "Skipped context, questions generated" : "Context saved, questions generated",
+          questionsGenerated: result.questionsGenerated,
         });
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: skip ? "Skipped context, generating questions" : "Context saved, generating questions",
+      message: skip ? "Skipped context, no pages to process" : "Context saved, no pages to process",
     });
   } catch (error) {
     console.error("[AutoForm] Context submission error:", error);

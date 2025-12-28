@@ -114,7 +114,6 @@ export function DocumentCard({ document, onDelete }: DocumentCardProps) {
                 variant="ghost"
                 size="icon"
                 onClick={handleDeleteClick}
-                disabled={isProcessing}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>

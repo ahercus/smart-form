@@ -38,7 +38,7 @@ export function QuestionCard({
 }: QuestionCardProps) {
   const [answer, setAnswer] = useState(question.answer || "");
 
-  // Voice recording for text input types - passes documentId for context-aware transcription
+  // Voice recording for text input types - passes context for accurate transcription
   const supportsVoice = ["text", "textarea"].includes(question.input_type);
   const { state: voiceState, toggleRecording } = useVoiceRecording({
     onTranscription: (text) => {
@@ -50,6 +50,8 @@ export function QuestionCard({
       toast.error(error);
     },
     documentId,
+    questionText: question.question,
+    fieldIds: question.field_ids,
   });
 
   const handleSubmit = async () => {

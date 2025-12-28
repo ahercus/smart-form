@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getGeminiClient } from "@/lib/gemini/client";
+import { getMemoryContext } from "@/lib/memory";
 import type { Profile, Document } from "@/lib/types";
 
 // Build context string from profile and document data
@@ -57,10 +58,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { audio, mimeType, documentId } = body as {
+    const { audio, mimeType, documentId, questionText, fieldIds } = body as {
       audio: string; // base64 encoded audio
       mimeType: string;
       documentId?: string; // Optional document context
+      questionText?: string; // The current question being answered
+      fieldIds?: string[]; // Field IDs for fetching labels
     };
 
     if (!audio || !mimeType) {
@@ -74,6 +77,8 @@ export async function POST(request: NextRequest) {
       mimeType,
       audioLength: audio.length,
       hasDocumentId: !!documentId,
+      hasQuestion: !!questionText,
+      fieldCount: fieldIds?.length || 0,
     });
 
     // Fetch user profile for context
@@ -95,8 +100,23 @@ export async function POST(request: NextRequest) {
       document = doc;
     }
 
+    // Fetch field labels if fieldIds provided
+    let fieldLabels: string[] = [];
+    if (fieldIds && fieldIds.length > 0) {
+      const { data: fields } = await supabase
+        .from("extracted_fields")
+        .select("label")
+        .in("id", fieldIds);
+      if (fields) {
+        fieldLabels = fields.map((f) => f.label);
+      }
+    }
+
+    // Fetch memory context for the user
+    const memoryContext = await getMemoryContext(user.id);
+
     const contextString = buildContextString(profile, document);
-    const hasContext = contextString.length > 0;
+    const hasContext = contextString.length > 0 || memoryContext.length > 0 || questionText || fieldLabels.length > 0;
 
     const client = getGeminiClient();
 
@@ -106,11 +126,11 @@ export async function POST(request: NextRequest) {
 
 1. **Clean up filler words**: Remove verbal fillers like "um", "uh", "ah", "like", "you know", "sort of", "kind of", "basically", "actually", "literally", "right", "so", "well" when they're used as fillers (not when they're meaningful parts of a sentence).
 
-2. **Use context for correct spelling**: Use the following context to correctly spell names, addresses, and other specific information that the speaker mentions:
-
-<context>
-${contextString}
-</context>
+2. **Use context for correct spelling**: Use the following context to correctly spell names, addresses, and other specific information that the speaker mentions.
+${questionText ? `\n**Current question being answered**: "${questionText}"` : ""}
+${fieldLabels.length > 0 ? `\n**Form fields to fill**: ${fieldLabels.join(", ")}` : ""}
+${contextString ? `\n**User profile**:\n${contextString}` : ""}
+${memoryContext ? `\n${memoryContext}` : ""}
 
 3. **Preserve meaning**: Don't add or remove any meaningful content - only clean up the filler words and correct spellings.
 
@@ -151,6 +171,9 @@ If the audio is unclear or empty, return an empty string.`;
       textLength: transcribedText.length,
       preview: transcribedText.substring(0, 50),
       hadContext: hasContext,
+      hadQuestion: !!questionText,
+      hadFieldLabels: fieldLabels.length > 0,
+      hadMemory: memoryContext.length > 0,
     });
 
     return NextResponse.json({ text: transcribedText });

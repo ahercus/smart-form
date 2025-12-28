@@ -499,8 +499,10 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
             minSize={isMobile ? 30 : 40}
           >
             <div
-              className={`h-full relative overflow-hidden ${isMobile ? "border-b" : "border-r"} ${isEarlyProcessing ? "blur-sm pointer-events-none" : ""}`}
+              className={`h-full relative overflow-hidden ${isMobile ? "border-b" : "border-r"}`}
             >
+              {/* PDF content - blurred during processing */}
+              <div className={isEarlyProcessing ? "blur-sm pointer-events-none h-full" : "h-full"}>
                 {pdfUrl ? (
                   <PDFWithOverlays
                     url={pdfUrl}
@@ -526,9 +528,11 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
                     <Skeleton className="h-[600px] w-full max-w-[600px]" />
                   </div>
                 )}
+              </div>
 
+              {/* Loading overlay - outside blur container */}
               {isEarlyProcessing && (
-                <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10">
+                <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10">
                   <div className="text-center space-y-4 p-8 rounded-xl bg-card border shadow-lg max-w-md">
                     <div className="flex items-center justify-center gap-3">
                       <Sparkles className="h-8 w-8 text-primary animate-pulse" />

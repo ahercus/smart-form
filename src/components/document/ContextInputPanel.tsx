@@ -30,7 +30,7 @@ export function ContextInputPanel({
   const [tailoredQuestion, setTailoredQuestion] = useState<string | null>(null);
   const [loadingQuestion, setLoadingQuestion] = useState(true);
 
-  // Voice recording - passes documentId for context-aware transcription
+  // Voice recording - passes documentId and tailored question for context-aware transcription
   const { state: voiceState, toggleRecording } = useVoiceRecording({
     onTranscription: (text) => {
       if (text.trim()) {
@@ -41,6 +41,7 @@ export function ContextInputPanel({
       toast.error(error);
     },
     documentId,
+    questionText: tailoredQuestion || undefined,
   });
 
   // Fetch tailored context question - retry if page images not ready
