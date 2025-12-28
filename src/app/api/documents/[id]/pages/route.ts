@@ -8,6 +8,9 @@ import {
 } from "@/lib/storage";
 import { generateQuestions } from "@/lib/orchestrator/question-generator";
 
+// Allow up to 5 minutes for question generation (Vercel Pro limit)
+export const maxDuration = 300;
+
 // POST /api/documents/[id]/pages - Upload page images and trigger question generation
 export async function POST(
   request: NextRequest,
@@ -133,14 +136,12 @@ export async function POST(
           }))
         );
 
-        // Run question generation in the background
-        // The client uses Realtime for updates
-        generateQuestions({
+        // IMPORTANT: Must await to prevent Vercel serverless from killing the process
+        // before question generation completes
+        const result = await generateQuestions({
           documentId,
           userId: user.id,
           pageImages,
-        }).catch((error) => {
-          console.error("[AutoForm] Question generation failed:", error);
         });
 
         return NextResponse.json({
@@ -148,6 +149,7 @@ export async function POST(
           pagesUploaded: uploadedPages.length,
           processingStarted: true,
           pagesProcessing: pagesNeedingProcessing,
+          questionsGenerated: result.questionsGenerated,
         });
       } else {
         console.log("[AutoForm] Waiting for context before generating questions:", {
