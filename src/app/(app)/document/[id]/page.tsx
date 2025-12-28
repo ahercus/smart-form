@@ -1,4 +1,4 @@
-import { DocumentPage } from "@/components/document";
+import { DocumentPageContent } from "@/components/document/DocumentPageContent";
 
 export default async function DocumentPageRoute({
   params,
@@ -7,5 +7,5 @@ export default async function DocumentPageRoute({
 }) {
   const { id } = await params;
 
-  return <DocumentPage documentId={id} />;
+  return <DocumentPageContent documentId={id} />;
 }

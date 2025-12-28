@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Loader2 } from "lucide-react";
+import { Upload, Loader2, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -23,18 +23,16 @@ export function FullCanvasDropZone({ onDocumentCreated }: FullCanvasDropZoneProp
   const router = useRouter();
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const hasAutoTriggered = useRef(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-trigger file selector on mount
+  // Detect mobile
   useEffect(() => {
-    if (!hasAutoTriggered.current && fileInputRef.current) {
-      hasAutoTriggered.current = true;
-      // Small delay to ensure component is fully mounted
-      setTimeout(() => {
-        fileInputRef.current?.click();
-      }, 100);
-    }
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -165,11 +163,35 @@ export function FullCanvasDropZone({ onDocumentCreated }: FullCanvasDropZoneProp
           className="hidden"
           id="file-upload"
         />
-        <Button asChild variant="outline" size="lg">
-          <label htmlFor="file-upload" className="cursor-pointer">
-            Or browse files
-          </label>
-        </Button>
+
+        {/* Camera input for mobile */}
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleFileSelect}
+          className="hidden"
+          id="camera-upload"
+        />
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button asChild variant="outline" size="lg">
+            <label htmlFor="file-upload" className="cursor-pointer">
+              <Upload className="h-4 w-4 mr-2" />
+              Browse files
+            </label>
+          </Button>
+
+          {isMobile && (
+            <Button asChild size="lg">
+              <label htmlFor="camera-upload" className="cursor-pointer">
+                <Camera className="h-4 w-4 mr-2" />
+                Take photo
+              </label>
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -5,9 +5,9 @@ export default async function LandingPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Redirect authenticated users to document page
+  // Redirect authenticated users to dashboard
   if (user) {
-    redirect("/document");
+    redirect("/dashboard");
   }
 
   // Redirect to login for unauthenticated users
