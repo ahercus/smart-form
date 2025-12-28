@@ -18,7 +18,7 @@ import { AppHeader } from "@/components/layout";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { documents, loading, error, refresh, deleteDocument } = useDocuments();
+  const { documents, loading, error, refresh, deleteDocument, updateDocumentMemory } = useDocuments();
 
   const handleUploadClick = () => {
     router.push("/document");
@@ -30,6 +30,15 @@ export default function DashboardPage() {
       toast.success("Document deleted");
     } catch {
       toast.error("Failed to delete document");
+    }
+  };
+
+  const handleToggleMemory = async (id: string, useMemory: boolean) => {
+    try {
+      await updateDocumentMemory(id, useMemory);
+      toast.success(useMemory ? "Memory enabled" : "Memory disabled");
+    } catch {
+      toast.error("Failed to update memory setting");
     }
   };
 
@@ -85,6 +94,7 @@ export default function DashboardPage() {
                   key={doc.id}
                   document={doc}
                   onDelete={handleDelete}
+                  onToggleMemory={handleToggleMemory}
                 />
               ))}
             </div>

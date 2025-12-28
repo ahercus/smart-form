@@ -10,6 +10,7 @@ interface UseDocumentsReturn {
   refresh: () => Promise<Document[]>;
   uploadDocument: (file: File, contextNotes: string) => Promise<string>;
   deleteDocument: (id: string) => Promise<void>;
+  updateDocumentMemory: (id: string, useMemory: boolean) => Promise<void>;
 }
 
 const PROCESSING_STATUSES = ["uploading", "analyzing", "extracting", "refining"];
@@ -115,6 +116,35 @@ export function useDocuments(): UseDocumentsReturn {
     [documents]
   );
 
+  const updateDocumentMemory = useCallback(
+    async (id: string, useMemory: boolean): Promise<void> => {
+      // Optimistic update
+      const previousDocuments = documents;
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, use_memory: useMemory } : d))
+      );
+
+      try {
+        const res = await fetch(`/api/documents/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ use_memory: useMemory }),
+        });
+
+        if (!res.ok) {
+          // Revert on failure
+          setDocuments(previousDocuments);
+          throw new Error("Failed to update document memory setting");
+        }
+      } catch (err) {
+        // Revert on error
+        setDocuments(previousDocuments);
+        throw err;
+      }
+    },
+    [documents]
+  );
+
   return {
     documents,
     loading,
@@ -122,5 +152,6 @@ export function useDocuments(): UseDocumentsReturn {
     refresh: fetchDocuments,
     uploadDocument,
     deleteDocument,
+    updateDocumentMemory,
   };
 }

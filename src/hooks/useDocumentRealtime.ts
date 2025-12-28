@@ -91,6 +91,7 @@ export function useDocumentRealtime(documentId: string) {
           page_number: q.page_number,
           status: q.status,
           answer: q.answer,
+          choices: q.choices,
           created_at: q.created_at,
           updated_at: q.updated_at,
         })) as QuestionGroup[],
@@ -206,6 +207,7 @@ export function useDocumentRealtime(documentId: string) {
                   page_number: newQuestion.page_number,
                   status: newQuestion.status,
                   answer: newQuestion.answer,
+                  choices: newQuestion.choices,
                   created_at: newQuestion.created_at,
                   updated_at: newQuestion.updated_at,
                 } as QuestionGroup,
@@ -227,6 +229,7 @@ export function useDocumentRealtime(documentId: string) {
                       page_number: updatedQuestion.page_number,
                       status: updatedQuestion.status,
                       answer: updatedQuestion.answer,
+                      choices: updatedQuestion.choices,
                       created_at: updatedQuestion.created_at,
                       updated_at: updatedQuestion.updated_at,
                     } as QuestionGroup)

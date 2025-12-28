@@ -35,16 +35,17 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { context, skip } = body;
+    const { context, skip, useMemory } = body;
 
     const adminClient = createAdminClient();
 
-    // Save context to document
+    // Save context and memory preference to document
     await adminClient
       .from("documents")
       .update({
         context_notes: context || null,
         context_submitted: true,
+        use_memory: useMemory !== undefined ? useMemory : true,
         updated_at: new Date().toISOString(),
       })
       .eq("id", documentId);
@@ -53,6 +54,7 @@ export async function POST(
       documentId,
       hasContext: !!context,
       skipped: !!skip,
+      useMemory: useMemory !== undefined ? useMemory : true,
     });
 
     // Wait for field QC to complete before generating questions
@@ -124,6 +126,7 @@ export async function POST(
           documentId,
           userId: user.id,
           pageImages: validPageImages,
+          useMemory: useMemory !== undefined ? useMemory : true,
         });
 
         console.log("[AutoForm] Question generation complete:", {

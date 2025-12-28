@@ -6,6 +6,7 @@ import type {
   GeminiMessage,
   QuestionGroup,
   FieldType,
+  MemoryChoice,
 } from "../types";
 
 // Retry helper for transient network errors
@@ -165,6 +166,7 @@ export async function saveQuestion(
     inputType: FieldType;
     profileKey?: string;
     pageNumber: number;
+    choices?: MemoryChoice[];
   }
 ): Promise<QuestionGroup> {
   return withRetry(
@@ -181,6 +183,7 @@ export async function saveQuestion(
           profile_key: question.profileKey || null,
           page_number: question.pageNumber,
           status: "visible",
+          choices: question.choices || null,
         })
         .select()
         .single();
@@ -199,6 +202,7 @@ export async function saveQuestion(
         documentId,
         questionId: data.id,
         question: question.question.slice(0, 50),
+        hasChoices: !!question.choices?.length,
       });
 
       return {
@@ -211,6 +215,7 @@ export async function saveQuestion(
         page_number: data.page_number,
         status: data.status,
         answer: data.answer,
+        choices: data.choices as MemoryChoice[] | undefined,
         created_at: data.created_at,
         updated_at: data.updated_at,
       };
@@ -246,6 +251,7 @@ export async function getQuestions(
     page_number: q.page_number,
     status: q.status as QuestionGroup["status"],
     answer: q.answer,
+    choices: q.choices as MemoryChoice[] | undefined,
     created_at: q.created_at,
     updated_at: q.updated_at,
   }));

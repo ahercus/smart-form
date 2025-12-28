@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { prepareMemoryContent, categorizeMemory } from "@/lib/memory";
 
 export interface MemoryBundle {
   id: string;
@@ -70,6 +71,7 @@ export async function GET() {
 }
 
 // POST /api/memories - Create a new memory
+// If bundleId is not provided but autoCategorize is true, AI will choose the best bundle
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {
@@ -82,36 +84,64 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { bundleId, content, sourceDocumentId, sourceQuestion } = body;
+    const { bundleId, content, sourceDocumentId, sourceQuestion, autoCategorize } = body;
 
-    if (!bundleId || !content) {
+    if (!content) {
       return NextResponse.json(
-        { error: "bundleId and content are required" },
+        { error: "content is required" },
         { status: 400 }
       );
     }
 
-    // Verify bundle belongs to user
-    const { data: bundle, error: bundleError } = await supabase
+    // Get user's bundles
+    const { data: bundles, error: bundlesError } = await supabase
       .from("memory_bundles")
-      .select("id")
-      .eq("id", bundleId)
+      .select("id, name, icon")
       .eq("user_id", user.id)
-      .single();
+      .order("sort_order");
 
-    if (bundleError || !bundle) {
+    if (bundlesError || !bundles || bundles.length === 0) {
       return NextResponse.json(
-        { error: "Bundle not found" },
+        { error: "No memory bundles found" },
         { status: 404 }
       );
     }
 
-    // Create memory
+    // Determine which bundle to use
+    let targetBundleId = bundleId;
+    let targetBundleName = "";
+
+    if (!bundleId && autoCategorize) {
+      // Use AI to determine the best bundle
+      const categoryResult = await categorizeMemory(content, sourceQuestion, bundles);
+      targetBundleId = categoryResult.bundleId;
+      targetBundleName = categoryResult.bundleName;
+    } else if (bundleId) {
+      // Verify provided bundle belongs to user
+      const bundle = bundles.find((b) => b.id === bundleId);
+      if (!bundle) {
+        return NextResponse.json(
+          { error: "Bundle not found" },
+          { status: 404 }
+        );
+      }
+      targetBundleName = bundle.name;
+    } else {
+      return NextResponse.json(
+        { error: "bundleId or autoCategorize is required" },
+        { status: 400 }
+      );
+    }
+
+    // Prepare content using AI (clean up filler words, format dates, etc.)
+    const preparedContent = await prepareMemoryContent(content, sourceQuestion);
+
+    // Create memory with prepared content
     const { data: memory, error: memoryError } = await supabase
       .from("memories")
       .insert({
-        bundle_id: bundleId,
-        content,
+        bundle_id: targetBundleId,
+        content: preparedContent,
         source_document_id: sourceDocumentId || null,
         source_question: sourceQuestion || null,
       })
@@ -124,11 +154,18 @@ export async function POST(request: NextRequest) {
 
     console.log("[AutoForm] Memory created:", {
       id: memory.id,
-      bundleId,
-      contentPreview: content.slice(0, 50),
+      bundleId: targetBundleId,
+      bundleName: targetBundleName,
+      autoCategorized: !bundleId && autoCategorize,
+      originalPreview: content.slice(0, 50),
+      preparedPreview: preparedContent.slice(0, 50),
+      wasPrepared: content !== preparedContent,
     });
 
-    return NextResponse.json({ memory });
+    return NextResponse.json({
+      memory,
+      bundleName: targetBundleName,
+    });
   } catch (error) {
     console.error("[AutoForm] Create memory error:", error);
     return NextResponse.json(

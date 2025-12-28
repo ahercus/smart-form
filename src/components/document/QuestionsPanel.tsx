@@ -27,7 +27,7 @@ import { QuestionCard } from "./QuestionCard";
 import { ProcessingOverlay } from "./ProcessingOverlay";
 import { ContextInputPanel } from "./ContextInputPanel";
 import { useMemories } from "@/hooks/useMemories";
-import type { QuestionGroup, ProcessingProgress, Document, SignatureType } from "@/lib/types";
+import type { QuestionGroup, ProcessingProgress, Document, SignatureType, MemoryChoice } from "@/lib/types";
 
 export interface QuestionsPanelRef {
   scrollToQuestion: (questionId: string) => void;
@@ -41,6 +41,7 @@ interface QuestionsPanelProps {
   currentQuestionIndex: number;
   currentPage: number;
   onAnswer: (questionId: string, answer: string) => Promise<void>;
+  onAnswerMemoryChoice?: (questionId: string, choice: MemoryChoice) => Promise<void>;
   answering: string | null;
   onGoToQuestion: (questionId: string) => void;
   scrollToQuestionId?: string | null;
@@ -56,6 +57,7 @@ export function QuestionsPanel({
   currentQuestionIndex,
   currentPage,
   onAnswer,
+  onAnswerMemoryChoice,
   answering,
   onGoToQuestion,
   scrollToQuestionId,
@@ -74,8 +76,33 @@ export function QuestionsPanel({
   const [memorySourceQuestion, setMemorySourceQuestion] = useState("");
   const [memorySubmitting, setMemorySubmitting] = useState(false);
 
-  const handleSaveToMemory = (question: string, answer: string) => {
-    // Pre-fill with Q&A format
+  const handleSaveToMemory = async (question: string, answer: string) => {
+    // Auto-categorize and save using AI
+    try {
+      const response = await fetch("/api/memories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: answer,
+          sourceDocumentId: documentId,
+          sourceQuestion: question,
+          autoCategorize: true,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save memory");
+      }
+
+      const data = await response.json();
+      toast.success(`Saved to ${data.bundleName || "memory"}`);
+    } catch {
+      toast.error("Failed to save to memory");
+    }
+  };
+
+  // Manual save to memory (from dialog)
+  const handleManualSaveToMemory = (question: string, answer: string) => {
     setMemoryContent(answer);
     setMemorySourceQuestion(question);
     setMemoryBundleId(bundles[0]?.id || "");
@@ -165,7 +192,6 @@ export function QuestionsPanel({
       <ContextInputPanel
         documentId={documentId}
         document={document}
-        progress={progress}
       />
     );
   }
@@ -224,6 +250,11 @@ export function QuestionsPanel({
                           question={question}
                           isActive={visibleIndex === currentQuestionIndex}
                           onAnswer={(answer) => onAnswer(question.id, answer)}
+                          onMemoryChoiceSelect={
+                            onAnswerMemoryChoice
+                              ? (choice) => onAnswerMemoryChoice(question.id, choice)
+                              : undefined
+                          }
                           isAnswering={answering === question.id}
                           onClick={() => onGoToQuestion(question.id)}
                           onOpenSignatureManager={onOpenSignatureManager}

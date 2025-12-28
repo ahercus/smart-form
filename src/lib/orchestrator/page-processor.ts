@@ -25,6 +25,7 @@ interface ProcessPageParams {
   pageNumber: number;
   pageImageBase64: string;
   fields: ExtractedField[]; // Document AI fields for this page (may be empty)
+  useMemory?: boolean;
 }
 
 export interface PageProcessingResult {
@@ -41,7 +42,7 @@ export interface PageProcessingResult {
 export async function processPage(
   params: ProcessPageParams
 ): Promise<PageProcessingResult> {
-  const { documentId, userId, pageNumber, pageImageBase64, fields } = params;
+  const { documentId, userId, pageNumber, pageImageBase64, fields, useMemory = true } = params;
   const supabase = createAdminClient();
   const totalTimer = new StepTimer(documentId, `Page ${pageNumber} Processing`);
 
@@ -53,14 +54,15 @@ export async function processPage(
     .single();
   const contextNotes = doc?.context_notes || undefined;
 
-  // Fetch user's saved memory context
-  const memoryContext = await getMemoryContext(userId);
+  // Fetch user's saved memory context only if useMemory is enabled
+  const memoryContext = useMemory ? await getMemoryContext(userId) : "";
 
   console.log(`[AutoForm] Processing page ${pageNumber}:`, {
     documentId,
     fieldCount: fields.length,
     hasContext: !!contextNotes,
     hasMemory: !!memoryContext,
+    useMemory,
   });
 
   // If no fields, nothing to generate questions for
@@ -100,6 +102,7 @@ export async function processPage(
         inputType: q.inputType,
         profileKey: q.profileKey,
         pageNumber,
+        choices: q.choices,
       });
       savedCount++;
     } catch (error) {
@@ -171,7 +174,8 @@ export async function processPages(
     pageNumber: number;
     imageBase64: string;
     fields: ExtractedField[];
-  }>
+  }>,
+  useMemory: boolean = true
 ): Promise<PageProcessingResult[]> {
   const results: PageProcessingResult[] = [];
   const totalTimer = new StepTimer(documentId, `All Pages (${pages.length})`);
@@ -183,6 +187,7 @@ export async function processPages(
       pageNumber: page.pageNumber,
       pageImageBase64: page.imageBase64,
       fields: page.fields,
+      useMemory,
     });
     results.push(result);
   }

@@ -20,7 +20,7 @@ import { useDocumentRealtime } from "@/hooks/useDocumentRealtime";
 import { useQuestions } from "@/hooks/useQuestions";
 import { useFieldSync } from "@/hooks/useFieldSync";
 import { usePageImageUpload } from "@/hooks/usePageImageUpload";
-import type { NormalizedCoordinates, SignatureType } from "@/lib/types";
+import type { NormalizedCoordinates, SignatureType, MemoryChoice } from "@/lib/types";
 
 interface DocumentPageContentProps {
   documentId: string;
@@ -58,6 +58,7 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
     currentQuestionIndex,
     answering,
     answerQuestion,
+    answerMemoryChoice,
     goToQuestion,
   } = useQuestions({ questions, documentId });
 
@@ -279,6 +280,18 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
     [answerQuestion]
   );
 
+  const handleAnswerMemoryChoice = useCallback(
+    async (questionId: string, choice: MemoryChoice) => {
+      try {
+        await answerMemoryChoice(questionId, choice);
+        toast.success("Answer saved");
+      } catch {
+        toast.error("Failed to save answer");
+      }
+    },
+    [answerMemoryChoice]
+  );
+
   const handleOpenSignatureManager = useCallback(
     (fieldIds: string[], type: SignatureType, questionId?: string) => {
       setSignatureContext({ fieldIds, type, questionId });
@@ -456,14 +469,6 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
             <h1 className="font-semibold truncate">
               {document?.original_filename || "Loading..."}
             </h1>
-            {isEarlyProcessing && (
-              <p className="text-sm text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  {getProcessingLabel()}
-                </span>
-              </p>
-            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Button
@@ -585,6 +590,7 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
               currentQuestionIndex={currentQuestionIndex}
               currentPage={currentPage}
               onAnswer={handleAnswerQuestion}
+              onAnswerMemoryChoice={handleAnswerMemoryChoice}
               answering={answering}
               onGoToQuestion={handleGoToQuestion}
               scrollToQuestionId={scrollToQuestionId}

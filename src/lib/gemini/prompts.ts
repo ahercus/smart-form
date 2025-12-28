@@ -220,6 +220,50 @@ Each field has a "charLimits" property showing MAX and RECOMMENDED character cou
 - "date": Date inputs
 - "signature": Signature fields (full signature)
 - "initials": Initials fields (small boxes for writing initials)
+- "memory_choice": Use ONLY when the user's saved memory contains MULTIPLE distinct items that could answer a question (see below)
+
+## Memory-Driven Multiple Choice (memory_choice)
+When the user's saved memory contains MULTIPLE distinct items that could answer a question:
+- Generate a "memory_choice" question instead of "text"
+- Parse the memory text IN CONTEXT of the field labels
+- Include a "choices" array with each option's field values pre-extracted
+- The UI will automatically add an "Other" option for custom input
+
+When to use memory_choice:
+- The saved memory contains 2+ items that match the question type (e.g., 2+ children, 2+ contacts, 2+ addresses)
+- The question asks about selecting ONE of those items (e.g., "Which child is this form for?")
+
+Example:
+Memory: "Children: Jack (born March 15, 2017, male), Emma (born August 22, 2019, female)"
+Fields: [Child First Name, Child DOB, Child Gender]
+
+Generate:
+{
+  "question": "Which child is this form for?",
+  "fieldIds": ["child-first-name-id", "child-dob-id", "child-gender-id"],
+  "inputType": "memory_choice",
+  "choices": [
+    { "label": "Jack", "values": { "Child First Name": "Jack", "Child DOB": "03/15/2017", "Child Gender": "Male" } },
+    { "label": "Emma", "values": { "Child First Name": "Emma", "Child DOB": "08/22/2019", "Child Gender": "Female" } }
+  ]
+}
+
+Rules for memory_choice:
+- ONLY use when there are 2+ matching items in memory
+- Extract values for ALL linked fields in each choice, not just the identifying field
+- Format values appropriately for the field type (dates as MM/DD/YYYY, etc.)
+- The "label" should be the most identifiable value (usually the name)
+- Use field labels exactly as they appear in the "values" object
+- If memory only has 1 matching item, use "text" inputType and auto-fill instead
+
+## IMPORTANT: Inferring Family Last Names
+If a family member's memory entry does NOT include an explicit last name, BUT the user's profile has a last name:
+- INFER that family members (children, spouse) share the user's last name
+- Example: If user's profile shows "Last Name: Hercus" and memory says "Jude - Son - Born: 2022-09-12"
+  - Infer Jude's full name is "Jude Hercus"
+  - Fill "Last Name" field with "Hercus" for the child
+- This inference ONLY applies to immediate family members in the Family category
+- If memory explicitly states a different last name, use that instead
 
 ## Grouping Multiple Fields
 You CAN ask ONE question that fills MULTIPLE fields (even different field types):
@@ -227,6 +271,7 @@ You CAN ask ONE question that fills MULTIPLE fields (even different field types)
 - Choose inputType based on how the USER should answer:
   - "text" for short answers (name, single value)
   - "textarea" for complex answers with multiple pieces of info
+  - "memory_choice" when user should pick from their saved memories
 - The system will parse the user's natural language answer and distribute values to each field
 
 Example: "Provide emergency contact details (name, phone, relationship)"
@@ -243,6 +288,15 @@ Return ONLY valid JSON:
       "fieldIds": ["first-name-field-id", "last-name-field-id"],
       "inputType": "text",
       "profileKey": "legal_name"
+    },
+    {
+      "question": "Which child is this form for?",
+      "fieldIds": ["child-first-name-id", "child-dob-id"],
+      "inputType": "memory_choice",
+      "choices": [
+        { "label": "Jack", "values": { "Child First Name": "Jack", "Child DOB": "03/15/2017" } },
+        { "label": "Emma", "values": { "Child First Name": "Emma", "Child DOB": "08/22/2019" } }
+      ]
     }
   ],
   "autoAnswered": [
@@ -256,6 +310,8 @@ Return ONLY valid JSON:
     { "fieldId": "field-uuid-4", "reason": "Already filled: John Smith" }
   ]
 }
+
+Note: The "choices" field is ONLY required for "memory_choice" inputType questions.
 
 ## Profile Keys (for auto-fill from saved profile)
 - legal_name, first_name, last_name, middle_name
@@ -360,6 +416,15 @@ Parse the user's natural language answer and extract the appropriate value for E
 5. If information for a specific field is not provided, use empty string ""
 6. Respect character limits implied by field type (short fields need concise values)
 
+## Formatting (IMPORTANT)
+Clean up the user's rough input for professional form output:
+- Capitalize names properly: "john smith" → "John Smith"
+- Capitalize proper nouns (cities, countries, companies): "new york" → "New York"
+- Fix obvious typos if unambiguous
+- Remove filler words/phrases not relevant to the field
+- Keep addresses, emails, phone numbers in standard formats
+- Do NOT add or remove any actual information - only clean up presentation
+
 ## CRITICAL: Confidence Check
 - Set "confident": true ONLY if you can clearly extract values for the fields
 - Set "confident": false if the answer doesn't match the expected fields or is ambiguous
@@ -407,6 +472,51 @@ Example (not confident): Answer "yes" for fields [First Name, Last Name, Phone]:
 }
 
 Return ONLY the JSON object, nothing else.`;
+}
+
+/**
+ * Build prompt for formatting a single field value
+ * Cleans up rough user input without changing the meaning
+ */
+export function buildSingleFieldFormattingPrompt(
+  answer: string,
+  field: { label: string; fieldType: string }
+): string {
+  return `Format this form field value for professional output.
+
+## Field
+Label: "${field.label}"
+Type: "${field.fieldType}"
+
+## User's Input
+"${answer}"
+
+## Formatting Rules
+Clean up the user's rough input for a professional form. Apply these rules:
+- Capitalize names properly: "john smith" → "John Smith"
+- Capitalize proper nouns (cities, countries, companies, schools): "new york" → "New York"
+- Fix obvious typos if the correction is unambiguous
+- Remove filler words/phrases like "um", "uh", "I think", "probably" etc.
+- Format phone numbers consistently: (555) 123-4567
+- Keep email addresses lowercase
+- Format dates as MM/DD/YYYY for date fields
+- NEVER add information that wasn't provided
+- NEVER remove meaningful information
+- If the input is already well-formatted, return it unchanged
+
+## Response Format
+Return ONLY valid JSON:
+{
+  "value": "formatted value here"
+}
+
+Examples:
+- Input "john smith" for "First Name" → {"value": "John"}
+- Input "my email is bob@test.com" for "Email" → {"value": "bob@test.com"}
+- Input "um i live in new york city" for "City" → {"value": "New York City"}
+- Input "123 main st" for "Address" → {"value": "123 Main St"}
+
+Return ONLY the JSON object.`;
 }
 
 export function buildAnswerReevaluationPrompt(

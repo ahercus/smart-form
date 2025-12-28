@@ -13,12 +13,13 @@ import { MicrophoneButton } from "@/components/ui/microphone-button";
 import { Check, Loader2, ChevronRight, PenLine, Brain } from "lucide-react";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import { toast } from "sonner";
-import type { QuestionGroup, SignatureType } from "@/lib/types";
+import type { QuestionGroup, SignatureType, MemoryChoice } from "@/lib/types";
 
 interface QuestionCardProps {
   question: QuestionGroup;
   isActive: boolean;
   onAnswer: (answer: string) => Promise<void>;
+  onMemoryChoiceSelect?: (choice: MemoryChoice) => Promise<void>;
   isAnswering: boolean;
   onClick?: () => void;
   onOpenSignatureManager?: (fieldIds: string[], type: SignatureType, questionId?: string) => void;
@@ -30,6 +31,7 @@ export function QuestionCard({
   question,
   isActive,
   onAnswer,
+  onMemoryChoiceSelect,
   isAnswering,
   onClick,
   onOpenSignatureManager,
@@ -37,6 +39,8 @@ export function QuestionCard({
   onSaveToMemory,
 }: QuestionCardProps) {
   const [answer, setAnswer] = useState(question.answer || "");
+  const [showOtherInput, setShowOtherInput] = useState(false);
+  const [saveToMemory, setSaveToMemory] = useState(false);
 
   // Voice recording for text input types - passes context for accurate transcription
   const supportsVoice = ["text", "textarea"].includes(question.input_type);
@@ -57,6 +61,11 @@ export function QuestionCard({
   const handleSubmit = async () => {
     if (!answer.trim()) return;
     await onAnswer(answer);
+    // If save to memory was checked, trigger save after successful answer
+    if (saveToMemory && onSaveToMemory) {
+      onSaveToMemory(question.question, answer);
+      setSaveToMemory(false); // Reset for next time
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -175,6 +184,73 @@ export function QuestionCard({
           />
         );
 
+      case "memory_choice": {
+        const choices = question.choices || [];
+
+        if (showOtherInput) {
+          return (
+            <div className="space-y-2">
+              <Input
+                type="text"
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Enter a different answer..."
+                disabled={isAnswering}
+                autoFocus
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowOtherInput(false);
+                  setAnswer("");
+                }}
+                disabled={isAnswering}
+              >
+                ← Back to choices
+              </Button>
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              {choices.map((choice) => (
+                <Button
+                  key={choice.label}
+                  variant="outline"
+                  size="sm"
+                  disabled={isAnswering}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onMemoryChoiceSelect) {
+                      onMemoryChoiceSelect(choice);
+                    }
+                  }}
+                  className="transition-all hover:bg-primary hover:text-primary-foreground"
+                >
+                  {choice.label}
+                </Button>
+              ))}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowOtherInput(true);
+              }}
+              disabled={isAnswering}
+              className="text-muted-foreground"
+            >
+              Other...
+            </Button>
+          </div>
+        );
+      }
+
       case "signature":
       case "initials": {
         const sigType = question.input_type as SignatureType;
@@ -254,29 +330,51 @@ export function QuestionCard({
 
           {question.input_type === "signature" || question.input_type === "initials" ? (
             <div>{renderInput()}</div>
+          ) : question.input_type === "memory_choice" && !showOtherInput ? (
+            // Memory choice with pre-built buttons - no submit needed
+            <div>{renderInput()}</div>
           ) : (
-            <div className="flex gap-2">
-              <div className="flex-1">{renderInput()}</div>
-              {supportsVoice && (
-                <MicrophoneButton
-                  state={voiceState}
-                  onClick={toggleRecording}
-                  size="sm"
-                  disabled={isAnswering}
-                />
-              )}
-              <Button
-                onClick={handleSubmit}
-                disabled={!answer.trim() || isAnswering}
-                size="icon"
-                className="flex-shrink-0 h-9 w-9"
-              >
-                {isAnswering ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <div className="flex-1">{renderInput()}</div>
+                {supportsVoice && (
+                  <MicrophoneButton
+                    state={voiceState}
+                    onClick={toggleRecording}
+                    size="sm"
+                    disabled={isAnswering}
+                  />
                 )}
-              </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={!answer.trim() || isAnswering}
+                  size="icon"
+                  className="flex-shrink-0 h-9 w-9"
+                >
+                  {isAnswering ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              {onSaveToMemory && (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id={`save-memory-${question.id}`}
+                    checked={saveToMemory}
+                    onCheckedChange={(checked) => setSaveToMemory(checked === true)}
+                    disabled={isAnswering}
+                  />
+                  <Label
+                    htmlFor={`save-memory-${question.id}`}
+                    className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1"
+                  >
+                    <Brain className="h-3 w-3" />
+                    Save to memory
+                  </Label>
+                </div>
+              )}
             </div>
           )}
 

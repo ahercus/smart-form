@@ -16,6 +16,12 @@ export type ProcessingPhase =
   | "ready"        // All done
   | "failed";
 
+// Memory choice option (for memory-driven multiple choice questions)
+export interface MemoryChoice {
+  label: string;
+  values: Record<string, string>; // fieldLabel -> value mapping
+}
+
 // Question that maps to PDF fields
 export interface QuestionGroup {
   id: string;
@@ -27,6 +33,7 @@ export interface QuestionGroup {
   page_number: number;
   status: "pending" | "visible" | "answered" | "hidden";
   answer?: string;
+  choices?: MemoryChoice[]; // Memory-driven choices for memory_choice type
   created_at: string;
   updated_at: string;
 }
@@ -69,6 +76,7 @@ export interface QuestionGenerationResult {
     fieldIds: string[];
     inputType: FieldType;
     profileKey?: string;
+    choices?: MemoryChoice[];
   }>;
   autoAnswered: AutoAnsweredField[];
   skippedFields: SkippedField[];
@@ -83,6 +91,7 @@ export type FieldType =
   | "date"
   | "signature"
   | "initials"
+  | "memory_choice"
   | "unknown";
 
 // Signature type (signature vs initials)
@@ -174,6 +183,7 @@ export interface Document {
   context_submitted: boolean;
   fields_qc_complete: boolean; // True when Gemini QC has refined fields
   tailored_context_question: string | null; // AI-generated context question based on document
+  use_memory: boolean; // Whether to use saved memories for auto-fill
   extraction_response: unknown | null; // Azure Document Intelligence response
   gemini_refinement_response: unknown | null;
   page_images: PageImage[];

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { FileText, Trash2, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { FileText, Trash2, Loader2, CheckCircle, XCircle, MoreVertical, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,11 +17,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { Document, DocumentStatus } from "@/lib/types";
 
 interface DocumentCardProps {
   document: Document;
   onDelete?: (id: string) => void;
+  onToggleMemory?: (id: string, useMemory: boolean) => void;
 }
 
 const STATUS_CONFIG: Record<
@@ -36,7 +45,7 @@ const STATUS_CONFIG: Record<
   failed: { label: "Failed", variant: "destructive", progress: 0 },
 };
 
-export function DocumentCard({ document, onDelete }: DocumentCardProps) {
+export function DocumentCard({ document, onDelete, onToggleMemory }: DocumentCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const config = STATUS_CONFIG[document.status];
   const isProcessing = !["ready", "failed"].includes(document.status);
@@ -109,14 +118,39 @@ export function DocumentCard({ document, onDelete }: DocumentCardProps) {
                 <Link href={`/document/${document.id}`}>Open</Link>
               </Button>
             )}
-            {onDelete && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleDeleteClick}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+            {(onDelete || onToggleMemory) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {onToggleMemory && (
+                    <>
+                      <DropdownMenuCheckboxItem
+                        checked={document.use_memory}
+                        onCheckedChange={(checked) =>
+                          onToggleMemory(document.id, checked)
+                        }
+                      >
+                        <Brain className="h-4 w-4 mr-2" />
+                        Use memories
+                      </DropdownMenuCheckboxItem>
+                      {onDelete && <DropdownMenuSeparator />}
+                    </>
+                  )}
+                  {onDelete && (
+                    <DropdownMenuItem
+                      onClick={handleDeleteClick}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         </div>

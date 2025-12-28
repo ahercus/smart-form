@@ -74,11 +74,11 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { questionId, answer } = body;
+    const { questionId, answer, memoryChoice } = body;
 
-    if (!questionId || answer === undefined) {
+    if (!questionId || (answer === undefined && !memoryChoice)) {
       return NextResponse.json(
-        { error: "questionId and answer are required" },
+        { error: "questionId and either answer or memoryChoice are required" },
         { status: 400 }
       );
     }
@@ -94,19 +94,54 @@ export async function PATCH(
       );
     }
 
-    // Update the question status and answer
-    await updateQuestion(questionId, {
-      status: "answered",
-      answer,
-    });
-
-    // Get field details for parsing
+    // Get field details
     const allFields = await getDocumentFields(documentId);
     const linkedFields = question.field_ids
       .map((fieldId) => allFields.find((f) => f.id === fieldId))
       .filter(Boolean) as typeof allFields;
 
     let warning: string | undefined;
+
+    // Handle memory_choice: direct field mapping by label, no AI parsing needed
+    if (memoryChoice && memoryChoice.values) {
+      // Update the question status with the choice label as the answer
+      await updateQuestion(questionId, {
+        status: "answered",
+        answer: memoryChoice.label,
+      });
+
+      // Map choice values to field IDs by matching labels
+      const fieldUpdates: Array<{ fieldId: string; value: string }> = [];
+
+      for (const [fieldLabel, value] of Object.entries(memoryChoice.values)) {
+        // Find the field by label (case-insensitive match)
+        const field = linkedFields.find(
+          (f) => f.label.toLowerCase() === fieldLabel.toLowerCase()
+        );
+        if (field) {
+          fieldUpdates.push({ fieldId: field.id, value: value as string });
+        }
+      }
+
+      if (fieldUpdates.length > 0) {
+        await batchUpdateFieldValues(fieldUpdates);
+      }
+
+      console.log("[AutoForm] Memory choice selected:", {
+        documentId,
+        questionId,
+        choiceLabel: memoryChoice.label,
+        fieldsUpdated: fieldUpdates.length,
+      });
+
+      return NextResponse.json({ success: true });
+    }
+
+    // Standard answer flow: Update the question status and answer
+    await updateQuestion(questionId, {
+      status: "answered",
+      answer,
+    });
 
     // Parse the answer and distribute to correct fields using Gemini
     if (linkedFields.length > 0) {

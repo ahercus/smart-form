@@ -84,3 +84,62 @@ export async function DELETE(
     );
   }
 }
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  try {
+    const document = await getDocument(id);
+    if (!document) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 });
+    }
+
+    if (document.user_id !== user.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { use_memory } = body;
+
+    if (typeof use_memory !== "boolean") {
+      return NextResponse.json(
+        { error: "use_memory must be a boolean" },
+        { status: 400 }
+      );
+    }
+
+    const { error: updateError } = await supabase
+      .from("documents")
+      .update({ use_memory })
+      .eq("id", id);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    console.log(`[AutoForm] Document memory setting updated:`, {
+      id,
+      use_memory,
+    });
+
+    return NextResponse.json({ success: true, use_memory });
+  } catch (error) {
+    console.error(`[AutoForm] Update document error:`, error);
+    return NextResponse.json(
+      { error: "Failed to update document" },
+      { status: 500 }
+    );
+  }
+}

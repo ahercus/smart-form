@@ -21,6 +21,7 @@ interface QuestionGeneratorParams {
     pageNumber: number;
     imageBase64: string;
   }>;
+  useMemory?: boolean;
 }
 
 export interface QuestionGeneratorResult {
@@ -32,7 +33,7 @@ export interface QuestionGeneratorResult {
 export async function generateQuestions(
   params: QuestionGeneratorParams
 ): Promise<QuestionGeneratorResult> {
-  const { documentId, userId, pageImages } = params;
+  const { documentId, userId, pageImages, useMemory = true } = params;
 
   const supabase = createAdminClient();
 
@@ -131,7 +132,7 @@ export async function generateQuestions(
       fields: fieldsByPage.get(img.pageNumber) || [],
     }));
 
-    const pageResults = await processPages(documentId, userId, pagesToProcess);
+    const pageResults = await processPages(documentId, userId, pagesToProcess, useMemory);
 
     const totalQuestions = pageResults.reduce((sum, r) => sum + r.questionsGenerated, 0);
     const totalAutoAnswered = pageResults.reduce((sum, r) => sum + r.autoAnswered, 0);

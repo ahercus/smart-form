@@ -3,25 +3,24 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MicrophoneButton } from "@/components/ui/microphone-button";
-import { Sparkles, Loader2, ChevronRight, CheckCircle2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Sparkles, Loader2, ChevronRight, CheckCircle2, Brain } from "lucide-react";
 import { toast } from "sonner";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
-import type { ProcessingProgress, Document } from "@/lib/types";
+import type { Document } from "@/lib/types";
 
 interface ContextInputPanelProps {
   documentId: string;
   document: Document | null;
-  progress: ProcessingProgress | null;
   onContextSubmitted?: () => void;
 }
 
 export function ContextInputPanel({
   documentId,
   document,
-  progress,
   onContextSubmitted,
 }: ContextInputPanelProps) {
   const fieldsReady = document?.fields_qc_complete ?? false;
@@ -29,6 +28,7 @@ export function ContextInputPanel({
   const [submitting, setSubmitting] = useState(false);
   const [tailoredQuestion, setTailoredQuestion] = useState<string | null>(null);
   const [loadingQuestion, setLoadingQuestion] = useState(true);
+  const [useMemory, setUseMemory] = useState(true); // Memory ON by default
 
   // Voice recording - passes documentId and tailored question for context-aware transcription
   const { state: voiceState, toggleRecording } = useVoiceRecording({
@@ -89,7 +89,7 @@ export function ContextInputPanel({
       const response = await fetch(`/api/documents/${documentId}/context`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ context: context.trim() }),
+        body: JSON.stringify({ context: context.trim(), useMemory }),
       });
 
       if (!response.ok) {
@@ -113,7 +113,7 @@ export function ContextInputPanel({
       const response = await fetch(`/api/documents/${documentId}/context`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ context: "", skip: true }),
+        body: JSON.stringify({ context: "", skip: true, useMemory }),
       });
 
       if (!response.ok) {
@@ -130,25 +130,6 @@ export function ContextInputPanel({
     }
   };
 
-  // Calculate progress percentage
-  const progressPercent = progress?.pagesTotal
-    ? Math.round((progress.pagesComplete / progress.pagesTotal) * 100)
-    : 0;
-
-  const getPhaseLabel = () => {
-    if (!progress) return "Starting...";
-    switch (progress.phase) {
-      case "parsing":
-        return "Extracting form fields...";
-      case "displaying":
-        return "Analyzing with AI...";
-      case "enhancing":
-        return "Refining field detection...";
-      default:
-        return "Processing...";
-    }
-  };
-
   return (
     <div className="flex flex-col h-full bg-card">
       {/* Header */}
@@ -162,30 +143,17 @@ export function ContextInputPanel({
         </p>
       </div>
 
-      {/* Processing Status */}
-      <div className={`px-4 py-3 border-b ${fieldsReady ? "bg-green-50 dark:bg-green-950/30" : "bg-muted/30"}`}>
-        {fieldsReady ? (
+      {/* Processing Status - only show when fields are ready */}
+      {fieldsReady && (
+        <div className="px-4 py-3 border-b bg-green-50 dark:bg-green-950/30">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
             <span className="text-sm font-medium text-green-700 dark:text-green-300">
               Fields detected and ready!
             </span>
           </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-2 mb-2">
-              <Loader2 className="w-4 h-4 animate-spin text-primary" />
-              <span className="text-sm font-medium">{getPhaseLabel()}</span>
-            </div>
-            <Progress value={progressPercent} className="h-1.5" />
-            {progress?.pagesTotal ? (
-              <p className="text-xs text-muted-foreground mt-1">
-                {progress.pagesComplete} of {progress.pagesTotal} pages
-              </p>
-            ) : null}
-          </>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Context Input */}
       <div className="flex-1 p-4 overflow-y-auto">
@@ -236,6 +204,22 @@ export function ContextInputPanel({
                 disabled={submitting || loadingQuestion}
               />
             </div>
+          </div>
+
+          {/* Memory toggle */}
+          <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Brain className="h-4 w-4 text-muted-foreground" />
+              <Label htmlFor="use-memory" className="text-sm cursor-pointer">
+                Use saved memories for auto-fill
+              </Label>
+            </div>
+            <Switch
+              id="use-memory"
+              checked={useMemory}
+              onCheckedChange={setUseMemory}
+              disabled={submitting}
+            />
           </div>
 
           <div className="space-y-2">

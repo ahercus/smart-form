@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import type { QuestionGroup } from "@/lib/types";
+import type { QuestionGroup, MemoryChoice } from "@/lib/types";
 
 interface UseQuestionsParams {
   questions: QuestionGroup[];
@@ -73,6 +73,42 @@ export function useQuestions({ questions, documentId }: UseQuestionsParams) {
     [documentId, currentQuestion?.id]
   );
 
+  const answerMemoryChoice = useCallback(
+    async (questionId: string, choice: MemoryChoice) => {
+      setAnswering(questionId);
+
+      try {
+        const response = await fetch(
+          `/api/documents/${documentId}/questions`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ questionId, memoryChoice: choice }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to answer question");
+        }
+
+        const result = await response.json();
+
+        console.log("[AutoForm] Memory choice answered:", {
+          questionId,
+          choiceLabel: choice.label,
+        });
+
+        return result;
+      } catch (error) {
+        console.error("[AutoForm] Failed to answer memory choice:", error);
+        throw error;
+      } finally {
+        setAnswering(null);
+      }
+    },
+    [documentId]
+  );
+
   const goToNext = useCallback(() => {
     if (currentQuestionIndex < visibleQuestions.length - 1) {
       setCurrentQuestionIndex((i) => i + 1);
@@ -104,6 +140,7 @@ export function useQuestions({ questions, documentId }: UseQuestionsParams) {
     progress,
     answering,
     answerQuestion,
+    answerMemoryChoice,
     goToNext,
     goToPrev,
     goToQuestion,

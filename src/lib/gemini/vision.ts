@@ -282,12 +282,55 @@ export async function parseAnswerForFields(
 ): Promise<ParseAnswerResult> {
   const { question, answer, fields } = params;
 
-  // If only one field, no need to parse - use answer directly
+  // If only one field, format the value but no parsing needed
   if (fields.length === 1) {
-    return {
-      confident: true,
-      parsedValues: [{ fieldId: fields[0].id, value: answer }],
-    };
+    const field = fields[0];
+
+    // Skip formatting for signatures/images (data URLs)
+    if (answer.startsWith("data:")) {
+      return {
+        confident: true,
+        parsedValues: [{ fieldId: field.id, value: answer }],
+      };
+    }
+
+    try {
+      const model = getFastModel();
+      const { buildSingleFieldFormattingPrompt } = await import("./prompts");
+      const prompt = buildSingleFieldFormattingPrompt(answer, {
+        label: field.label,
+        fieldType: field.fieldType,
+      });
+
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+
+      let cleaned = text.trim();
+      if (cleaned.startsWith("```json")) cleaned = cleaned.slice(7);
+      else if (cleaned.startsWith("```")) cleaned = cleaned.slice(3);
+      if (cleaned.endsWith("```")) cleaned = cleaned.slice(0, -3);
+
+      const parsed = JSON.parse(cleaned.trim());
+      const formattedValue = parsed.value ?? answer;
+
+      console.log("[AutoForm] Single field formatted:", {
+        fieldLabel: field.label,
+        input: answer.slice(0, 30),
+        output: formattedValue.slice(0, 30),
+      });
+
+      return {
+        confident: true,
+        parsedValues: [{ fieldId: field.id, value: formattedValue }],
+      };
+    } catch (error) {
+      console.error("[AutoForm] Single field formatting failed:", error);
+      // Fall back to raw answer
+      return {
+        confident: true,
+        parsedValues: [{ fieldId: field.id, value: answer }],
+      };
+    }
   }
 
   console.log("[AutoForm] Parsing answer for multiple fields:", {
