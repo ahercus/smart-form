@@ -44,7 +44,7 @@ export default function DashboardPage() {
             </Button>
             <Button onClick={handleUploadClick}>
               <Plus className="h-4 w-4 mr-2" />
-              Upload PDF
+              New Document
             </Button>
           </div>
         </div>
@@ -53,7 +53,7 @@ export default function DashboardPage() {
       <div className="flex-1 overflow-auto p-4">
         <div className="space-y-6">
           <p className="text-muted-foreground">
-            Upload and manage your PDF forms
+            Upload and manage your documents
           </p>
 
           {error && (
@@ -73,16 +73,10 @@ export default function DashboardPage() {
               <CardHeader>
                 <CardTitle>No documents yet</CardTitle>
                 <CardDescription>
-                  Upload your first PDF form to get started. We&apos;ll analyze
+                  Upload your first document to get started. We&apos;ll analyze
                   it and help you fill it out with AI-powered suggestions.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <Button onClick={handleUploadClick} size="lg" className="w-full">
-                  <Plus className="h-5 w-5 mr-2" />
-                  Upload Your First PDF
-                </Button>
-              </CardContent>
             </Card>
           ) : (
             <div className="space-y-4">
