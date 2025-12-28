@@ -90,8 +90,15 @@ export async function POST(
       });
     }
 
+    // Re-fetch document to get latest page_images (may have been populated during QC wait)
+    const { data: updatedDoc } = await adminClient
+      .from("documents")
+      .select("page_images")
+      .eq("id", documentId)
+      .single();
+
     // Get page images for question generation
-    const pageImages = document.page_images || [];
+    const pageImages = updatedDoc?.page_images || [];
 
     if (pageImages.length > 0) {
       // Prepare page images for question generator
