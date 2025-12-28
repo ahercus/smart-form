@@ -18,6 +18,8 @@ export interface BaseFieldOverlayProps {
   onDoubleClick: (fieldId: string) => void;
   /** Called when clicking on a signature/initials field - opens SignatureManager */
   onSignatureClick?: (fieldId: string, type: SignatureType) => void;
+  /** Called when clicking on a filled signature to switch to pointer mode */
+  onSwitchToPointerMode?: () => void;
 }
 
 export interface EditableFieldOverlayProps extends BaseFieldOverlayProps {

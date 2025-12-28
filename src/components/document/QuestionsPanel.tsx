@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useImperativeHandle, forwardRef } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import { Progress } from "@/components/ui/progress";
 import { Sparkles } from "lucide-react";
 import { QuestionCard } from "./QuestionCard";
@@ -18,6 +18,7 @@ interface QuestionsPanelProps {
   questions: QuestionGroup[];
   progress: ProcessingProgress | null;
   currentQuestionIndex: number;
+  currentPage: number;
   onAnswer: (questionId: string, answer: string) => Promise<void>;
   answering: string | null;
   onGoToQuestion: (questionId: string) => void;
@@ -31,6 +32,7 @@ export function QuestionsPanel({
   questions,
   progress,
   currentQuestionIndex,
+  currentPage,
   onAnswer,
   answering,
   onGoToQuestion,
@@ -38,22 +40,52 @@ export function QuestionsPanel({
   onOpenSignatureManager,
 }: QuestionsPanelProps) {
   const questionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const visibleQuestions = questions.filter((q) => q.status === "visible");
-  const answeredQuestions = questions.filter((q) => q.status === "answered");
-  const totalQuestions = questions.length;
+  // Filter out signature/initials questions - those are handled by clicking the field directly
+  const nonSignatureQuestions = questions.filter(
+    (q) => q.input_type !== "signature" && q.input_type !== "initials"
+  );
+
+  const visibleQuestions = nonSignatureQuestions.filter((q) => q.status === "visible");
+  const answeredQuestions = nonSignatureQuestions.filter((q) => q.status === "answered");
+  const totalQuestions = nonSignatureQuestions.length;
   const progressPercentage =
     totalQuestions > 0 ? (answeredQuestions.length / totalQuestions) * 100 : 0;
+
+  // Group all questions (visible + answered) by page number
+  const questionsByPage = useMemo(() => {
+    const allQuestions = [...visibleQuestions, ...answeredQuestions];
+    const grouped = new Map<number, QuestionGroup[]>();
+
+    for (const q of allQuestions) {
+      const pageQuestions = grouped.get(q.page_number) || [];
+      pageQuestions.push(q);
+      grouped.set(q.page_number, pageQuestions);
+    }
+
+    // Sort by page number and return as array of [pageNumber, questions]
+    return Array.from(grouped.entries()).sort((a, b) => a[0] - b[0]);
+  }, [visibleQuestions, answeredQuestions]);
 
   // Scroll to question when scrollToQuestionId changes
   useEffect(() => {
     if (scrollToQuestionId) {
       const element = questionRefs.current.get(scrollToQuestionId);
-      if (element) {
+      if (element && scrollContainerRef.current) {
         element.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     }
   }, [scrollToQuestionId]);
+
+  // Auto-scroll to page section when currentPage changes
+  useEffect(() => {
+    const pageElement = pageRefs.current.get(currentPage);
+    if (pageElement && scrollContainerRef.current) {
+      pageElement.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [currentPage]);
 
   const isProcessing =
     progress &&
@@ -82,7 +114,7 @@ export function QuestionsPanel({
   }
 
   return (
-    <div className="flex flex-col h-full bg-card">
+    <div className="flex flex-col h-full bg-card overflow-hidden">
       {/* Header */}
       <div className="px-4 py-3 border-b flex-shrink-0">
         <div className="flex items-center gap-2 mb-3">
@@ -98,27 +130,52 @@ export function QuestionsPanel({
         <Progress value={progressPercentage} className="h-2" />
       </div>
 
-      {/* Content - Scrollable */}
-      <div className="flex-1 overflow-y-auto p-4">
+      {/* Content - Scrollable (independent from PDF) */}
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4">
         {isProcessing ? (
           <ProcessingOverlay progress={progress} />
-        ) : visibleQuestions.length > 0 ? (
-          <div className="space-y-3">
-            {visibleQuestions.map((question, index) => (
+        ) : questionsByPage.length > 0 ? (
+          <div className="space-y-4">
+            {questionsByPage.map(([pageNumber, pageQuestions], pageIndex) => (
               <div
-                key={question.id}
+                key={pageNumber}
                 ref={(el) => {
-                  if (el) questionRefs.current.set(question.id, el);
+                  if (el) pageRefs.current.set(pageNumber, el);
                 }}
               >
-                <QuestionCard
-                  question={question}
-                  isActive={index === currentQuestionIndex}
-                  onAnswer={(answer) => onAnswer(question.id, answer)}
-                  isAnswering={answering === question.id}
-                  onClick={() => onGoToQuestion(question.id)}
-                  onOpenSignatureManager={onOpenSignatureManager}
-                />
+                {/* Page divider */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="h-px flex-1 bg-border" />
+                  <span className="text-xs font-medium text-muted-foreground px-2">
+                    Page {pageNumber}
+                  </span>
+                  <div className="h-px flex-1 bg-border" />
+                </div>
+
+                {/* Questions for this page */}
+                <div className="space-y-3">
+                  {pageQuestions.map((question) => {
+                    const visibleIndex = visibleQuestions.findIndex((q) => q.id === question.id);
+                    return (
+                      <div
+                        key={question.id}
+                        ref={(el) => {
+                          if (el) questionRefs.current.set(question.id, el);
+                        }}
+                      >
+                        <QuestionCard
+                          question={question}
+                          isActive={visibleIndex === currentQuestionIndex}
+                          onAnswer={(answer) => onAnswer(question.id, answer)}
+                          isAnswering={answering === question.id}
+                          onClick={() => onGoToQuestion(question.id)}
+                          onOpenSignatureManager={onOpenSignatureManager}
+                          documentId={documentId}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ))}
           </div>
@@ -138,27 +195,6 @@ export function QuestionsPanel({
             <p className="text-sm mt-1">
               Questions will appear as the document is processed
             </p>
-          </div>
-        )}
-
-        {/* Answered questions section */}
-        {answeredQuestions.length > 0 && visibleQuestions.length > 0 && (
-          <div className="mt-6 pt-4 border-t">
-            <p className="text-sm font-medium text-muted-foreground mb-3">
-              Answered ({answeredQuestions.length})
-            </p>
-            <div className="space-y-2">
-              {answeredQuestions.map((question) => (
-                <QuestionCard
-                  key={question.id}
-                  question={question}
-                  isActive={false}
-                  onAnswer={() => Promise.resolve()}
-                  isAnswering={false}
-                  onOpenSignatureManager={onOpenSignatureManager}
-                />
-              ))}
-            </div>
           </div>
         )}
       </div>

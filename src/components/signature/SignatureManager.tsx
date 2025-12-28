@@ -9,11 +9,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -312,63 +312,62 @@ export function SignatureManager({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b">
-            <DialogTitle>Manage Signatures & Initials</DialogTitle>
-          </DialogHeader>
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent className="h-[50vh] max-h-[50vh]">
+          <DrawerHeader className="border-b px-4 py-3">
+            <DrawerTitle>Manage Signatures & Initials</DrawerTitle>
+          </DrawerHeader>
 
-          <div className="flex flex-1 min-h-0">
-            {/* Left sidebar */}
-            <div className="w-64 border-r flex flex-col">
+          <div className="flex flex-1 min-h-0 overflow-hidden">
+            {/* Left sidebar - saved signatures */}
+            <div className="w-48 md:w-56 border-r flex flex-col bg-muted/30">
               <Tabs
                 value={activeTab}
                 onValueChange={(v) => setActiveTab(v as SignatureType)}
                 className="w-full"
               >
-                <TabsList className="w-full rounded-none border-b h-11">
-                  <TabsTrigger value="signature" className="flex-1">
-                    <PenLine className="h-4 w-4 mr-1.5" />
+                <TabsList className="w-full rounded-none border-b h-10 bg-transparent">
+                  <TabsTrigger value="signature" className="flex-1 text-xs">
+                    <PenLine className="h-3 w-3 mr-1" />
                     Signatures
                   </TabsTrigger>
-                  <TabsTrigger value="initials" className="flex-1">
+                  <TabsTrigger value="initials" className="flex-1 text-xs">
                     Initials
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
 
               <ScrollArea className="flex-1">
-                <div className="p-3 space-y-2">
+                <div className="p-2 space-y-2">
                   {isLoading ? (
                     <>
-                      <Skeleton className="h-20 w-full" />
-                      <Skeleton className="h-20 w-full" />
+                      <Skeleton className="h-16 w-full" />
+                      <Skeleton className="h-16 w-full" />
                     </>
                   ) : currentSignatures.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm">
+                    <div className="text-center py-6 text-muted-foreground text-xs px-2">
                       No {activeTab === "signature" ? "signatures" : "initials"} saved yet.
-                      <br />
-                      Draw one on the right to save it.
+                      Draw one to save it.
                     </div>
                   ) : (
                     currentSignatures.map((sig) => (
                       <div
                         key={sig.id}
-                        className={`relative group rounded-lg border p-2 cursor-pointer transition-all ${
+                        className={`relative group rounded-lg border p-1.5 cursor-pointer transition-all ${
                           selectedSignature?.id === sig.id
                             ? "ring-2 ring-primary border-primary"
                             : "hover:border-primary/50"
                         }`}
                         onClick={() => setSelectedSignature(sig)}
                       >
-                        <div className="aspect-[2/1] bg-white rounded flex items-center justify-center overflow-hidden">
+                        <div className="h-10 bg-white rounded flex items-center justify-center overflow-hidden">
                           {sig.preview_data_url ? (
                             <Image
                               src={sig.preview_data_url}
                               alt={sig.name}
-                              width={180}
-                              height={90}
-                              className="object-contain"
+                              width={200}
+                              height={40}
+                              className="object-contain h-full w-auto"
                             />
                           ) : (
                             <span className="text-muted-foreground text-xs">
@@ -376,7 +375,7 @@ export function SignatureManager({
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center justify-between mt-1.5">
+                        <div className="flex items-center justify-between mt-1">
                           <span className="text-xs font-medium truncate flex-1">
                             {sig.name}
                           </span>
@@ -390,27 +389,27 @@ export function SignatureManager({
                             <Button
                               variant="secondary"
                               size="icon"
-                              className="h-6 w-6"
+                              className="h-5 w-5"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleSetDefault(sig);
                               }}
                               title="Set as default"
                             >
-                              <Star className="h-3 w-3" />
+                              <Star className="h-2.5 w-2.5" />
                             </Button>
                           )}
                           <Button
                             variant="secondary"
                             size="icon"
-                            className="h-6 w-6 text-destructive hover:text-destructive"
+                            className="h-5 w-5 text-destructive hover:text-destructive"
                             onClick={(e) => {
                               e.stopPropagation();
                               setDeleteConfirmId(sig.id);
                             }}
                             title="Delete"
                           >
-                            <Trash2 className="h-3 w-3" />
+                            <Trash2 className="h-2.5 w-2.5" />
                           </Button>
                         </div>
                       </div>
@@ -421,14 +420,14 @@ export function SignatureManager({
             </div>
 
             {/* Right canvas area */}
-            <div className="flex-1 flex flex-col p-6">
+            <div className="flex-1 flex flex-col p-4 overflow-hidden">
               {selectedSignature ? (
                 // Viewing selected signature
-                <div className="flex-1 flex flex-col">
-                  <div className="flex items-center justify-between mb-4">
+                <div className="flex-1 flex flex-col min-h-0">
+                  <div className="flex items-center justify-between mb-3">
                     <div>
-                      <h3 className="font-medium">{selectedSignature.name}</h3>
-                      <p className="text-sm text-muted-foreground">
+                      <h3 className="font-medium text-sm">{selectedSignature.name}</h3>
+                      <p className="text-xs text-muted-foreground">
                         {selectedSignature.is_default ? "Default " : ""}
                         {selectedSignature.type === "signature" ? "Signature" : "Initials"}
                       </p>
@@ -436,35 +435,36 @@ export function SignatureManager({
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
+                        size="sm"
                         onClick={() => setSelectedSignature(null)}
                       >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create New
+                        <Plus className="h-3 w-3 mr-1" />
+                        New
                       </Button>
                       {onInsert && (
-                        <Button onClick={handleInsert}>
+                        <Button size="sm" onClick={handleInsert}>
                           Insert
                         </Button>
                       )}
                     </div>
                   </div>
-                  <div className="flex-1 border-2 border-dashed rounded-lg bg-white flex items-center justify-center">
+                  <div className="border-2 border-dashed rounded-lg bg-white h-24 md:h-28 flex items-center justify-center">
                     {selectedSignature.preview_data_url && (
                       <Image
                         src={selectedSignature.preview_data_url}
                         alt={selectedSignature.name}
                         width={400}
-                        height={200}
-                        className="object-contain max-h-full"
+                        height={100}
+                        className="object-contain h-full w-auto"
                       />
                     )}
                   </div>
                 </div>
               ) : (
                 // Drawing canvas
-                <div className="flex-1 flex flex-col">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-medium">
+                <div className="flex-1 flex flex-col min-h-0">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-sm">
                       Draw {activeTab === "signature" ? "Signature" : "Initials"}
                     </h3>
                     <div className="flex items-center gap-2">
@@ -474,17 +474,17 @@ export function SignatureManager({
                         onClick={handleUndo}
                         disabled={history.length <= 1}
                       >
-                        <Undo2 className="h-4 w-4 mr-1" />
+                        <Undo2 className="h-3 w-3 mr-1" />
                         Undo
                       </Button>
                       <Button variant="outline" size="sm" onClick={handleClear}>
-                        <Eraser className="h-4 w-4 mr-1" />
+                        <Eraser className="h-3 w-3 mr-1" />
                         Clear
                       </Button>
                     </div>
                   </div>
 
-                  <div className="relative border-2 border-dashed border-muted-foreground/30 rounded-lg bg-white aspect-[3/1]">
+                  <div className="relative border-2 border-dashed border-muted-foreground/30 rounded-lg bg-white h-24 md:h-28 flex-shrink-0">
                     <canvas
                       ref={canvasRef}
                       className="absolute inset-0 w-full h-full touch-none cursor-crosshair"
@@ -499,38 +499,43 @@ export function SignatureManager({
                     />
                     {!hasDrawn && (
                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <p className="text-muted-foreground">
+                        <p className="text-muted-foreground text-sm">
                           Draw your {activeTab === "signature" ? "signature" : "initials"} here
                         </p>
                       </div>
                     )}
                   </div>
 
-                  <div className="mt-4 flex items-end gap-4">
+                  <div className="mt-3 flex items-end gap-3">
                     <div className="flex-1">
-                      <Label htmlFor="sig-name" className="text-sm">
-                        Name (for saving to library)
+                      <Label htmlFor="sig-name" className="text-xs">
+                        Name
                       </Label>
                       <Input
                         id="sig-name"
                         value={signatureName}
                         onChange={(e) => setSignatureName(e.target.value)}
                         placeholder={activeTab === "signature" ? "My Signature" : "My Initials"}
-                        className="mt-1"
+                        className="mt-1 h-8 text-sm"
                       />
                     </div>
                     <div className="flex gap-2">
                       {onInsert && (
                         <Button
-                          variant="outline"
+                          size="sm"
                           onClick={handleInsertDrawn}
                           disabled={!hasDrawn}
                         >
                           Insert
                         </Button>
                       )}
-                      <Button onClick={handleSave} disabled={!hasDrawn || isSaving}>
-                        {isSaving ? "Saving..." : "Save to Library"}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSave}
+                        disabled={!hasDrawn || isSaving}
+                      >
+                        {isSaving ? "Saving..." : "Save"}
                       </Button>
                     </div>
                   </div>
@@ -538,8 +543,8 @@ export function SignatureManager({
               )}
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </DrawerContent>
+      </Drawer>
 
       {/* Delete confirmation */}
       <AlertDialog

@@ -23,6 +23,7 @@ export function EditableFieldOverlay({
         width: Math.max(pixelCoords.width, containerWidth * 0.15),
         minHeight: pixelCoords.height,
       }}
+      onClick={(e) => e.stopPropagation()}
     >
       {isDateField ? (
         <Input

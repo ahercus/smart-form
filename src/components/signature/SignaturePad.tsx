@@ -259,7 +259,7 @@ export function SignaturePad({
     <div className="flex flex-col h-full">
       {/* Canvas container */}
       <div className="p-4">
-        <div className="relative w-full aspect-[3/1] border-2 border-dashed border-muted-foreground/30 rounded-lg bg-white">
+        <div className="relative w-full aspect-[6/1] border-2 border-dashed border-muted-foreground/30 rounded-lg bg-white">
           <canvas
             ref={canvasRef}
             className="absolute inset-0 w-full h-full touch-none cursor-crosshair"

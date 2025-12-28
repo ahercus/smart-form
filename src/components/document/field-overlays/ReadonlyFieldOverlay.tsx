@@ -20,20 +20,40 @@ export function ReadonlyFieldOverlay({
   onClick,
   onDoubleClick,
   onSignatureClick,
+  onSwitchToPointerMode,
 }: BaseFieldOverlayProps) {
   const isSignature = isSignatureField(field.field_type);
   // Check if the value is a data URL (signature image)
   const isImageValue = value?.startsWith("data:image");
+  const hasFilledSignature = isSignature && isFilled && isImageValue;
 
   const baseClasses = isSignature
     ? getSignatureFieldClasses(isActive, isHighlighted, isFilled, isImageValue)
     : getFieldClasses(isActive, isHighlighted, isFilled);
 
-  const handleClick = () => {
-    if (isSignature && onSignatureClick) {
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent background deselect
+    // Filled signature: single click just selects and switches to pointer mode
+    if (hasFilledSignature) {
+      onClick(field.id);
+      onSwitchToPointerMode?.();
+    } else if (isSignature && onSignatureClick) {
+      // Empty signature: open manager to insert
       onSignatureClick(field.id, field.field_type as SignatureType);
     } else {
       onClick(field.id);
+    }
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent background deselect
+    // Filled signature: double click opens manager to replace
+    if (hasFilledSignature && onSignatureClick) {
+      onSignatureClick(field.id, field.field_type as SignatureType);
+    } else if (isSignature && onSignatureClick) {
+      onSignatureClick(field.id, field.field_type as SignatureType);
+    } else {
+      onDoubleClick(field.id);
     }
   };
 
@@ -48,13 +68,7 @@ export function ReadonlyFieldOverlay({
         height: pixelCoords.height,
       }}
       onClick={handleClick}
-      onDoubleClick={() => {
-        if (isSignature && onSignatureClick) {
-          onSignatureClick(field.id, field.field_type as SignatureType);
-        } else {
-          onDoubleClick(field.id);
-        }
-      }}
+      onDoubleClick={handleDoubleClick}
       title={`${field.label}${value && !isImageValue ? `: ${value}` : ""}`}
     >
       {isSignature ? (

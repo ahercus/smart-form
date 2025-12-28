@@ -1,21 +1,25 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { Document } from "@/lib/types";
 
 interface UseDocumentsReturn {
   documents: Document[];
   loading: boolean;
   error: string | null;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<Document[]>;
   uploadDocument: (file: File, contextNotes: string) => Promise<string>;
   deleteDocument: (id: string) => Promise<void>;
 }
+
+const PROCESSING_STATUSES = ["uploading", "analyzing", "extracting", "refining"];
+const POLL_INTERVAL = 2000; // 2 seconds
 
 export function useDocuments(): UseDocumentsReturn {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -26,12 +30,33 @@ export function useDocuments(): UseDocumentsReturn {
       const data = await res.json();
       setDocuments(data.documents);
       setError(null);
+      return data.documents as Document[];
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch documents");
+      return [];
     } finally {
       setLoading(false);
     }
   }, []);
+
+  // Poll while any documents are processing
+  useEffect(() => {
+    const hasProcessingDocs = documents.some((doc) =>
+      PROCESSING_STATUSES.includes(doc.status)
+    );
+
+    if (hasProcessingDocs) {
+      pollTimeoutRef.current = setTimeout(async () => {
+        await fetchDocuments();
+      }, POLL_INTERVAL);
+    }
+
+    return () => {
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current);
+      }
+    };
+  }, [documents, fetchDocuments]);
 
   useEffect(() => {
     fetchDocuments();

@@ -243,22 +243,23 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
     (questionId: string) => {
       const question = questions.find((q) => q.id === questionId);
       if (question) {
+        // Navigate to the question's page
+        if (question.page_number !== currentPage) {
+          setCurrentPage(question.page_number);
+        }
+
+        // Set active field and trigger scroll (if question has fields)
         if (question.field_ids.length > 0) {
           const firstFieldId = question.field_ids[0];
-          const firstField = fields.find((f) => f.id === firstFieldId);
-          if (firstField) {
-            if (firstField.page_number !== currentPage) {
-              setCurrentPage(firstField.page_number);
-            }
-            setActiveFieldId(firstFieldId);
-            setScrollToFieldId(firstFieldId);
-            setTimeout(() => setScrollToFieldId(null), 100);
-          }
+          setActiveFieldId(firstFieldId);
+          setScrollToFieldId(firstFieldId);
+          setTimeout(() => setScrollToFieldId(null), 100);
         }
+
         goToQuestion(questionId);
       }
     },
-    [questions, fields, currentPage, goToQuestion]
+    [questions, currentPage, goToQuestion]
   );
 
   const handleAnswerQuestion = useCallback(
@@ -379,23 +380,23 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
 
   if (loading && !document) {
     return (
-      <>
+      <div className="flex flex-col h-full overflow-hidden">
         <AppHeader>
           <Skeleton className="h-6 w-48" />
         </AppHeader>
-        <div className="p-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Skeleton className="h-[600px]" />
-            <Skeleton className="h-[600px]" />
+        <div className="flex-1 p-4 overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
+            <Skeleton className="h-full min-h-[400px]" />
+            <Skeleton className="h-full min-h-[400px]" />
           </div>
         </div>
-      </>
+      </div>
     );
   }
 
   if (error && !document) {
     return (
-      <>
+      <div className="flex flex-col h-full overflow-hidden">
         <AppHeader>
           <h1 className="text-lg font-semibold">Error</h1>
         </AppHeader>
@@ -412,13 +413,13 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
             </Link>
           </div>
         </div>
-      </>
+      </div>
     );
   }
 
   if (document?.status === "failed") {
     return (
-      <>
+      <div className="flex flex-col h-full overflow-hidden">
         <AppHeader>
           <h1 className="text-lg font-semibold">Processing Failed</h1>
         </AppHeader>
@@ -438,58 +439,58 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
             </Link>
           </div>
         </div>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
+    <div className="flex flex-col h-full overflow-hidden">
       <AppHeader>
-        <div className="flex flex-1 items-center justify-between min-w-0">
-          <div className="min-w-0 mr-4">
-            <h1 className="font-semibold truncate">
-              {document?.original_filename || "Loading..."}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {isEarlyProcessing ? (
-                <span className="flex items-center gap-1">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  {getProcessingLabel()}
-                </span>
-              ) : (
-                `${completionStats.filled} of ${completionStats.total} fields completed`
-              )}
-            </p>
+        <div className="flex flex-col flex-1 min-w-0 gap-1">
+          <div className="flex items-center justify-between min-w-0">
+            <div className="min-w-0 mr-4">
+              <h1 className="font-semibold truncate">
+                {document?.original_filename || "Loading..."}
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {isEarlyProcessing ? (
+                  <span className="flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    {getProcessingLabel()}
+                  </span>
+                ) : (
+                  `${completionStats.filled} of ${completionStats.total} fields completed`
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                onClick={handleSave}
+                disabled={saving || !hasUnsavedChanges || isEarlyProcessing}
+              >
+                <Save className="mr-2 h-4 w-4" />
+                {saving ? "Saving..." : hasUnsavedChanges ? "Save" : "Saved"}
+              </Button>
+              <Button
+                onClick={handleExport}
+                disabled={isEarlyProcessing || exporting}
+              >
+                {exporting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                {exporting ? "Exporting..." : "Export PDF"}
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              variant="outline"
-              onClick={handleSave}
-              disabled={saving || !hasUnsavedChanges || isEarlyProcessing}
-            >
-              <Save className="mr-2 h-4 w-4" />
-              {saving ? "Saving..." : hasUnsavedChanges ? "Save" : "Saved"}
-            </Button>
-            <Button
-              onClick={handleExport}
-              disabled={isEarlyProcessing || exporting}
-            >
-              {exporting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="mr-2 h-4 w-4" />
-              )}
-              {exporting ? "Exporting..." : "Export PDF"}
-            </Button>
-          </div>
+          <Progress
+            value={isEarlyProcessing ? 0 : completionStats.percentage}
+            className="h-1.5"
+          />
         </div>
       </AppHeader>
-      <div className="px-4">
-        <Progress
-          value={isEarlyProcessing ? 0 : completionStats.percentage}
-          className="h-2"
-        />
-      </div>
 
       <div className="flex-1 overflow-hidden">
         <ResizablePanelGroup
@@ -501,11 +502,8 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
             minSize={isMobile ? 30 : 40}
           >
             <div
-              className={`h-full relative ${isMobile ? "border-b" : "border-r"}`}
+              className={`h-full relative overflow-hidden ${isMobile ? "border-b" : "border-r"} ${isEarlyProcessing ? "blur-sm pointer-events-none" : ""}`}
             >
-              <div
-                className={`h-full ${isEarlyProcessing ? "blur-sm pointer-events-none" : ""}`}
-              >
                 {pdfUrl ? (
                   <PDFWithOverlays
                     url={pdfUrl}
@@ -531,7 +529,6 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
                     <Skeleton className="h-[600px] w-full max-w-[600px]" />
                   </div>
                 )}
-              </div>
 
               {isEarlyProcessing && (
                 <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10">
@@ -570,9 +567,11 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
 
           <ResizableHandle withHandle />
 
+          {/* Questions Panel - higher z-index to stay on top of field overlays */}
           <ResizablePanel
             defaultSize={isMobile ? 50 : 35}
             minSize={isMobile ? 30 : 25}
+            className="relative z-20"
           >
             <QuestionsPanel
               documentId={documentId}
@@ -580,6 +579,7 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
               questions={questions}
               progress={progress}
               currentQuestionIndex={currentQuestionIndex}
+              currentPage={currentPage}
               onAnswer={handleAnswerQuestion}
               answering={answering}
               onGoToQuestion={handleGoToQuestion}
@@ -596,6 +596,6 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
         onInsert={signatureContext ? handleSignatureInsert : undefined}
         initialTab={signatureContext?.type || "signature"}
       />
-    </>
+    </div>
   );
 }

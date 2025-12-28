@@ -107,7 +107,7 @@ export function PDFWithOverlays({
   const [isDocumentLoaded, setIsDocumentLoaded] = useState(false);
   const [isPdfJsReady, setIsPdfJsReady] = useState(false);
   const [pageError, setPageError] = useState(false);
-  const [editMode, setEditMode] = useState<EditMode>("type");
+  const [editMode, setEditMode] = useState<EditMode>("pointer");
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [localCoords, setLocalCoords] = useState<Record<string, NormalizedCoordinates>>({});
   const [deletedFieldIds, setDeletedFieldIds] = useState<Set<string>>(new Set());
@@ -131,6 +131,7 @@ export function PDFWithOverlays({
     },
     onStartEditing: (fieldId) => setEditingFieldId(fieldId),
     onStopEditing: () => setEditingFieldId(null),
+    onSwitchToTypeMode: () => setEditMode("type"),
   });
 
   // Scroll to field when scrollToFieldId changes
@@ -294,6 +295,18 @@ export function PDFWithOverlays({
     onFieldClick?.(fieldId);
   };
 
+  const handleSwitchToPointerMode = () => {
+    setEditMode("pointer");
+  };
+
+  const handleBackgroundClick = () => {
+    // Deselect active field when clicking on background
+    if (activeFieldId) {
+      onFieldClick?.("");
+    }
+    setEditingFieldId(null);
+  };
+
   const handleSignatureInsert = (dataUrl: string) => {
     if (signatureFieldContext) {
       onFieldChange(signatureFieldContext.fieldId, dataUrl);
@@ -357,6 +370,7 @@ export function PDFWithOverlays({
           onLocalCoordsChange={handleLocalCoordsChange}
           pixelToPercent={pixelToPercent}
           onSignatureClick={handleSignatureClick}
+          onSwitchToPointerMode={handleSwitchToPointerMode}
         />
       );
     }
@@ -374,12 +388,13 @@ export function PDFWithOverlays({
         onClick={handleFieldClick}
         onDoubleClick={handleFieldDoubleClick}
         onSignatureClick={handleSignatureClick}
+        onSwitchToPointerMode={handleSwitchToPointerMode}
       />
     );
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       <PDFControls
         currentPage={currentPage}
         numPages={numPages}
@@ -402,10 +417,10 @@ export function PDFWithOverlays({
         initialTab={signatureFieldContext?.type || "signature"}
       />
 
-      {/* PDF Display */}
+      {/* PDF Display - vertical scroll only, no horizontal */}
       <div
         id="pdf-container"
-        className="flex-1 overflow-auto p-4 bg-muted/30 flex justify-center"
+        className="flex-1 overflow-y-auto overflow-x-hidden p-4 bg-muted/30 flex justify-center"
       >
         {!isPdfJsReady ? (
           <Skeleton className="h-[600px] w-[450px]" />
@@ -444,7 +459,11 @@ export function PDFWithOverlays({
               )}
               {/* Field overlays */}
               {isDocumentLoaded && !pageError && (
-                <div className="absolute inset-0" ref={containerRef}>
+                <div
+                  className="absolute inset-0"
+                  ref={containerRef}
+                  onClick={handleBackgroundClick}
+                >
                   {pageFields.map((field) => renderFieldOverlay(field))}
                 </div>
               )}
@@ -453,7 +472,8 @@ export function PDFWithOverlays({
             {/* Hidden pages for background capture - uses onRenderSuccess to ensure full quality */}
             {isDocumentLoaded && numPages > 1 && (
               <div
-                className="absolute -left-[9999px] opacity-0 pointer-events-none"
+                className="fixed left-0 top-0 w-0 h-0 overflow-hidden"
+                style={{ visibility: "hidden" }}
                 aria-hidden="true"
               >
                 {Array.from({ length: numPages }, (_, i) => i + 1)

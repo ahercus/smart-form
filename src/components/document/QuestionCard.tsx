@@ -22,6 +22,7 @@ interface QuestionCardProps {
   isAnswering: boolean;
   onClick?: () => void;
   onOpenSignatureManager?: (fieldIds: string[], type: SignatureType, questionId?: string) => void;
+  documentId?: string; // For context-aware transcription
 }
 
 export function QuestionCard({
@@ -31,10 +32,11 @@ export function QuestionCard({
   isAnswering,
   onClick,
   onOpenSignatureManager,
+  documentId,
 }: QuestionCardProps) {
   const [answer, setAnswer] = useState(question.answer || "");
 
-  // Voice recording for text input types
+  // Voice recording for text input types - passes documentId for context-aware transcription
   const supportsVoice = ["text", "textarea"].includes(question.input_type);
   const { state: voiceState, toggleRecording } = useVoiceRecording({
     onTranscription: (text) => {
@@ -45,6 +47,7 @@ export function QuestionCard({
     onError: (error) => {
       toast.error(error);
     },
+    documentId,
   });
 
   const handleSubmit = async () => {

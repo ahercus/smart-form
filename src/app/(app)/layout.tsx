@@ -20,7 +20,7 @@ export default async function AppLayout({
   return (
     <SidebarProvider>
       <AppSidebar userEmail={user.email || "Unknown"} />
-      <SidebarInset>{children}</SidebarInset>
+      <SidebarInset className="h-svh overflow-hidden">{children}</SidebarInset>
     </SidebarProvider>
   );
 }

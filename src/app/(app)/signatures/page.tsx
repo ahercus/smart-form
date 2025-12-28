@@ -406,7 +406,7 @@ export default function SignaturesPage() {
                 </Button>
               </CardHeader>
               <CardContent className="flex-1 flex items-center justify-center">
-                <div className="border-2 border-dashed rounded-lg bg-white p-8 w-full max-w-lg flex items-center justify-center min-h-[200px]">
+                <div className="border-2 border-dashed rounded-lg bg-white p-8 w-full max-w-2xl flex items-center justify-center min-h-[200px]">
                   {selectedSignature.preview_data_url && (
                     <Image
                       src={selectedSignature.preview_data_url}
@@ -441,8 +441,8 @@ export default function SignaturesPage() {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="flex-1 flex flex-col gap-4">
-                <div className="relative border-2 border-dashed border-muted-foreground/30 rounded-lg bg-white flex-1 min-h-[200px]">
+              <CardContent className="flex flex-col gap-4">
+                <div className="relative border-2 border-dashed border-muted-foreground/30 rounded-lg bg-white aspect-[6/1]">
                   <canvas
                     ref={canvasRef}
                     className="absolute inset-0 w-full h-full touch-none cursor-crosshair"
@@ -466,8 +466,8 @@ export default function SignaturesPage() {
                   )}
                 </div>
 
-                <div className="flex items-end gap-4">
-                  <div className="flex-1">
+                <div className="flex flex-col gap-3">
+                  <div>
                     <Label htmlFor="sig-name" className="text-sm">
                       Name
                     </Label>
@@ -486,6 +486,7 @@ export default function SignaturesPage() {
                   <Button
                     onClick={handleSave}
                     disabled={!hasDrawn || isSaving}
+                    className="w-full"
                   >
                     {isSaving ? "Saving..." : "Save"}
                   </Button>

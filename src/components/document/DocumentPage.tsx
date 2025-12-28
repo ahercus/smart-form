@@ -260,26 +260,25 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
     (questionId: string) => {
       const question = questions.find((q) => q.id === questionId);
       if (question) {
-        // Navigate to the page containing the first field
+        // Navigate to the question's page
+        if (question.page_number !== currentPage) {
+          setCurrentPage(question.page_number);
+        }
+
+        // Set active field and trigger scroll (if question has fields)
         if (question.field_ids.length > 0) {
           const firstFieldId = question.field_ids[0];
-          const firstField = fields.find((f) => f.id === firstFieldId);
-          if (firstField) {
-            if (firstField.page_number !== currentPage) {
-              setCurrentPage(firstField.page_number);
-            }
-            // Set active field and trigger scroll
-            setActiveFieldId(firstFieldId);
-            setScrollToFieldId(firstFieldId);
-            // Clear after a tick to allow re-triggering
-            setTimeout(() => setScrollToFieldId(null), 100);
-          }
+          setActiveFieldId(firstFieldId);
+          setScrollToFieldId(firstFieldId);
+          // Clear after a tick to allow re-triggering
+          setTimeout(() => setScrollToFieldId(null), 100);
         }
+
         // Update the current question index
         goToQuestion(questionId);
       }
     },
-    [questions, fields, currentPage, goToQuestion]
+    [questions, currentPage, goToQuestion]
   );
 
   // Handle answering a question
@@ -535,9 +534,7 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
         >
           {/* PDF Panel */}
           <ResizablePanel defaultSize={isMobile ? 50 : 65} minSize={isMobile ? 30 : 40}>
-            <div className={`h-full relative ${isMobile ? "border-b" : "border-r"}`}>
-              {/* PDF Content */}
-              <div className={`h-full ${isEarlyProcessing ? "blur-sm pointer-events-none" : ""}`}>
+            <div className={`h-full relative overflow-hidden ${isMobile ? "border-b" : "border-r"} ${isEarlyProcessing ? "blur-sm pointer-events-none" : ""}`}>
                 {pdfUrl ? (
                   <PDFWithOverlays
                     url={pdfUrl}
@@ -563,7 +560,6 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
                     <Skeleton className="h-[600px] w-full max-w-[600px]" />
                   </div>
                 )}
-              </div>
 
               {/* Processing Overlay */}
               {isEarlyProcessing && (
@@ -598,14 +594,15 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
 
           <ResizableHandle withHandle />
 
-          {/* Questions Panel */}
-          <ResizablePanel defaultSize={isMobile ? 50 : 35} minSize={isMobile ? 30 : 25}>
+          {/* Questions Panel - higher z-index to stay on top of field overlays */}
+          <ResizablePanel defaultSize={isMobile ? 50 : 35} minSize={isMobile ? 30 : 25} className="relative z-20">
             <QuestionsPanel
               documentId={documentId}
               document={document}
               questions={questions}
               progress={progress}
               currentQuestionIndex={currentQuestionIndex}
+              currentPage={currentPage}
               onAnswer={handleAnswerQuestion}
               answering={answering}
               onGoToQuestion={handleGoToQuestion}

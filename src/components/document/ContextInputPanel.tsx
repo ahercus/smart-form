@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { MicrophoneButton } from "@/components/ui/microphone-button";
-import { Sparkles, Loader2, ChevronRight, Lightbulb, CheckCircle2 } from "lucide-react";
+import { Sparkles, Loader2, ChevronRight, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import type { ProcessingProgress, Document } from "@/lib/types";
@@ -29,7 +30,7 @@ export function ContextInputPanel({
   const [tailoredQuestion, setTailoredQuestion] = useState<string | null>(null);
   const [loadingQuestion, setLoadingQuestion] = useState(true);
 
-  // Voice recording
+  // Voice recording - passes documentId for context-aware transcription
   const { state: voiceState, toggleRecording } = useVoiceRecording({
     onTranscription: (text) => {
       if (text.trim()) {
@@ -39,22 +40,34 @@ export function ContextInputPanel({
     onError: (error) => {
       toast.error(error);
     },
+    documentId,
   });
 
-  // Fetch tailored context question on mount
+  // Fetch tailored context question - retry if page images not ready
   useEffect(() => {
     let cancelled = false;
+    let retryCount = 0;
+    const maxRetries = 5;
+    const retryDelay = 2000; // 2 seconds between retries
 
     const fetchTailoredQuestion = async () => {
       try {
         const response = await fetch(`/api/documents/${documentId}/analyze-context`);
         if (response.ok && !cancelled) {
           const data = await response.json();
+
+          // If we got a fallback (no page image yet), retry after delay
+          if (data.fallback && retryCount < maxRetries) {
+            retryCount++;
+            setTimeout(fetchTailoredQuestion, retryDelay);
+            return;
+          }
+
           setTailoredQuestion(data.question);
+          setLoadingQuestion(false);
         }
       } catch (error) {
         console.error("[AutoForm] Failed to fetch tailored question:", error);
-      } finally {
         if (!cancelled) {
           setLoadingQuestion(false);
         }
@@ -176,20 +189,32 @@ export function ContextInputPanel({
       {/* Context Input */}
       <div className="flex-1 p-4 overflow-y-auto">
         <div className="space-y-4">
-          <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-            <Lightbulb className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-            <div className="text-sm">
-              <p className="font-medium text-primary mb-1">Help us help you</p>
-              {loadingQuestion ? (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  <span>Analyzing document...</span>
-                </div>
-              ) : (
-                <p className="text-muted-foreground">
-                  {tailoredQuestion || "Share any context about this form that would help us fill it out accurately."}
-                </p>
-              )}
+          <div className="relative p-[2px] rounded-xl overflow-hidden">
+            {/* Animated gradient border */}
+            <div
+              className="absolute inset-0 rounded-xl"
+              style={{
+                background: "linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3, #54a0ff, #5f27cd, #ff6b6b)",
+                backgroundSize: "400% 100%",
+                animation: "shimmer 8s linear infinite",
+              }}
+            />
+            <div className="relative p-4 rounded-[10px] bg-white dark:bg-gray-900">
+              <p className="font-bold text-gray-900 dark:text-gray-100 mb-2">
+                Share some broad context to get started...
+              </p>
+              <div className="text-sm">
+                {loadingQuestion ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-4 w-full" />
+                  </div>
+                ) : (
+                  <p className="text-gray-600 dark:text-gray-300">
+                    {tailoredQuestion || "Share any context about this form that would help us fill it out accurately."}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 

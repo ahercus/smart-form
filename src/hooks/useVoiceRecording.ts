@@ -7,11 +7,13 @@ export type RecordingState = "idle" | "recording" | "processing";
 interface UseVoiceRecordingOptions {
   onTranscription: (text: string) => void;
   onError?: (error: string) => void;
+  documentId?: string; // Optional document context for better transcription
 }
 
 export function useVoiceRecording({
   onTranscription,
   onError,
+  documentId,
 }: UseVoiceRecordingOptions) {
   const [state, setState] = useState<RecordingState>("idle");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -57,6 +59,7 @@ export function useVoiceRecording({
             body: JSON.stringify({
               audio: base64Audio,
               mimeType,
+              documentId, // Pass document context for better transcription
             }),
           });
 
@@ -81,7 +84,7 @@ export function useVoiceRecording({
       onError?.("Could not access microphone. Please check permissions.");
       setState("idle");
     }
-  }, [onTranscription, onError]);
+  }, [onTranscription, onError, documentId]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && state === "recording") {

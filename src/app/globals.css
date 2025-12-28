@@ -123,3 +123,13 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Magical shimmering gradient animation */
+@keyframes shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 400% 50%;
+  }
+}

@@ -26,9 +26,11 @@ export function DraggableFieldOverlay({
   onLocalCoordsChange,
   pixelToPercent,
   onSignatureClick,
+  onSwitchToPointerMode,
 }: DraggableFieldOverlayProps) {
   const isSignature = isSignatureField(field.field_type);
   const isImageValue = value?.startsWith("data:image");
+  const hasFilledSignature = isSignature && isFilled && isImageValue;
   const baseClasses = isSignature
     ? getSignatureFieldClasses(isActive, isHighlighted, isFilled, isImageValue)
     : getFieldClasses(isActive, isHighlighted, isFilled);
@@ -155,15 +157,24 @@ export function DraggableFieldOverlay({
     >
       <div
         className={`${baseClasses} cursor-move group relative`}
-        onClick={() => {
-          if (isSignature && onSignatureClick) {
+        onClick={(e) => {
+          e.stopPropagation(); // Prevent background deselect
+          // Filled signature: single click just selects (drag/resize handled by Rnd)
+          if (hasFilledSignature) {
+            onClick(field.id);
+          } else if (isSignature && onSignatureClick) {
+            // Empty signature: open manager to insert
             onSignatureClick(field.id, field.field_type as SignatureType);
           } else {
             onClick(field.id);
           }
         }}
-        onDoubleClick={() => {
-          if (isSignature && onSignatureClick) {
+        onDoubleClick={(e) => {
+          e.stopPropagation(); // Prevent background deselect
+          // Filled signature: double click opens manager to replace
+          if (hasFilledSignature && onSignatureClick) {
+            onSignatureClick(field.id, field.field_type as SignatureType);
+          } else if (isSignature && onSignatureClick) {
             onSignatureClick(field.id, field.field_type as SignatureType);
           } else {
             onDoubleClick(field.id);

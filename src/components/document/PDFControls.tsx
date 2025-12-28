@@ -46,7 +46,7 @@ export function PDFControls({
   onOpenSignatureManager,
 }: PDFControlsProps) {
   return (
-    <div className="flex items-center justify-between p-2 border-b bg-muted/50">
+    <div className="flex items-center justify-between p-2 border-b bg-muted/50 flex-shrink-0">
       {/* Left: Page navigation */}
       <div className="flex items-center gap-2">
         <Button
