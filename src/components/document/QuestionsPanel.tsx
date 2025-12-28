@@ -1,12 +1,32 @@
 "use client";
 
-import { useRef, useEffect, useMemo } from "react";
+import { useRef, useEffect, useMemo, useState } from "react";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Sparkles, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { QuestionCard } from "./QuestionCard";
 import { ProcessingOverlay } from "./ProcessingOverlay";
 import { ContextInputPanel } from "./ContextInputPanel";
+import { useMemories } from "@/hooks/useMemories";
 import type { QuestionGroup, ProcessingProgress, Document, SignatureType } from "@/lib/types";
 
 export interface QuestionsPanelRef {
@@ -45,6 +65,40 @@ export function QuestionsPanel({
   const questionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Memory state
+  const { bundles, addMemory } = useMemories();
+  const [memoryDialogOpen, setMemoryDialogOpen] = useState(false);
+  const [memoryContent, setMemoryContent] = useState("");
+  const [memoryBundleId, setMemoryBundleId] = useState("");
+  const [memorySourceQuestion, setMemorySourceQuestion] = useState("");
+  const [memorySubmitting, setMemorySubmitting] = useState(false);
+
+  const handleSaveToMemory = (question: string, answer: string) => {
+    // Pre-fill with Q&A format
+    setMemoryContent(answer);
+    setMemorySourceQuestion(question);
+    setMemoryBundleId(bundles[0]?.id || "");
+    setMemoryDialogOpen(true);
+  };
+
+  const handleMemorySubmit = async () => {
+    if (!memoryContent.trim() || !memoryBundleId) return;
+
+    setMemorySubmitting(true);
+    try {
+      await addMemory(memoryBundleId, memoryContent.trim(), {
+        documentId,
+        question: memorySourceQuestion,
+      });
+      toast.success("Saved to memory");
+      setMemoryDialogOpen(false);
+    } catch {
+      toast.error("Failed to save to memory");
+    } finally {
+      setMemorySubmitting(false);
+    }
+  };
 
   // Filter out signature/initials questions - those are handled by clicking the field directly
   const nonSignatureQuestions = questions.filter(
@@ -174,6 +228,7 @@ export function QuestionsPanel({
                           onClick={() => onGoToQuestion(question.id)}
                           onOpenSignatureManager={onOpenSignatureManager}
                           documentId={documentId}
+                          onSaveToMemory={handleSaveToMemory}
                         />
                       </div>
                     );
@@ -213,6 +268,60 @@ export function QuestionsPanel({
           </div>
         )}
       </div>
+
+      {/* Save to Memory Dialog */}
+      <Dialog open={memoryDialogOpen} onOpenChange={setMemoryDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save to Memory</DialogTitle>
+            <DialogDescription>
+              Save this information for future auto-fill
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={memoryBundleId} onValueChange={setMemoryBundleId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bundles.map((bundle) => (
+                    <SelectItem key={bundle.id} value={bundle.id}>
+                      {bundle.icon} {bundle.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Memory</Label>
+              <Textarea
+                placeholder="Information to remember..."
+                value={memoryContent}
+                onChange={(e) => setMemoryContent(e.target.value)}
+                rows={3}
+              />
+              {memorySourceQuestion && (
+                <p className="text-xs text-muted-foreground">
+                  From: {memorySourceQuestion}
+                </p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMemoryDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleMemorySubmit}
+              disabled={!memoryContent.trim() || !memoryBundleId || memorySubmitting}
+            >
+              {memorySubmitting ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -144,7 +144,8 @@ export function buildQuestionGenerationPrompt(
   pageNumber: number,
   fields: ExtractedField[],
   conversationHistory: GeminiMessage[],
-  contextNotes?: string
+  contextNotes?: string,
+  memoryContext?: string
 ): string {
   // Include character limits for each field
   const fieldsWithLimits = fields.map((f) => ({
@@ -167,11 +168,16 @@ export function buildQuestionGenerationPrompt(
     ? `\n## Initial Context From User\nThe user provided the following information when uploading the form:\n"${contextNotes}"\n\nIMPORTANT: Use this context to auto-fill fields where possible. Do NOT ask questions for information already provided here.`
     : "";
 
+  // Format memory context if provided (already formatted by formatMemoriesForPrompt)
+  const memorySection = memoryContext?.trim()
+    ? `\n${memoryContext}\n\nIMPORTANT: Use the saved memory to auto-fill fields where possible. Do NOT ask questions for information already saved in memory.`
+    : "";
+
   return `You are generating questions for page ${pageNumber} of a PDF form.
 
 ## Fields on This Page (already validated)
 ${fieldsJson}
-${contextSection}
+${contextSection}${memorySection}
 
 ## User's Provided Information So Far
 ${previousQA || "None yet - this is the first page."}

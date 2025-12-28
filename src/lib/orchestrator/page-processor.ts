@@ -16,6 +16,7 @@ import {
 } from "./state";
 import { createAdminClient } from "../supabase/admin";
 import { StepTimer, formatDuration } from "../timing";
+import { getMemoryContext } from "../memory";
 import type { ExtractedField } from "../types";
 
 interface ProcessPageParams {
@@ -40,7 +41,7 @@ export interface PageProcessingResult {
 export async function processPage(
   params: ProcessPageParams
 ): Promise<PageProcessingResult> {
-  const { documentId, pageNumber, pageImageBase64, fields } = params;
+  const { documentId, userId, pageNumber, pageImageBase64, fields } = params;
   const supabase = createAdminClient();
   const totalTimer = new StepTimer(documentId, `Page ${pageNumber} Processing`);
 
@@ -52,10 +53,14 @@ export async function processPage(
     .single();
   const contextNotes = doc?.context_notes || undefined;
 
+  // Fetch user's saved memory context
+  const memoryContext = await getMemoryContext(userId);
+
   console.log(`[AutoForm] Processing page ${pageNumber}:`, {
     documentId,
     fieldCount: fields.length,
     hasContext: !!contextNotes,
+    hasMemory: !!memoryContext,
   });
 
   // If no fields, nothing to generate questions for
@@ -82,6 +87,7 @@ export async function processPage(
     fields,
     conversationHistory,
     contextNotes,
+    memoryContext,
   });
 
   // Save questions to database (continue on individual failures)

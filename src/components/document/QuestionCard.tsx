@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { MicrophoneButton } from "@/components/ui/microphone-button";
-import { Check, Loader2, ChevronRight, PenLine } from "lucide-react";
+import { Check, Loader2, ChevronRight, PenLine, Brain } from "lucide-react";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import { toast } from "sonner";
 import type { QuestionGroup, SignatureType } from "@/lib/types";
@@ -23,6 +23,7 @@ interface QuestionCardProps {
   onClick?: () => void;
   onOpenSignatureManager?: (fieldIds: string[], type: SignatureType, questionId?: string) => void;
   documentId?: string; // For context-aware transcription
+  onSaveToMemory?: (question: string, answer: string) => void;
 }
 
 export function QuestionCard({
@@ -33,6 +34,7 @@ export function QuestionCard({
   onClick,
   onOpenSignatureManager,
   documentId,
+  onSaveToMemory,
 }: QuestionCardProps) {
   const [answer, setAnswer] = useState(question.answer || "");
 
@@ -75,8 +77,11 @@ export function QuestionCard({
       (question.input_type === "signature" || question.input_type === "initials") &&
       question.answer?.startsWith("data:image");
 
+    // Don't show save to memory for signatures/initials
+    const canSaveToMemory = onSaveToMemory && !isSignatureOrInitials && question.answer;
+
     return (
-      <Card className="border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800">
+      <Card className="group border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800">
         <CardContent className="p-3">
           <div className="flex items-start gap-2">
             <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -102,6 +107,20 @@ export function QuestionCard({
                 </p>
               )}
             </div>
+            {canSaveToMemory && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSaveToMemory(question.question, question.answer!);
+                }}
+                title="Save to memory"
+              >
+                <Brain className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

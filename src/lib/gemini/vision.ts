@@ -149,6 +149,7 @@ interface GenerateQuestionsParams {
   fields: ExtractedField[];
   conversationHistory: GeminiMessage[];
   contextNotes?: string;
+  memoryContext?: string;
 }
 
 export async function generateQuestionsForPage(
@@ -161,6 +162,7 @@ export async function generateQuestionsForPage(
     fields,
     conversationHistory,
     contextNotes,
+    memoryContext,
   } = params;
 
   console.log(`[AutoForm] Generating questions for page ${pageNumber}:`, {
@@ -176,7 +178,8 @@ export async function generateQuestionsForPage(
       pageNumber,
       fields,
       conversationHistory,
-      contextNotes
+      contextNotes,
+      memoryContext
     );
 
     const imagePart = {
