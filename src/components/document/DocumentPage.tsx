@@ -477,15 +477,15 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
       <div className="border-b bg-card sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-shrink">
+              <Link href="/dashboard" className="flex-shrink-0">
                 <Button variant="ghost" size="sm">
-                  <FolderOpen className="mr-2 h-4 w-4" />
-                  Manage Files
+                  <FolderOpen className={isMobile ? "h-4 w-4" : "mr-2 h-4 w-4"} />
+                  {!isMobile && "Manage Files"}
                 </Button>
               </Link>
-              <div>
-                <h1 className="font-semibold truncate max-w-[300px]">
+              <div className="min-w-0">
+                <h1 className="font-semibold truncate max-w-[150px] sm:max-w-[300px]">
                   {document?.original_filename || "Loading..."}
                 </h1>
                 <p className="text-sm text-muted-foreground">
@@ -500,9 +500,10 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 flex-shrink-0">
               <Button
                 variant="outline"
+                size={isMobile ? "sm" : "default"}
                 onClick={handleSave}
                 disabled={saving || !hasUnsavedChanges || isEarlyProcessing}
               >
@@ -510,6 +511,7 @@ export function DocumentPage({ documentId }: DocumentPageProps) {
                 {saving ? "Saving..." : hasUnsavedChanges ? "Save" : "Saved"}
               </Button>
               <Button
+                size={isMobile ? "sm" : "default"}
                 onClick={handleExport}
                 disabled={isEarlyProcessing || exporting}
               >

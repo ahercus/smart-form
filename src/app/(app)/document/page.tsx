@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { FullCanvasDropZone } from "@/components/document/FullCanvasDropZone";
 import {
@@ -14,6 +15,15 @@ import { AppHeader } from "@/components/layout";
 
 export default function NewDocumentPage() {
   const router = useRouter();
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   const handleDocumentCreated = (documentId: string) => {
     router.push(`/document/${documentId}`);
@@ -23,18 +33,18 @@ export default function NewDocumentPage() {
     <>
       <AppHeader>
         <div className="flex flex-1 items-center justify-between">
-          <div>
+          <div className="min-w-0 flex-shrink">
             <h1 className="font-semibold">New Document</h1>
             <p className="text-sm text-muted-foreground">
               Upload a PDF to get started
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" disabled>
+          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 flex-shrink-0">
+            <Button variant="outline" disabled size={isMobile ? "sm" : "default"}>
               <Save className="mr-2 h-4 w-4" />
               Saved
             </Button>
-            <Button disabled>
+            <Button disabled size={isMobile ? "sm" : "default"}>
               <Download className="mr-2 h-4 w-4" />
               Export PDF
             </Button>
@@ -46,16 +56,16 @@ export default function NewDocumentPage() {
       </div>
 
       <div className="flex-1 overflow-hidden">
-        <ResizablePanelGroup orientation="horizontal" className="h-full">
-          <ResizablePanel defaultSize={65} minSize={40}>
-            <div className="h-full border-r">
+        <ResizablePanelGroup orientation={isMobile ? "vertical" : "horizontal"} className="h-full">
+          <ResizablePanel defaultSize={isMobile ? 60 : 65} minSize={isMobile ? 30 : 40}>
+            <div className={`h-full ${isMobile ? "border-b" : "border-r"}`}>
               <FullCanvasDropZone onDocumentCreated={handleDocumentCreated} />
             </div>
           </ResizablePanel>
 
           <ResizableHandle withHandle />
 
-          <ResizablePanel defaultSize={35} minSize={25}>
+          <ResizablePanel defaultSize={isMobile ? 40 : 35} minSize={isMobile ? 20 : 25}>
             <div className="flex flex-col h-full bg-card">
               <div className="px-4 py-3 border-b">
                 <div className="flex items-center gap-2 mb-2">

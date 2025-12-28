@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createDocument } from "@/lib/storage";
 import { PDFDocument } from "pdf-lib";
+import sharp from "sharp";
 
 const ACCEPTED_TYPES = [
   "application/pdf",
@@ -11,18 +12,91 @@ const ACCEPTED_TYPES = [
   "image/gif",
 ];
 
-async function convertImageToPdf(imageBuffer: ArrayBuffer, mimeType: string): Promise<ArrayBuffer> {
+// Max dimension for images (Azure Document Intelligence has limits)
+const MAX_IMAGE_DIMENSION = 2000;
+
+async function resizeImageIfNeeded(imageBuffer: ArrayBuffer): Promise<{ buffer: Buffer; mimeType: string }> {
+  const inputBuffer = Buffer.from(imageBuffer);
+
+  // Get image metadata
+  const metadata = await sharp(inputBuffer).metadata();
+  const { width, height, orientation } = metadata;
+
+  console.log("[AutoForm] Image metadata:", { width, height, format: metadata.format, orientation });
+
+  // Check if resize is needed
+  const needsResize = (width && width > MAX_IMAGE_DIMENSION) || (height && height > MAX_IMAGE_DIMENSION);
+
+  if (needsResize) {
+    console.log("[AutoForm] Resizing large image:", {
+      originalWidth: width,
+      originalHeight: height,
+      maxDimension: MAX_IMAGE_DIMENSION,
+      orientation
+    });
+
+    // Auto-rotate based on EXIF orientation, then resize
+    // .rotate() without args uses EXIF orientation to correct rotation
+    const resized = await sharp(inputBuffer)
+      .rotate() // Auto-rotate based on EXIF orientation
+      .resize(MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION, {
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+
+    const newMetadata = await sharp(resized).metadata();
+    console.log("[AutoForm] Resized image:", {
+      newWidth: newMetadata.width,
+      newHeight: newMetadata.height,
+      originalSize: inputBuffer.length,
+      newSize: resized.length
+    });
+
+    return { buffer: resized, mimeType: "image/jpeg" };
+  }
+
+  // Convert non-JPEG/PNG formats to JPEG for pdf-lib compatibility
+  // Also apply EXIF rotation for any image
+  if (metadata.format !== "jpeg" && metadata.format !== "png") {
+    console.log("[AutoForm] Converting image format:", { from: metadata.format, to: "jpeg" });
+    const converted = await sharp(inputBuffer)
+      .rotate() // Auto-rotate based on EXIF orientation
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    return { buffer: converted, mimeType: "image/jpeg" };
+  }
+
+  // Even for JPEG/PNG, apply EXIF rotation if needed
+  if (orientation && orientation !== 1) {
+    console.log("[AutoForm] Applying EXIF rotation:", { orientation });
+    const rotated = await sharp(inputBuffer)
+      .rotate() // Auto-rotate based on EXIF orientation
+      .jpeg({ quality: 90 })
+      .toBuffer();
+    return { buffer: rotated, mimeType: "image/jpeg" };
+  }
+
+  return {
+    buffer: inputBuffer,
+    mimeType: metadata.format === "png" ? "image/png" : "image/jpeg"
+  };
+}
+
+async function convertImageToPdf(imageBuffer: ArrayBuffer, originalMimeType: string): Promise<ArrayBuffer> {
+  // Resize and normalize the image first
+  const { buffer: processedBuffer, mimeType } = await resizeImageIfNeeded(imageBuffer);
+
   const pdfDoc = await PDFDocument.create();
 
   let image;
   if (mimeType === "image/jpeg") {
-    image = await pdfDoc.embedJpg(imageBuffer);
+    image = await pdfDoc.embedJpg(processedBuffer);
   } else if (mimeType === "image/png") {
-    image = await pdfDoc.embedPng(imageBuffer);
+    image = await pdfDoc.embedPng(processedBuffer);
   } else {
-    // For other formats, we need to convert to PNG first
-    // For now, just throw an error - in production you'd use sharp to convert
-    throw new Error(`Unsupported image format: ${mimeType}`);
+    throw new Error(`Unsupported image format after processing: ${mimeType}`);
   }
 
   // Create a page with the image dimensions
@@ -77,13 +151,27 @@ export async function POST(request: NextRequest) {
     }
 
     let fileData = await file.arrayBuffer();
-    let filename = file.name;
+    // Sanitize filename: replace spaces with underscores, remove special characters
+    // This prevents "String did not match expected pattern" errors from Supabase storage
+    let filename = file.name
+      .replace(/\s+/g, "_")
+      .replace(/[^a-zA-Z0-9._-]/g, "");
+
+    // Ensure filename isn't empty after sanitization
+    if (!filename || filename === ".pdf") {
+      filename = `document_${Date.now()}.pdf`;
+    }
 
     // Convert images to PDF
     if (file.type !== "application/pdf") {
-      console.log("[AutoForm] Converting image to PDF:", { originalType: file.type });
+      console.log("[AutoForm] Converting image to PDF:", { originalType: file.type, originalFilename: file.name });
       fileData = await convertImageToPdf(fileData, file.type);
-      filename = file.name.replace(/\.(jpe?g|png|webp|gif)$/i, ".pdf");
+      filename = filename.replace(/\.(jpe?g|png|webp|gif|heic|heif)$/i, ".pdf");
+
+      // If no extension was replaced (e.g., mobile camera photo), add .pdf
+      if (!filename.endsWith(".pdf")) {
+        filename = filename + ".pdf";
+      }
     }
 
     const document = await createDocument(
