@@ -8,7 +8,20 @@ import { getPageImageBase64 } from "@/lib/storage";
 // Allow up to 5 minutes for question generation (Vercel Pro limit)
 export const maxDuration = 300;
 
-// POST /api/documents/[id]/context - Submit context and trigger question generation
+/**
+ * POST /api/documents/[id]/context - Submit context and trigger question generation
+ *
+ * OPTIMISTIC QUESTION GENERATION:
+ * Questions are generated from Azure fields IMMEDIATELY (no QC wait).
+ * If QC completes later and changes fields, reconciliation handles it.
+ *
+ * Timeline:
+ * - T+0s: User submits context
+ * - T+1-3s: Questions generated from Azure fields (parallel, no vision)
+ * - T+10s: QC may complete in background, may add 1-2 questions
+ *
+ * This is 5-10s faster than waiting for QC to complete.
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -50,60 +63,24 @@ export async function POST(
       })
       .eq("id", documentId);
 
-    console.log("[AutoForm] Context submitted:", {
+    console.log("[AutoForm] Context submitted (OPTIMISTIC - no QC wait):", {
       documentId,
       hasContext: !!context,
       skipped: !!skip,
       useMemory: useMemory !== undefined ? useMemory : true,
+      qcComplete: document.fields_qc_complete,
     });
 
-    // Wait for field QC to complete before generating questions
-    // This prevents duplicate QC runs
-    const MAX_WAIT_MS = 5 * 60 * 1000; // 5 minutes max
-    const POLL_INTERVAL_MS = 1000; // Check every second
-    const startTime = Date.now();
-
-    let fieldsQCComplete = document.fields_qc_complete;
-    while (!fieldsQCComplete && Date.now() - startTime < MAX_WAIT_MS) {
-      console.log("[AutoForm] Waiting for field QC to complete...", {
-        documentId,
-        elapsedMs: Date.now() - startTime,
-      });
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-
-      const { data: updated } = await adminClient
-        .from("documents")
-        .select("fields_qc_complete")
-        .eq("id", documentId)
-        .single();
-
-      fieldsQCComplete = updated?.fields_qc_complete || false;
-    }
-
-    if (!fieldsQCComplete) {
-      console.warn("[AutoForm] Field QC did not complete in time, proceeding anyway:", {
-        documentId,
-        elapsedMs: Date.now() - startTime,
-      });
-    } else {
-      console.log("[AutoForm] Field QC complete, starting question generation:", {
-        documentId,
-        waitedMs: Date.now() - startTime,
-      });
-    }
-
-    // Re-fetch document to get latest page_images (may have been populated during QC wait)
-    const { data: updatedDoc } = await adminClient
-      .from("documents")
-      .select("page_images")
-      .eq("id", documentId)
-      .single();
+    // NO LONGER WAITING FOR QC - generate questions from Azure fields immediately
+    // This is the key optimization: 5-10s faster
 
     // Get page images for question generation
-    const pageImages = updatedDoc?.page_images || [];
+    const pageImages = document.page_images || [];
 
     if (pageImages.length > 0) {
       // Prepare page images for question generator
+      // Note: pageImageBase64 is still passed for backward compatibility
+      // but generateQuestionsForPage no longer uses it (Flash, no vision)
       const pageImagesWithBase64 = await Promise.all(
         pageImages.map(async (p: { page: number; storage_path: string }) => ({
           pageNumber: p.page,
@@ -115,13 +92,15 @@ export async function POST(
       const validPageImages = pageImagesWithBase64.filter((p) => p.imageBase64);
 
       if (validPageImages.length > 0) {
-        console.log("[AutoForm] Starting question generation:", {
+        console.log("[AutoForm] Starting question generation (OPTIMISTIC):", {
           documentId,
           pageCount: validPageImages.length,
+          strategy: document.fields_qc_complete
+            ? "post-QC"
+            : "optimistic (Azure fields)",
         });
 
-        // IMPORTANT: Must await to prevent Vercel serverless from killing the process
-        // before question generation completes
+        // Generate questions from current fields (Azure or QC'd if already complete)
         const result = await generateQuestions({
           documentId,
           userId: user.id,
@@ -137,15 +116,20 @@ export async function POST(
 
         return NextResponse.json({
           success: true,
-          message: skip ? "Skipped context, questions generated" : "Context saved, questions generated",
+          message: skip
+            ? "Skipped context, questions generated"
+            : "Context saved, questions generated",
           questionsGenerated: result.questionsGenerated,
+          optimistic: !document.fields_qc_complete,
         });
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: skip ? "Skipped context, no pages to process" : "Context saved, no pages to process",
+      message: skip
+        ? "Skipped context, no pages to process"
+        : "Context saved, no pages to process",
     });
   } catch (error) {
     console.error("[AutoForm] Context submission error:", error);

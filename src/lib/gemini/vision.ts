@@ -1,6 +1,15 @@
 // Gemini Vision for field review and question generation from PDF page images
+//
+// ARCHITECTURE NOTE: Question generation now uses Flash (text-only) instead of Pro+Vision
+// because we already have all field data from Azure. Vision adds latency without value.
+// Vision is still used for Field QC where image analysis is actually needed.
 
-import { getVisionModel, getFastModel } from "./client";
+import {
+  getVisionModel,
+  getFastModel,
+  generateQuestionsWithFlash,
+  withTimeout,
+} from "./client";
 import { buildFieldReviewPrompt, buildQuestionGenerationPrompt } from "./prompts";
 import { compositeFieldsOntoImage } from "../image-compositor";
 import type {
@@ -145,35 +154,61 @@ function parseFieldReviewResponse(text: string): FieldReviewResult {
 interface GenerateQuestionsParams {
   documentId: string;
   pageNumber: number;
-  pageImageBase64: string;
+  pageImageBase64: string; // Kept for backward compatibility, but NOT USED
   fields: ExtractedField[];
   conversationHistory: GeminiMessage[];
   contextNotes?: string;
   memoryContext?: string;
 }
 
+/**
+ * Generate questions for a page using Flash model (text-only, no vision)
+ *
+ * WHY NO VISION FOR QUESTION GENERATION:
+ * We removed Gemini Vision from question generation because:
+ *
+ * 1. We have all the data we need:
+ *    - field.label (from Azure)
+ *    - field.type (from Azure)
+ *    - field.coordinates (not needed for questions)
+ *    - conversation history (what user already told us)
+ *
+ * 2. Vision adds latency:
+ *    - Pro+Vision: 3-5s per page
+ *    - Flash text-only: 1-2s per page
+ *
+ * 3. Vision adds cost:
+ *    - Vision API calls are 10x more expensive
+ *
+ * 4. Vision doesn't add value for questions:
+ *    - Questions are about "what's your name?" not "where is the name field?"
+ *    - Field labels tell us what to ask
+ *
+ * When vision IS needed:
+ * - Field QC (verifying coordinates are correct)
+ * - Adding missed fields (seeing what Azure didn't detect)
+ * - These still use vision in reviewFieldsWithVision()
+ */
 export async function generateQuestionsForPage(
   params: GenerateQuestionsParams
 ): Promise<QuestionGenerationResult> {
   const {
     documentId,
     pageNumber,
-    pageImageBase64,
+    // pageImageBase64 intentionally not used - we use text-only Flash
     fields,
     conversationHistory,
     contextNotes,
     memoryContext,
   } = params;
 
-  console.log(`[AutoForm] Generating questions for page ${pageNumber}:`, {
+  console.log(`[AutoForm] Generating questions for page ${pageNumber} (Flash, no vision):`, {
     documentId,
     fieldCount: fields.length,
     historyLength: conversationHistory.length,
-    imageSize: pageImageBase64.length,
   });
 
   try {
-    const model = getVisionModel();
     const prompt = buildQuestionGenerationPrompt(
       pageNumber,
       fields,
@@ -182,19 +217,16 @@ export async function generateQuestionsForPage(
       memoryContext
     );
 
-    const imagePart = {
-      inlineData: {
-        data: pageImageBase64,
-        mimeType: "image/png",
-      },
-    };
+    console.log(`[AutoForm] Calling Gemini Flash API for page ${pageNumber}...`);
 
-    console.log(`[AutoForm] Calling Gemini Vision API for page ${pageNumber}...`);
-    const result = await model.generateContent([prompt, imagePart]);
-    const response = result.response;
-    const text = response.text();
+    // Use Flash with timeout protection (30s)
+    const text = await withTimeout(
+      generateQuestionsWithFlash({ prompt }),
+      30000,
+      `Question generation for page ${pageNumber}`
+    );
 
-    console.log(`[AutoForm] Gemini response for page ${pageNumber}:`, {
+    console.log(`[AutoForm] Gemini Flash response for page ${pageNumber}:`, {
       documentId,
       responseLength: text.length,
       responsePreview: text.slice(0, 200),
@@ -212,7 +244,7 @@ export async function generateQuestionsForPage(
 
     return parsed;
   } catch (error) {
-    console.error(`[AutoForm] Gemini Vision API error for page ${pageNumber}:`, {
+    console.error(`[AutoForm] Gemini Flash API error for page ${pageNumber}:`, {
       documentId,
       error: error instanceof Error ? error.message : "Unknown error",
       stack: error instanceof Error ? error.stack : undefined,

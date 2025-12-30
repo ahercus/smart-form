@@ -182,6 +182,8 @@ export interface Document {
   context_notes: string | null;
   context_submitted: boolean;
   fields_qc_complete: boolean; // True when Gemini QC has refined fields
+  qc_skipped: boolean; // True if QC was skipped due to high Azure confidence
+  qc_skip_reason: string | null; // Why QC was skipped (for debugging)
   tailored_context_question: string | null; // AI-generated context question based on document
   use_memory: boolean; // Whether to use saved memories for auto-fill
   extraction_response: unknown | null; // Azure Document Intelligence response

@@ -68,11 +68,12 @@ export function useDocumentRealtime(documentId: string) {
 
       if (fieldsError) throw fieldsError;
 
-      // Fetch questions
+      // Fetch questions (exclude hidden questions)
       const { data: questions, error: questionsError } = await supabase
         .from("document_questions")
         .select("*")
         .eq("document_id", documentId)
+        .neq("status", "hidden")
         .order("page_number")
         .order("created_at");
 
@@ -179,6 +180,7 @@ export function useDocumentRealtime(documentId: string) {
       .subscribe();
 
     // Subscribe to question changes
+    // Handle: INSERT (new questions stream in), UPDATE (status changes, hidden questions)
     const questionsChannel = supabase
       .channel(`questions-${documentId}`)
       .on(
@@ -193,6 +195,15 @@ export function useDocumentRealtime(documentId: string) {
           console.log("[AutoForm] Question changed:", payload);
           if (payload.eventType === "INSERT") {
             const newQuestion = payload.new;
+            // Don't add hidden questions
+            if (newQuestion.status === "hidden") {
+              console.log("[AutoForm] Ignoring hidden question:", newQuestion.id);
+              return;
+            }
+            console.log("[AutoForm] New question arrived via Realtime:", {
+              id: newQuestion.id,
+              question: newQuestion.question?.substring(0, 50),
+            });
             setState((prev) => ({
               ...prev,
               questions: [
@@ -215,27 +226,37 @@ export function useDocumentRealtime(documentId: string) {
             }));
           } else if (payload.eventType === "UPDATE") {
             const updatedQuestion = payload.new;
-            setState((prev) => ({
-              ...prev,
-              questions: prev.questions.map((q) =>
-                q.id === updatedQuestion.id
-                  ? ({
-                      id: updatedQuestion.id,
-                      document_id: updatedQuestion.document_id,
-                      question: updatedQuestion.question,
-                      field_ids: updatedQuestion.field_ids,
-                      input_type: updatedQuestion.input_type,
-                      profile_key: updatedQuestion.profile_key,
-                      page_number: updatedQuestion.page_number,
-                      status: updatedQuestion.status,
-                      answer: updatedQuestion.answer,
-                      choices: updatedQuestion.choices,
-                      created_at: updatedQuestion.created_at,
-                      updated_at: updatedQuestion.updated_at,
-                    } as QuestionGroup)
-                  : q
-              ),
-            }));
+            // If question was marked hidden, remove it from the list
+            if (updatedQuestion.status === "hidden") {
+              console.log("[AutoForm] Question hidden (QC reconciliation):", updatedQuestion.id);
+              setState((prev) => ({
+                ...prev,
+                questions: prev.questions.filter((q) => q.id !== updatedQuestion.id),
+              }));
+            } else {
+              // Update in place
+              setState((prev) => ({
+                ...prev,
+                questions: prev.questions.map((q) =>
+                  q.id === updatedQuestion.id
+                    ? ({
+                        id: updatedQuestion.id,
+                        document_id: updatedQuestion.document_id,
+                        question: updatedQuestion.question,
+                        field_ids: updatedQuestion.field_ids,
+                        input_type: updatedQuestion.input_type,
+                        profile_key: updatedQuestion.profile_key,
+                        page_number: updatedQuestion.page_number,
+                        status: updatedQuestion.status,
+                        answer: updatedQuestion.answer,
+                        choices: updatedQuestion.choices,
+                        created_at: updatedQuestion.created_at,
+                        updated_at: updatedQuestion.updated_at,
+                      } as QuestionGroup)
+                    : q
+                ),
+              }));
+            }
           }
         }
       )

@@ -8,8 +8,25 @@ import {
   setDocumentFields,
 } from "@/lib/storage";
 import { processDocument } from "@/lib/processing";
-import type { DocumentStatus } from "@/lib/types";
+import { shouldRunQC, calculateAverageConfidence } from "@/lib/form-analysis";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { DocumentStatus, ExtractedField } from "@/lib/types";
 
+/**
+ * OPTIMISTIC RENDERING STRATEGY
+ *
+ * We show fields immediately after Azure extraction because:
+ * 1. Azure is 85-90% accurate - good enough for user to start
+ * 2. QC takes 5-10s - too long to block the entire UX
+ * 3. If QC finds issues, we'll update fields in place (rare)
+ *
+ * User experience:
+ * - T+5s: Fields appear, user can type
+ * - T+15s: QC completes, maybe adjusts 1-2 fields
+ *
+ * This is better than:
+ * - T+15s: Everything appears at once (user waited 10 extra seconds)
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -44,14 +61,14 @@ export async function POST(
 
     console.log("[AutoForm] Process route: Document status check", {
       documentId: id,
-      status: document.status
+      status: document.status,
     });
 
     // Don't reprocess if already processing or ready
     if (document.status !== "uploading") {
       console.log("[AutoForm] Process route: Skipping - already processed", {
         documentId: id,
-        status: document.status
+        status: document.status,
       });
       return NextResponse.json({
         message: "Document already processed or processing",
@@ -62,7 +79,7 @@ export async function POST(
     // Get file data from storage
     const fileData = await getFile(document.storage_path);
 
-    // Process the document (using mock for now, will integrate real AI later)
+    // Process the document with Azure Document Intelligence
     const result = await processDocument(
       id,
       fileData,
@@ -80,36 +97,61 @@ export async function POST(
     await setDocumentFields(id, result.fields);
     await updateDocument(id, { page_count: result.pageCount });
 
-    // Trigger field refinement (Gemini QC) in the background
-    // This runs BEFORE context submission to have fields ready
-    const baseUrl = request.nextUrl.origin;
-    fetch(`${baseUrl}/api/documents/${id}/refine-fields`, {
-      method: "POST",
-      headers: {
-        Cookie: request.headers.get("cookie") || "",
-      },
-    })
-      .then(async (res) => {
-        const data = await res.json().catch(() => ({}));
-        console.log("[AutoForm] Field refinement trigger response:", {
-          documentId: id,
-          status: res.status,
-          ok: res.ok,
-          data,
-        });
-      })
-      .catch((err) => {
-        console.error("[AutoForm] Failed to trigger field refinement:", {
+    // MARK AS READY NOW (don't wait for QC) - OPTIMISTIC RENDERING
+    await updateDocumentStatus(id, "ready");
+
+    // Calculate confidence for QC decision
+    const confidence = calculateAverageConfidence(result.fields as ExtractedField[]);
+    const qcDecision = shouldRunQC(result.fields as ExtractedField[]);
+
+    console.log("[AutoForm] QC decision:", {
+      documentId: id,
+      avgConfidence: (confidence.average * 100).toFixed(0) + "%",
+      fieldCount: result.fields.length,
+      shouldRunQC: qcDecision.shouldRun,
+      reason: qcDecision.reason,
+    });
+
+    const adminClient = createAdminClient();
+
+    if (qcDecision.shouldRun) {
+      // Low confidence or complex - run QC in background (true fire-and-forget)
+      const baseUrl = request.nextUrl.origin;
+      fetch(`${baseUrl}/api/documents/${id}/refine-fields`, {
+        method: "POST",
+        headers: {
+          Cookie: request.headers.get("cookie") || "",
+        },
+      }).catch((err) => {
+        console.error("[AutoForm] Background refinement failed:", {
           documentId: id,
           error: err instanceof Error ? err.message : "Unknown error",
         });
       });
+    } else {
+      // High confidence - skip QC, mark complete immediately
+      await adminClient
+        .from("documents")
+        .update({
+          fields_qc_complete: true,
+          qc_skipped: true,
+          qc_skip_reason: qcDecision.reason,
+        })
+        .eq("id", id);
+
+      console.log("[AutoForm] Skipping QC - high confidence:", {
+        documentId: id,
+        reason: qcDecision.reason,
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      status: "extracting", // Fields extracted, refinement starting
+      status: "ready", // READY NOW - user can see fields immediately
       field_count: result.fields.length,
       page_count: result.pageCount,
+      qc_skipped: !qcDecision.shouldRun,
+      avg_confidence: (confidence.average * 100).toFixed(0) + "%",
     });
   } catch (error) {
     console.error(`[AutoForm] Process route error:`, error);

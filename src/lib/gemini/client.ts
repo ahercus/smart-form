@@ -143,3 +143,47 @@ export function getFastModel() {
 export function getTextModel() {
   return getFastModel();
 }
+
+/**
+ * Generate questions using Flash model (text-only, no vision)
+ *
+ * Why Flash: Question generation is pattern matching (field labels → questions)
+ * Why no vision: We have field.label, field.type, field.coordinates already
+ *
+ * Speed: ~1-2s per page vs 3-5s with Pro+Vision
+ * Cost: ~90% cheaper per request
+ */
+export async function generateQuestionsWithFlash(options: {
+  prompt: string;
+  thinkingLevel?: ThinkingLevel;
+}): Promise<string> {
+  const { prompt, thinkingLevel = ThinkingLevel.MINIMAL } = options;
+
+  return generateFast({
+    prompt,
+    thinkingLevel,
+    jsonOutput: true,
+  });
+}
+
+/**
+ * Wrap any promise with a timeout
+ *
+ * Why: Prevent hung API requests from blocking user forever
+ * Timeout: 30s default (generous, but prevents infinite hangs)
+ */
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number = 30000,
+  operation: string
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`${operation} timed out after ${timeoutMs}ms`)),
+        timeoutMs
+      )
+    ),
+  ]);
+}
