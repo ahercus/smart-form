@@ -138,13 +138,6 @@ export function getFastModel() {
 }
 
 /**
- * @deprecated Use generateWithVision() or generateFast() instead
- */
-export function getTextModel() {
-  return getFastModel();
-}
-
-/**
  * Generate questions using Flash model (text-only, no vision)
  *
  * Why Flash: Question generation is pattern matching (field labels → questions)
