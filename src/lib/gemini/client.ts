@@ -21,9 +21,9 @@ function getApiKey(): string {
 export function getGeminiClient(): GoogleGenAI {
   if (!genAI) {
     const apiKey = getApiKey();
-    // Use v1alpha for media_resolution support
-    genAI = new GoogleGenAI({ apiKey, apiVersion: "v1alpha" });
-    console.log("[AutoForm] Gemini client initialized (v1alpha for media_resolution)");
+    // Reverted to stable API - v1alpha with media_resolution was timing out
+    genAI = new GoogleGenAI({ apiKey });
+    console.log("[AutoForm] Gemini client initialized");
   }
   return genAI;
 }
@@ -60,17 +60,10 @@ export async function generateWithVision(options: GenerateContentOptions) {
     thinkingLevel = ThinkingLevel.LOW;
   }
 
-  // For PDF/form images, use medium resolution (560 tokens)
-  // "quality typically saturates at medium. Increasing to high rarely improves OCR results"
-  // Note: mediaResolution is v1alpha feature, cast needed for TypeScript
+  // Build contents with image parts
+  // Note: mediaResolution requires v1alpha which was timing out, reverted to stable API
   const contents = imageParts
-    ? [
-        { text: prompt },
-        ...imageParts.map((p) => ({
-          inlineData: p.inlineData,
-          mediaResolution: { level: "media_resolution_medium" },
-        })),
-      ]
+    ? [{ text: prompt }, ...imageParts.map((p) => ({ inlineData: p.inlineData }))]
     : prompt;
 
   const config: Record<string, unknown> = {
@@ -84,10 +77,9 @@ export async function generateWithVision(options: GenerateContentOptions) {
     config.responseMimeType = "application/json";
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const response = await client.models.generateContent({
     model: GEMINI_PRO,
-    contents: contents as any, // v1alpha mediaResolution not in types yet
+    contents,
     config,
   });
 

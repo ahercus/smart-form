@@ -90,12 +90,8 @@ export async function reviewFieldsWithVision(
 
     console.log(`[AutoForm] Calling Gemini Vision for field review...`);
 
-    // 60s timeout to prevent extreme waits (was taking 116s without timeout)
-    const result = await withTimeout(
-      model.generateContent([prompt, imagePart]),
-      60000, // 60 seconds max
-      "Field review (Gemini Vision)"
-    );
+    // No timeout for now - let it complete so we can see thinking tokens and timing
+    const result = await model.generateContent([prompt, imagePart]);
     const response = result.response;
     const text = response.text();
 
