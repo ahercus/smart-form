@@ -99,14 +99,14 @@ When you find fragmented table cells:
    - Label matching the column header (e.g., "First Name - Row 1")
    - Proper field type
 
-## Circle-Choice Fields (Yes/No)
+## Circle-Choice Fields
 
-For "Yes/No" patterns, use fieldType "circle_choice" with choiceOptions:
-- Each choiceOption needs precise coordinates measured from the grid
-- Use the 10% grid labels on edges to measure exactly where "Yes" and "No" text appears
+Use fieldType "circle_choice" when options are printed and the user circles one:
+- Yes/No, Male/Female, AM/PM, Grade levels, etc.
+- Measure each option's position precisely using the 10% grid labels
 
 {
-  "label": "Do you have equipment",
+  "label": "Own equipment",
   "fieldType": "circle_choice",
   "coordinates": { "left": 70, "top": 66, "width": 12, "height": 3 },
   "choiceOptions": [
@@ -184,7 +184,7 @@ Document AI did not detect any fields on this page. You need to:
 - initials: Initial boxes (small boxes for writing initials, often near signature lines or at bottom of pages)
 
 ## Circle-Choice Fields
-For "Yes/No" or "circle one" patterns, use circle_choice with choiceOptions:
+Use circle_choice when options are printed and user circles one (Yes/No, Male/Female, etc.):
 {
   "label": "Has allergies",
   "fieldType": "circle_choice",
