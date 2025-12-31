@@ -8,24 +8,24 @@ import {
   setDocumentFields,
 } from "@/lib/storage";
 import { processDocument } from "@/lib/processing";
-import { shouldRunQC, calculateAverageConfidence } from "@/lib/form-analysis";
-import { createAdminClient } from "@/lib/supabase/admin";
-import type { DocumentStatus, ExtractedField } from "@/lib/types";
+import type { DocumentStatus } from "@/lib/types";
 
 /**
- * OPTIMISTIC RENDERING STRATEGY
+ * Document Processing Flow:
  *
- * We show fields immediately after Azure extraction because:
- * 1. Azure is 85-90% accurate - good enough for user to start
- * 2. QC takes 5-10s - too long to block the entire UX
- * 3. If QC finds issues, we'll update fields in place (rare)
+ * 1. Azure Document Intelligence extracts fields (~5s)
+ * 2. Gemini Vision QC refines field coordinates (~5-10s)
+ * 3. Document marked "ready" - fields shown to user
  *
- * User experience:
- * - T+5s: Fields appear, user can type
- * - T+15s: QC completes, maybe adjusts 1-2 fields
+ * Why QC is always required:
+ * - Azure's confidence scores don't reflect coordinate accuracy
+ * - Field boxes are often misaligned without QC
+ * - QC catches missing fields and table fragmentation
  *
- * This is better than:
- * - T+15s: Everything appears at once (user waited 10 extra seconds)
+ * Speed optimizations applied:
+ * - Question generation uses Flash (no vision) - 1-2s vs 3-5s
+ * - Pages processed in parallel - 5x speedup for multi-page forms
+ * - Form type inferred from field labels (no vision call)
  */
 export async function POST(
   request: NextRequest,
@@ -97,61 +97,44 @@ export async function POST(
     await setDocumentFields(id, result.fields);
     await updateDocument(id, { page_count: result.pageCount });
 
-    // MARK AS READY NOW (don't wait for QC) - OPTIMISTIC RENDERING
-    await updateDocumentStatus(id, "ready");
+    // DON'T mark as ready yet - wait for QC to complete
+    // Azure's confidence scores don't reflect coordinate accuracy
+    // QC is essential for proper field positioning
 
-    // Calculate confidence for QC decision
-    const confidence = calculateAverageConfidence(result.fields as ExtractedField[]);
-    const qcDecision = shouldRunQC(result.fields as ExtractedField[]);
-
-    console.log("[AutoForm] QC decision:", {
+    console.log("[AutoForm] Fields extracted, triggering QC:", {
       documentId: id,
-      avgConfidence: (confidence.average * 100).toFixed(0) + "%",
       fieldCount: result.fields.length,
-      shouldRunQC: qcDecision.shouldRun,
-      reason: qcDecision.reason,
     });
 
-    const adminClient = createAdminClient();
-
-    if (qcDecision.shouldRun) {
-      // Low confidence or complex - run QC in background (true fire-and-forget)
-      const baseUrl = request.nextUrl.origin;
-      fetch(`${baseUrl}/api/documents/${id}/refine-fields`, {
-        method: "POST",
-        headers: {
-          Cookie: request.headers.get("cookie") || "",
-        },
-      }).catch((err) => {
+    // Always run QC - it's essential for field coordinate accuracy
+    const baseUrl = request.nextUrl.origin;
+    fetch(`${baseUrl}/api/documents/${id}/refine-fields`, {
+      method: "POST",
+      headers: {
+        Cookie: request.headers.get("cookie") || "",
+      },
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        console.log("[AutoForm] Field refinement response:", {
+          documentId: id,
+          status: res.status,
+          ok: res.ok,
+          data,
+        });
+      })
+      .catch((err) => {
         console.error("[AutoForm] Background refinement failed:", {
           documentId: id,
           error: err instanceof Error ? err.message : "Unknown error",
         });
       });
-    } else {
-      // High confidence - skip QC, mark complete immediately
-      await adminClient
-        .from("documents")
-        .update({
-          fields_qc_complete: true,
-          qc_skipped: true,
-          qc_skip_reason: qcDecision.reason,
-        })
-        .eq("id", id);
-
-      console.log("[AutoForm] Skipping QC - high confidence:", {
-        documentId: id,
-        reason: qcDecision.reason,
-      });
-    }
 
     return NextResponse.json({
       success: true,
-      status: "ready", // READY NOW - user can see fields immediately
+      status: "extracting", // Not ready yet - QC in progress
       field_count: result.fields.length,
       page_count: result.pageCount,
-      qc_skipped: !qcDecision.shouldRun,
-      avg_confidence: (confidence.average * 100).toFixed(0) + "%",
     });
   } catch (error) {
     console.error(`[AutoForm] Process route error:`, error);

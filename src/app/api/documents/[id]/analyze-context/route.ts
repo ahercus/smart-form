@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getDocument } from "@/lib/storage";
-import { analyzeFormFromAzure } from "@/lib/form-analysis";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { ExtractedField } from "@/lib/types";
+import { generateFast, withTimeout } from "@/lib/gemini/client";
 
 // GET /api/documents/[id]/analyze-context - Get tailored context question
 //
-// SPEED OPTIMIZATION: No longer uses Gemini Vision!
-// Instead, infers form type from Azure field labels (instant).
-// 3-5s -> <100ms
+// Sends Azure extracted fields to Gemini Flash to craft a tailored context question.
+// ~1-2s (faster than vision, but smarter than keyword matching)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -61,25 +59,48 @@ export async function GET(
       });
     }
 
-    // Analyze form from Azure fields (NO VISION CALL - instant!)
-    const analysis = analyzeFormFromAzure(fields as ExtractedField[]);
+    // Build prompt with Azure field data for Gemini
+    const fieldSummary = fields
+      .map((f) => `- ${f.label} (${f.field_type})`)
+      .join("\n");
 
-    console.log("[AutoForm] Form analysis (from Azure fields, no vision):", {
+    const prompt = `You are helping a user fill out a form. Based on the extracted fields below, craft a single, concise context question to help understand who this form is for and any important details.
+
+EXTRACTED FIELDS:
+${fieldSummary}
+
+INSTRUCTIONS:
+- Analyze the field labels to understand what type of form this is
+- Ask ONE specific question that would help gather context
+- Keep it under 2 sentences
+- Be conversational and friendly
+- Focus on the most important context that would help fill out this specific form
+
+Return ONLY the question text, nothing else.`;
+
+    // Call Gemini Flash (text-only, fast)
+    const contextQuestion = await withTimeout(
+      generateFast({ prompt }),
+      10000, // 10s timeout
+      "Context question generation"
+    );
+
+    const trimmedQuestion = contextQuestion.trim();
+
+    console.log("[AutoForm] Context question generated (Gemini Flash):", {
       documentId,
-      formType: analysis.type,
-      matchedKeywords: analysis.keywords.length,
-      contextQuestion: analysis.contextQuestion.substring(0, 50) + "...",
+      fieldCount: fields.length,
+      question: trimmedQuestion.substring(0, 80) + "...",
     });
 
     // Cache the question in the document
     await adminClient
       .from("documents")
-      .update({ tailored_context_question: analysis.contextQuestion })
+      .update({ tailored_context_question: trimmedQuestion })
       .eq("id", documentId);
 
     return NextResponse.json({
-      question: analysis.contextQuestion,
-      formType: analysis.type,
+      question: trimmedQuestion,
       cached: false,
     });
   } catch (error) {

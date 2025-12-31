@@ -152,14 +152,18 @@ export async function refineFields(
       });
     }
 
-    // Mark fields as QC complete
+    // Mark fields as QC complete AND set status to ready
+    // This is when fields should be shown to the user
     await supabase
       .from("documents")
       .update({
         fields_qc_complete: true,
+        status: "ready",
         updated_at: new Date().toISOString(),
       })
       .eq("id", documentId);
+
+    console.log("[AutoForm] Document marked ready after QC:", { documentId });
 
     // QC RECONCILIATION: Handle questions if they were already generated
     // This happens when questions were generated optimistically from Azure fields
@@ -236,19 +240,20 @@ export async function refineFields(
       error: errorMessage,
     });
 
-    // GRACEFUL DEGRADATION: Mark QC as complete anyway
+    // GRACEFUL DEGRADATION: Mark QC as complete and document as ready
     // Azure DI fields are still usable even without Gemini refinement
     await supabase
       .from("documents")
       .update({
         fields_qc_complete: true,
+        status: "ready",
         updated_at: new Date().toISOString(),
       })
       .eq("id", documentId);
 
-    console.log("[AutoForm] Field QC marked complete despite refinement failure:", {
+    console.log("[AutoForm] Document marked ready despite QC failure:", {
       documentId,
-      reason: "Azure DI fields are still usable",
+      reason: "Azure DI fields are still usable (graceful degradation)",
     });
 
     return {
