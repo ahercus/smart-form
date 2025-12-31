@@ -80,6 +80,28 @@ export async function generateWithVision(options: GenerateContentOptions) {
     config,
   });
 
+  // Log thinking/reasoning if available (helps debug QC decisions)
+  const candidate = response.candidates?.[0];
+  if (candidate?.content?.parts) {
+    for (const part of candidate.content.parts) {
+      if (part.thought) {
+        console.log("[AutoForm] Gemini Thinking:", {
+          thoughtPreview: part.text?.slice(0, 500) + (part.text && part.text.length > 500 ? "..." : ""),
+        });
+      }
+    }
+  }
+
+  // Log token usage for efficiency tracking
+  if (response.usageMetadata) {
+    console.log("[AutoForm] Gemini Token Usage:", {
+      promptTokens: response.usageMetadata.promptTokenCount,
+      responseTokens: response.usageMetadata.candidatesTokenCount,
+      thinkingTokens: response.usageMetadata.thoughtsTokenCount,
+      totalTokens: response.usageMetadata.totalTokenCount,
+    });
+  }
+
   return response.text || "";
 }
 
