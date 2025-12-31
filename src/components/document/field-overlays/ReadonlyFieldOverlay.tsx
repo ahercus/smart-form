@@ -1,11 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { PenLine } from "lucide-react";
+import { Check, PenLine } from "lucide-react";
 import {
   getFieldClasses,
   getSignatureFieldClasses,
+  getCheckboxClasses,
   isSignatureField,
+  isCheckboxField,
   type BaseFieldOverlayProps,
 } from "./types";
 import type { SignatureType } from "@/lib/types";
@@ -21,18 +23,29 @@ export function ReadonlyFieldOverlay({
   onDoubleClick,
   onSignatureClick,
   onSwitchToPointerMode,
+  onValueChange,
 }: BaseFieldOverlayProps) {
   const isSignature = isSignatureField(field.field_type);
+  const isCheckbox = isCheckboxField(field.field_type);
   // Check if the value is a data URL (signature image)
   const isImageValue = value?.startsWith("data:image");
   const hasFilledSignature = isSignature && isFilled && isImageValue;
+  const isChecked = isCheckbox && value === "true";
 
   const baseClasses = isSignature
     ? getSignatureFieldClasses(isActive, isHighlighted, isFilled, isImageValue)
-    : getFieldClasses(isActive, isHighlighted, isFilled);
+    : isCheckbox
+      ? getCheckboxClasses(isActive, isHighlighted, isChecked)
+      : getFieldClasses(isActive, isHighlighted, isFilled);
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent background deselect
+    // Checkbox fields: toggle on single click
+    if (isCheckbox && onValueChange) {
+      const newValue = value === "true" ? "false" : "true";
+      onValueChange(field.id, newValue);
+      return;
+    }
     // Signature fields: single click opens manager to insert or replace
     if (isSignature && onSignatureClick) {
       onSignatureClick(field.id, field.field_type as SignatureType);
@@ -87,6 +100,11 @@ export function ReadonlyFieldOverlay({
               {field.field_type === "signature" ? "Sign" : "Initial"}
             </span>
           </div>
+        )
+      ) : isCheckbox ? (
+        // Checkbox field rendering - show check icon when checked
+        isChecked && (
+          <Check className="w-full h-full text-green-600 stroke-[3]" />
         )
       ) : (
         // Regular field rendering

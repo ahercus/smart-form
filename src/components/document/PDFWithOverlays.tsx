@@ -9,6 +9,7 @@ import {
   EditableFieldOverlay,
   DraggableFieldOverlay,
   ReadonlyFieldOverlay,
+  ChoiceFieldOverlay,
 } from "./field-overlays";
 import { SignatureManager } from "@/components/signature";
 import { useCoordinateConversion } from "@/hooks/pdf/useCoordinateConversion";
@@ -332,6 +333,23 @@ export function PDFWithOverlays({
     const isFilled = value.trim().length > 0;
     const pixelCoords = percentToPixel(coords);
 
+    // Circle choice fields - always use ChoiceFieldOverlay
+    if (field.field_type === "circle_choice" && field.choice_options) {
+      return (
+        <ChoiceFieldOverlay
+          key={field.id}
+          field={field}
+          value={value}
+          pixelCoords={pixelCoords}
+          containerSize={containerSize}
+          isActive={isActive}
+          isHighlighted={isHighlighted}
+          onClick={handleFieldClick}
+          onValueChange={onFieldChange}
+        />
+      );
+    }
+
     // Editing mode - show input/textarea
     if (isEditing && editMode === "type") {
       return (
@@ -373,6 +391,7 @@ export function PDFWithOverlays({
           pixelToPercent={pixelToPercent}
           onSignatureClick={handleSignatureClick}
           onSwitchToPointerMode={handleSwitchToPointerMode}
+          onValueChange={onFieldChange}
         />
       );
     }
@@ -391,6 +410,7 @@ export function PDFWithOverlays({
         onDoubleClick={handleFieldDoubleClick}
         onSignatureClick={handleSignatureClick}
         onSwitchToPointerMode={handleSwitchToPointerMode}
+        onValueChange={onFieldChange}
       />
     );
   };

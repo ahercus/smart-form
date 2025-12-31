@@ -89,8 +89,10 @@ export async function generateWithVision(options: GenerateContentOptions) {
   if (candidate?.content?.parts) {
     for (const part of candidate.content.parts) {
       if (part.thought) {
+        // Log full thinking content for debugging coordinate decisions
         console.log("[AutoForm] Gemini Thinking:", {
-          thoughtPreview: part.text?.slice(0, 500) + (part.text && part.text.length > 500 ? "..." : ""),
+          thoughtLength: part.text?.length || 0,
+          thought: part.text || "(empty)",
         });
       }
     }

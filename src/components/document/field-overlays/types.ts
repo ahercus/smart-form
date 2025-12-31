@@ -20,6 +20,8 @@ export interface BaseFieldOverlayProps {
   onSignatureClick?: (fieldId: string, type: SignatureType) => void;
   /** Called when clicking on a filled signature to switch to pointer mode */
   onSwitchToPointerMode?: () => void;
+  /** Called when toggling checkbox or selecting choice option */
+  onValueChange?: (fieldId: string, value: string) => void;
 }
 
 export interface EditableFieldOverlayProps extends BaseFieldOverlayProps {
@@ -37,19 +39,41 @@ export interface DraggableFieldOverlayProps extends BaseFieldOverlayProps {
 }
 
 export function getFieldClasses(isActive: boolean, isHighlighted: boolean, isFilled: boolean): string {
-  return `w-full h-full border-2 transition-colors ${
+  // Subtle fill visible by default, slightly more opaque on hover
+  // No borders unless active/highlighted, single border (no ring)
+  return `w-full h-full transition-colors ${
     isActive
-      ? "border-blue-500 bg-blue-500/20 ring-2 ring-blue-500 ring-offset-1"
+      ? "border-2 border-blue-500 bg-blue-500/15"
       : isHighlighted
-        ? "border-purple-500 bg-purple-500/20 ring-2 ring-purple-400 ring-offset-1"
+        ? "border-2 border-purple-500 bg-purple-500/15"
         : isFilled
-          ? "border-green-500 bg-green-500/10 hover:bg-green-500/20"
-          : "border-orange-400 bg-orange-400/10 hover:bg-orange-400/20"
+          ? "bg-green-500/10 hover:bg-green-500/20"
+          : "bg-orange-400/10 hover:bg-orange-400/20"
   }`;
 }
 
 export function isSignatureField(fieldType: string): boolean {
   return fieldType === "signature" || fieldType === "initials";
+}
+
+export function isCheckboxField(fieldType: string): boolean {
+  return fieldType === "checkbox";
+}
+
+export function getCheckboxClasses(
+  isActive: boolean,
+  isHighlighted: boolean,
+  isChecked: boolean
+): string {
+  return `w-full h-full flex items-center justify-center transition-colors ${
+    isActive
+      ? "border-2 border-blue-500 bg-blue-500/15"
+      : isHighlighted
+        ? "border-2 border-purple-500 bg-purple-500/15"
+        : isChecked
+          ? "bg-green-500/15 hover:bg-green-500/25"
+          : "bg-orange-400/10 hover:bg-orange-400/20"
+  }`;
 }
 
 export function getSignatureFieldClasses(

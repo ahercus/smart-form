@@ -19,6 +19,7 @@ interface CompositeResult {
 
 /**
  * Creates an SVG overlay with field boxes and optional grid
+ * Grid includes percentage labels to help Gemini orient accurately
  */
 function createOverlaySvg(
   width: number,
@@ -29,18 +30,47 @@ function createOverlaySvg(
 ): string {
   let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
 
-  // Draw grid if requested
+  // Draw grid if requested - with labels and major/minor line distinction
   if (showGrid) {
-    svg += `<g stroke="#cccccc" stroke-width="1" opacity="0.5">`;
-    // Vertical lines
+    // Minor grid lines (every gridSpacing %) - light gray, thin
+    svg += `<g stroke="#999999" stroke-width="0.5" opacity="0.4">`;
     for (let x = 0; x <= 100; x += gridSpacing) {
+      if (x % 25 !== 0) { // Skip major lines
+        const px = (x / 100) * width;
+        svg += `<line x1="${px}" y1="0" x2="${px}" y2="${height}" />`;
+      }
+    }
+    for (let y = 0; y <= 100; y += gridSpacing) {
+      if (y % 25 !== 0) { // Skip major lines
+        const py = (y / 100) * height;
+        svg += `<line x1="0" y1="${py}" x2="${width}" y2="${py}" />`;
+      }
+    }
+    svg += `</g>`;
+
+    // Major grid lines (every 25%) - darker, thicker
+    svg += `<g stroke="#666666" stroke-width="1" opacity="0.6">`;
+    for (let x = 0; x <= 100; x += 25) {
       const px = (x / 100) * width;
       svg += `<line x1="${px}" y1="0" x2="${px}" y2="${height}" />`;
     }
-    // Horizontal lines
-    for (let y = 0; y <= 100; y += gridSpacing) {
+    for (let y = 0; y <= 100; y += 25) {
       const py = (y / 100) * height;
       svg += `<line x1="0" y1="${py}" x2="${width}" y2="${py}" />`;
+    }
+    svg += `</g>`;
+
+    // Percentage labels on edges - helps Gemini know exact positions
+    svg += `<g font-size="10" font-family="Arial, sans-serif" fill="#333333" font-weight="bold">`;
+    // Left edge labels (Y axis - top percentage)
+    for (let y = 0; y <= 100; y += 25) {
+      const py = (y / 100) * height;
+      svg += `<text x="2" y="${py + 10}">${y}%</text>`;
+    }
+    // Top edge labels (X axis - left percentage)
+    for (let x = 25; x <= 100; x += 25) {
+      const px = (x / 100) * width;
+      svg += `<text x="${px - 15}" y="12">${x}%</text>`;
     }
     svg += `</g>`;
   }
@@ -88,6 +118,8 @@ function getFieldColor(fieldType: string): string {
       return "#ef4444"; // red
     case "initials":
       return "#ec4899"; // pink
+    case "circle_choice":
+      return "#f97316"; // orange
     default:
       return "#6b7280"; // gray
   }

@@ -6,6 +6,12 @@ export interface NormalizedCoordinates {
   height: number;
 }
 
+// Choice option for circle_choice fields (Yes/No, multiple choice)
+export interface ChoiceOption {
+  label: string;
+  coordinates: NormalizedCoordinates;
+}
+
 // Processing phases for parallel pipeline
 // Flow: idle → parsing → displaying → enhancing → ready
 export type ProcessingPhase =
@@ -92,6 +98,7 @@ export type FieldType =
   | "signature"
   | "initials"
   | "memory_choice"
+  | "circle_choice"
   | "unknown";
 
 // Signature type (signature vs initials)
@@ -214,6 +221,7 @@ export interface ExtractedField {
   confidence_score: number | null;
   manually_adjusted: boolean;
   deleted_at: string | null;
+  choice_options: ChoiceOption[] | null; // For circle_choice fields
   created_at: string;
   updated_at: string;
 }

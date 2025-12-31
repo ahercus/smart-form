@@ -3,12 +3,14 @@
 import { useRef, useCallback } from "react";
 import Image from "next/image";
 import { Rnd } from "react-rnd";
-import { PenLine } from "lucide-react";
+import { Check, PenLine } from "lucide-react";
 import type { NormalizedCoordinates, SignatureType } from "@/lib/types";
 import {
   getFieldClasses,
   getSignatureFieldClasses,
+  getCheckboxClasses,
   isSignatureField,
+  isCheckboxField,
   type DraggableFieldOverlayProps,
 } from "./types";
 
@@ -27,17 +29,22 @@ export function DraggableFieldOverlay({
   onLocalCoordsChange,
   pixelToPercent,
   onSignatureClick,
+  onValueChange,
 }: DraggableFieldOverlayProps) {
   // Track if we just finished dragging to prevent click from firing
   const isDraggingRef = useRef(false);
   const dragStartPosRef = useRef<{ x: number; y: number } | null>(null);
 
   const isSignature = isSignatureField(field.field_type);
+  const isCheckbox = isCheckboxField(field.field_type);
   const isImageValue = value?.startsWith("data:image");
   const hasFilledSignature = isSignature && isFilled && isImageValue;
+  const isChecked = isCheckbox && value === "true";
   const baseClasses = isSignature
     ? getSignatureFieldClasses(isActive, isHighlighted, isFilled, isImageValue)
-    : getFieldClasses(isActive, isHighlighted, isFilled);
+    : isCheckbox
+      ? getCheckboxClasses(isActive, isHighlighted, isChecked)
+      : getFieldClasses(isActive, isHighlighted, isFilled);
 
   const handleDragStart = useCallback(
     (_e: unknown, d: { x: number; y: number }) => {
@@ -147,6 +154,14 @@ export function DraggableFieldOverlay({
         return;
       }
 
+      // Checkbox fields: toggle on single click
+      if (isCheckbox && onValueChange) {
+        const newValue = value === "true" ? "false" : "true";
+        onValueChange(field.id, newValue);
+        onClick(field.id); // Also select the field
+        return;
+      }
+
       // Signature fields: single click opens manager to insert or replace
       if (isSignature && onSignatureClick) {
         onSignatureClick(field.id, field.field_type as SignatureType);
@@ -154,7 +169,7 @@ export function DraggableFieldOverlay({
         onClick(field.id);
       }
     },
-    [isSignature, onSignatureClick, onClick, field.id, field.field_type]
+    [isSignature, isCheckbox, onSignatureClick, onValueChange, onClick, field.id, field.field_type, value]
   );
 
   const handleDoubleClick = useCallback(
@@ -287,6 +302,11 @@ export function DraggableFieldOverlay({
                 {field.field_type === "signature" ? "Sign" : "Initial"}
               </span>
             </div>
+          )
+        ) : isCheckbox ? (
+          // Checkbox field rendering - show check icon when checked
+          isChecked && (
+            <Check className="w-full h-full text-green-600 stroke-[3] pointer-events-none" />
           )
         ) : (
           isFilled && (

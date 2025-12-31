@@ -18,6 +18,7 @@ import type {
   QuestionGenerationResult,
   NormalizedCoordinates,
   FieldType,
+  ChoiceOption,
 } from "../types";
 
 // Field review result from Gemini Vision QC
@@ -29,12 +30,14 @@ export interface FieldReviewResult {
       label: string;
       fieldType: FieldType;
       coordinates: NormalizedCoordinates;
+      choiceOptions: ChoiceOption[];
     }>;
   }>;
   newFields: Array<{
     label: string;
     fieldType: FieldType;
     coordinates: NormalizedCoordinates;
+    choiceOptions?: ChoiceOption[];
   }>;
   removeFields: string[];
   fieldsValidated: boolean;

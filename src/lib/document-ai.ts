@@ -285,6 +285,7 @@ export async function extractFieldsFromPDF(
       confidence_score: kvp.confidence,
       manually_adjusted: false,
       deleted_at: null,
+      choice_options: null,
       created_at: now,
       updated_at: now,
     };

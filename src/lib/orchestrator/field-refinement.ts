@@ -109,25 +109,34 @@ export async function refineFields(
 
       // Log detailed adjustments for debugging
       if (adjustments.length > 0) {
-        console.log(`[AutoForm] QC Adjustments (page ${pageNumber}):`,
-          adjustments.map(adj => {
-            const originalField = pageFields.find(f => f.id === adj.fieldId);
-            return {
-              fieldId: adj.fieldId.slice(0, 8) + "...",
-              originalLabel: originalField?.label,
-              changes: {
-                label: adj.changes?.label ? `"${originalField?.label}" → "${adj.changes.label}"` : null,
-                type: adj.changes?.fieldType ? `${originalField?.field_type} → ${adj.changes.fieldType}` : null,
-                coords: adj.changes?.coordinates ? {
-                  leftDelta: adj.changes.coordinates.left - (originalField?.coordinates?.left || 0),
-                  topDelta: adj.changes.coordinates.top - (originalField?.coordinates?.top || 0),
-                  widthDelta: adj.changes.coordinates.width - (originalField?.coordinates?.width || 0),
-                  heightDelta: adj.changes.coordinates.height - (originalField?.coordinates?.height || 0),
-                } : null,
-              },
-            };
-          }).filter(a => a.changes.label || a.changes.type || a.changes.coords)
-        );
+        const adjustmentDetails = adjustments.map(adj => {
+          const originalField = pageFields.find(f => f.id === adj.fieldId);
+          const orig = originalField?.coordinates;
+          const newC = adj.changes?.coordinates;
+
+          // Format coordinate changes as readable strings
+          let coordChange = null;
+          if (newC && orig) {
+            const topDelta = (newC.top - orig.top).toFixed(1);
+            const leftDelta = (newC.left - orig.left).toFixed(1);
+            const heightDelta = (newC.height - orig.height).toFixed(1);
+            coordChange = `top: ${orig.top.toFixed(1)}→${newC.top.toFixed(1)} (${topDelta}), ` +
+                          `left: ${orig.left.toFixed(1)}→${newC.left.toFixed(1)} (${leftDelta}), ` +
+                          `height: ${orig.height.toFixed(1)}→${newC.height.toFixed(1)} (${heightDelta})`;
+          }
+
+          return {
+            field: originalField?.label || adj.fieldId.slice(0, 8),
+            label: adj.changes?.label ? `→ "${adj.changes.label}"` : null,
+            type: adj.changes?.fieldType ? `→ ${adj.changes.fieldType}` : null,
+            coords: coordChange,
+          };
+        }).filter(a => a.label || a.type || a.coords);
+
+        console.log(`[AutoForm] QC Adjustments (page ${pageNumber}):`);
+        adjustmentDetails.forEach(a => {
+          console.log(`  - ${a.field}:`, a.coords || a.label || a.type);
+        });
       }
 
       // Log new fields added
@@ -162,6 +171,7 @@ export async function refineFields(
           if (adj.changes.label) updateData.label = adj.changes.label;
           if (adj.changes.fieldType) updateData.field_type = adj.changes.fieldType;
           if (adj.changes.coordinates) updateData.coordinates = adj.changes.coordinates;
+          if (adj.changes.choiceOptions) updateData.choice_options = adj.changes.choiceOptions;
 
           await supabase
             .from("extracted_fields")
@@ -174,17 +184,24 @@ export async function refineFields(
 
       // Add new fields
       for (const newField of newFields) {
+        const insertData: Record<string, unknown> = {
+          document_id: documentId,
+          page_number: pageNumber,
+          field_index: pageFields.length + newFields.indexOf(newField),
+          label: newField.label,
+          field_type: newField.fieldType,
+          coordinates: newField.coordinates,
+          detection_source: "gemini_vision",
+        };
+
+        // Add choice_options for circle_choice fields
+        if (newField.choiceOptions) {
+          insertData.choice_options = newField.choiceOptions;
+        }
+
         const { error: insertError } = await supabase
           .from("extracted_fields")
-          .insert({
-            document_id: documentId,
-            page_number: pageNumber,
-            field_index: pageFields.length + newFields.indexOf(newField),
-            label: newField.label,
-            field_type: newField.fieldType,
-            coordinates: newField.coordinates,
-            detection_source: "gemini_vision",
-          });
+          .insert(insertData);
 
         if (!insertError) {
           totalAdded++;

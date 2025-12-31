@@ -146,6 +146,7 @@ export async function POST(
         detection_source: "manual",
         confidence_score: null,
         manually_adjusted: true,
+        choice_options: null,
       });
 
       console.log("[AutoForm] Field created:", {
@@ -194,6 +195,7 @@ export async function POST(
       detection_source: "manual",
       confidence_score: null,
       manually_adjusted: true,
+      choice_options: sourceField.choice_options,
     });
 
     console.log("[AutoForm] Field copied:", {

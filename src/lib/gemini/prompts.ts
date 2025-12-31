@@ -47,11 +47,32 @@ Forms use different styles for input areas. Position boxes correctly for each:
 
 ### Underline-style fields (most common)
 Format: "LABEL: _______________" or "Name ___________"
-- The input area is ON and SLIGHTLY BELOW the horizontal line
-- The box should cover the LINE ITSELF (where user writes)
-- Do NOT cover the label text - only the writable line area
-- Height should be ~3-4% to cover the writing space
-- Example: For "NAME: ____________", the box covers the underline, NOT "NAME:"
+
+**KEY INSIGHT**: People write ABOVE underlines, not below them. The underline is a BASELINE.
+
+**CONCRETE EXAMPLE with coordinates:**
+If you see a NAME field where the underline is at 27% from top:
+- WRONG: top=29% (starts BELOW the line - captures empty space)
+- CORRECT: top=24% with height=4% (captures 24-28%, the writing area INCLUDING the line)
+
+The TOP coordinate must be 2-4% HIGHER (smaller number) than the underline position.
+
+Positioning rules:
+- Find where the underline IS (e.g., 27% from top)
+- Set TOP to 2-4% ABOVE that (e.g., 24% if underline is at 27%)
+- Set HEIGHT to 4-5% to capture writing space + underline
+- The box should STRADDLE the line, not sit below it
+
+Visual example:
+---
+LABEL: John Smith          (text written ABOVE the line, at ~25%)
+       _______________     (the underline/baseline, at ~27%)
+       [  YOUR BOX   ]     WRONG: top=29% misses everything
+[      YOUR BOX      ]     CORRECT: top=24%, height=4% captures 24-28%
+---
+
+WRONG: If underline is at 27%, placing box at top=29% = empty space
+CORRECT: If underline is at 27%, place box at top=24% with height=4%
 
 ### Box-style fields
 Format: A visible rectangle/box drawn on the form
@@ -63,7 +84,7 @@ Format: Just empty space after a label with no visible line/box
 - The input area is the blank space after the label
 - Estimate a reasonable width based on expected content
 
-IMPORTANT: Most PDF forms use underline-style. If you see horizontal lines after labels, those lines ARE the input areas - position your boxes to cover them!
+IMPORTANT: Most PDF forms use underline-style. The boxes must capture WHERE TEXT IS WRITTEN (above the line), not empty space below the line!
 
 ## CRITICAL: Table Detection
 Document AI often fragments table cells into multiple small boxes. Look for:
@@ -78,6 +99,29 @@ When you find fragmented table cells:
    - Label matching the column header (e.g., "First Name - Row 1")
    - Proper field type
 
+## Circle-Choice Field Detection
+Detect "circle your answer" patterns:
+- "Yes / No" or "Yes/No" printed together where user circles their choice
+- "Circle one:" followed by options
+- Multiple choice where user circles ONE option (not checkboxes)
+
+For circle_choice fields, the entire option group is ONE field with a choiceOptions array:
+{
+  "label": "At KGSC",
+  "fieldType": "circle_choice",
+  "coordinates": { "left": 20, "top": 51, "width": 15, "height": 4 },
+  "choiceOptions": [
+    { "label": "Yes", "coordinates": { "left": 20, "top": 51, "width": 4, "height": 4 } },
+    { "label": "No", "coordinates": { "left": 26, "top": 51, "width": 4, "height": 4 } }
+  ]
+}
+
+IMPORTANT for circle_choice:
+- The main "coordinates" should span the ENTIRE option group (Yes/No, all choices)
+- Each choiceOption has its own "coordinates" for where the circle will be drawn
+- The choiceOption coordinates should tightly fit around each option label
+- Use this instead of multiple separate checkbox fields for Yes/No patterns
+
 ## Color Legend
 - Blue boxes = text fields
 - Purple boxes = textarea fields
@@ -86,6 +130,7 @@ When you find fragmented table cells:
 - Cyan boxes = radio buttons
 - Red boxes = signature fields
 - Pink boxes = initials fields
+- Orange boxes = circle_choice fields
 - Gray boxes = unknown type
 
 ## Response Format
@@ -107,6 +152,15 @@ Return ONLY valid JSON:
       "label": "Missed Field Label",
       "fieldType": "text",
       "coordinates": { "left": 50, "top": 60, "width": 20, "height": 4 }
+    },
+    {
+      "label": "Has allergies",
+      "fieldType": "circle_choice",
+      "coordinates": { "left": 50, "top": 70, "width": 12, "height": 4 },
+      "choiceOptions": [
+        { "label": "Yes", "coordinates": { "left": 50, "top": 70, "width": 5, "height": 4 } },
+        { "label": "No", "coordinates": { "left": 57, "top": 70, "width": 5, "height": 4 } }
+      ]
     }
   ],
   "removeFields": ["field-id-to-remove"],
@@ -132,8 +186,21 @@ Document AI did not detect any fields on this page. You need to:
 - date: Date input fields
 - checkbox: Checkboxes or tick boxes
 - radio: Radio button groups
+- circle_choice: "Circle your answer" fields (Yes/No, multiple choice where user circles one)
 - signature: Signature lines or boxes (full signature)
 - initials: Initial boxes (small boxes for writing initials, often near signature lines or at bottom of pages)
+
+## Circle-Choice Fields
+For "Yes/No" or "circle one" patterns, use circle_choice with choiceOptions:
+{
+  "label": "Has allergies",
+  "fieldType": "circle_choice",
+  "coordinates": { "left": 50, "top": 70, "width": 12, "height": 4 },
+  "choiceOptions": [
+    { "label": "Yes", "coordinates": { "left": 50, "top": 70, "width": 5, "height": 4 } },
+    { "label": "No", "coordinates": { "left": 57, "top": 70, "width": 5, "height": 4 } }
+  ]
+}
 
 ## Response Format
 Return ONLY valid JSON:
