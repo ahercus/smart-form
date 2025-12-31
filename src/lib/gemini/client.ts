@@ -69,6 +69,7 @@ export async function generateWithVision(options: GenerateContentOptions) {
   const config: Record<string, unknown> = {
     thinkingConfig: {
       thinkingLevel,
+      includeThoughts: true, // Enable thought summaries for debugging QC decisions
     },
   };
 
