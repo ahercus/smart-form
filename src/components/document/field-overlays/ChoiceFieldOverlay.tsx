@@ -9,8 +9,6 @@ import {
 import {
   Drawer,
   DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
@@ -132,12 +130,11 @@ export function ChoiceFieldOverlay({
   );
 
   const OptionsContent = (
-    <div className="flex flex-col gap-2 p-2">
+    <div className="flex gap-2">
       {choiceOptions.map((option) => (
         <Button
           key={option.label}
           variant={value === option.label ? "default" : "outline"}
-          className="w-full justify-center"
           onClick={() => handleSelect(option.label)}
         >
           {option.label}
@@ -150,11 +147,19 @@ export function ChoiceFieldOverlay({
     return (
       <Drawer open={open} onOpenChange={setOpen}>
         <DrawerTrigger asChild>{TriggerContent}</DrawerTrigger>
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle>{field.label}</DrawerTitle>
-          </DrawerHeader>
-          {OptionsContent}
+        <DrawerContent className="pb-6">
+          <div className="flex justify-center gap-4 pt-4">
+            {choiceOptions.map((option) => (
+              <Button
+                key={option.label}
+                variant={value === option.label ? "default" : "outline"}
+                size="lg"
+                onClick={() => handleSelect(option.label)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
         </DrawerContent>
       </Drawer>
     );
@@ -163,8 +168,7 @@ export function ChoiceFieldOverlay({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{TriggerContent}</PopoverTrigger>
-      <PopoverContent className="w-auto" align="center">
-        <div className="text-sm font-medium text-center mb-2">{field.label}</div>
+      <PopoverContent className="w-auto p-2" align="center">
         {OptionsContent}
       </PopoverContent>
     </Popover>

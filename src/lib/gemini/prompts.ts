@@ -99,28 +99,35 @@ When you find fragmented table cells:
    - Label matching the column header (e.g., "First Name - Row 1")
    - Proper field type
 
-## Circle-Choice Field Detection
-Detect "circle your answer" patterns:
-- "Yes / No" or "Yes/No" printed together where user circles their choice
-- "Circle one:" followed by options
-- Multiple choice where user circles ONE option (not checkboxes)
+## CRITICAL: Circle-Choice Field Detection (Yes/No Patterns)
 
-For circle_choice fields, the entire option group is ONE field with a choiceOptions array:
+**ANY field with "Yes/No" or "Yes / No" in the label MUST be fieldType "circle_choice" with choiceOptions.**
+
+Look for these patterns:
+- "Question? Yes/No" - user circles Yes or No
+- "AT KGSC: Yes/No" - user circles their answer
+- "Do you have X? Yes/No" - user circles Yes or No
+- "Circle one:" followed by options
+
+**WRONG - Do NOT do this:**
+{ "label": "Do you have equipment? Yes/No", "fieldType": "text" }
+
+**CORRECT - Always use circle_choice with choiceOptions:**
 {
-  "label": "At KGSC",
+  "label": "Do you have equipment",
   "fieldType": "circle_choice",
-  "coordinates": { "left": 20, "top": 51, "width": 15, "height": 4 },
+  "coordinates": { "left": 70, "top": 66, "width": 12, "height": 3 },
   "choiceOptions": [
-    { "label": "Yes", "coordinates": { "left": 20, "top": 51, "width": 4, "height": 4 } },
-    { "label": "No", "coordinates": { "left": 26, "top": 51, "width": 4, "height": 4 } }
+    { "label": "Yes", "coordinates": { "left": 70, "top": 66, "width": 5, "height": 3 } },
+    { "label": "No", "coordinates": { "left": 77, "top": 66, "width": 4, "height": 3 } }
   ]
 }
 
-IMPORTANT for circle_choice:
-- The main "coordinates" should span the ENTIRE option group (Yes/No, all choices)
-- Each choiceOption has its own "coordinates" for where the circle will be drawn
-- The choiceOption coordinates should tightly fit around each option label
-- Use this instead of multiple separate checkbox fields for Yes/No patterns
+**Rules for circle_choice:**
+- Remove "Yes/No" from the label (it's in the choiceOptions)
+- Main coordinates span the Yes/No text area (where the options appear)
+- Each choiceOption has precise coordinates for drawing a circle around it
+- Measure the ACTUAL position of "Yes" and "No" text on the page using the grid
 
 ## Color Legend
 - Blue boxes = text fields
