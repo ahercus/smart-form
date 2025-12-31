@@ -333,14 +333,13 @@ export function PDFWithOverlays({
     const isFilled = value.trim().length > 0;
     const pixelCoords = percentToPixel(coords);
 
-    // Circle choice fields - always use ChoiceFieldOverlay
+    // Circle choice fields - render each option as clickable circle
     if (field.field_type === "circle_choice" && field.choice_options) {
       return (
         <ChoiceFieldOverlay
           key={field.id}
           field={field}
           value={value}
-          pixelCoords={pixelCoords}
           containerSize={containerSize}
           isActive={isActive}
           isHighlighted={isHighlighted}

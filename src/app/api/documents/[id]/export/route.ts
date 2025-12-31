@@ -141,35 +141,43 @@ export async function GET(
         continue;
       }
 
-      // Handle circle_choice fields - draw circle around selected option
+      // Handle circle_choice fields - draw circles around selected options (multi-select)
       if (field.field_type === "circle_choice" && field.choice_options) {
-        const selectedOption = field.choice_options.find(
-          (opt) => opt.label === field.value
-        );
+        // Parse comma-separated selected values
+        const selectedLabels = field.value
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
 
-        if (selectedOption) {
-          const optCoords = selectedOption.coordinates;
-          // Calculate option position in PDF coordinates
-          const optX = (optCoords.left / 100) * width;
-          const optY = height - ((optCoords.top / 100) * height);
-          const optWidth = (optCoords.width / 100) * width;
-          const optHeight = (optCoords.height / 100) * height;
+        for (const label of selectedLabels) {
+          const selectedOption = field.choice_options.find(
+            (opt) => opt.label === label
+          );
 
-          // Calculate ellipse center and radii with padding
-          const padding = 4;
-          const centerX = optX + optWidth / 2;
-          const centerY = optY - optHeight / 2;
-          const radiusX = optWidth / 2 + padding;
-          const radiusY = optHeight / 2 + padding;
+          if (selectedOption) {
+            const optCoords = selectedOption.coordinates;
+            // Calculate option position in PDF coordinates
+            const optX = (optCoords.left / 100) * width;
+            const optY = height - ((optCoords.top / 100) * height);
+            const optWidth = (optCoords.width / 100) * width;
+            const optHeight = (optCoords.height / 100) * height;
 
-          page.drawEllipse({
-            x: centerX,
-            y: centerY,
-            xScale: radiusX,
-            yScale: radiusY,
-            borderWidth: 2,
-            borderColor: rgb(0, 0, 0),
-          });
+            // Calculate ellipse center and radii with padding
+            const padding = 4;
+            const centerX = optX + optWidth / 2;
+            const centerY = optY - optHeight / 2;
+            const radiusX = optWidth / 2 + padding;
+            const radiusY = optHeight / 2 + padding;
+
+            page.drawEllipse({
+              x: centerX,
+              y: centerY,
+              xScale: radiusX,
+              yScale: radiusY,
+              borderWidth: 2,
+              borderColor: rgb(0, 0, 0),
+            });
+          }
         }
         continue;
       }
