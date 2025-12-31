@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { ExtractedField, NormalizedCoordinates } from "@/lib/types";
 
 interface ChoiceFieldOverlayProps {
@@ -56,8 +57,10 @@ export function ChoiceFieldOverlay({
   onClick,
   onValueChange,
 }: ChoiceFieldOverlayProps) {
+  const [isHovering, setIsHovering] = useState(false);
   const choiceOptions = field.choice_options || [];
   const selected = parseSelected(value);
+  const hasSelection = selected.length > 0;
 
   if (containerSize.width === 0 || choiceOptions.length === 0) {
     return null;
@@ -70,14 +73,35 @@ export function ChoiceFieldOverlay({
     onClick(field.id);
   };
 
+  // Calculate bounding box for all options to create hover area
+  const allPixels = choiceOptions.map((opt) => toPixels(opt.coordinates, containerSize));
+  const padding = 4;
+  const minX = Math.min(...allPixels.map((p) => p.x)) - padding;
+  const minY = Math.min(...allPixels.map((p) => p.y)) - padding;
+  const maxX = Math.max(...allPixels.map((p) => p.x + p.width)) + padding;
+  const maxY = Math.max(...allPixels.map((p) => p.y + p.height)) + padding;
+
   return (
     <>
+      {/* Invisible hover area covering all options */}
+      <div
+        className="absolute"
+        style={{
+          left: minX,
+          top: minY,
+          width: maxX - minX,
+          height: maxY - minY,
+        }}
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
+      />
       {choiceOptions.map((option) => {
         const isSelected = selected.includes(option.label);
         const pixel = toPixels(option.coordinates, containerSize);
 
-        // Add padding for the circle
-        const padding = 4;
+        // Hide unselected options unless hovering (when there's a selection)
+        const shouldHide = hasSelection && !isSelected && !isHovering;
+
         const circleStyle = {
           left: pixel.x - padding,
           top: pixel.y - padding,
@@ -94,9 +118,11 @@ export function ChoiceFieldOverlay({
                 : isActive || isHighlighted
                   ? "bg-purple-500/15 hover:bg-purple-500/25"
                   : "bg-orange-400/10 hover:bg-orange-400/20"
-            }`}
+            } ${shouldHide ? "opacity-0" : "opacity-100"}`}
             style={circleStyle}
             onClick={(e) => handleOptionClick(e, option.label)}
+            onMouseEnter={() => setIsHovering(true)}
+            onMouseLeave={() => setIsHovering(false)}
             title={`${field.label}: ${option.label}`}
           />
         );
