@@ -84,6 +84,14 @@ Format: Just empty space after a label with no visible line/box
 - The input area is the blank space after the label
 - Estimate a reasonable width based on expected content
 
+### Multi-line input areas (textarea)
+When a question is followed by multiple lines for a response:
+- If the FIRST line is only a PARTIAL line (follows the question text), START the text box from the SECOND line
+- The partial first line would cause text to overlay the question
+- Example: "Please describe: ________" with 3 blank lines below
+  - WRONG: Start text box at the partial line after "describe:" - text will cover the question
+  - CORRECT: Start text box at the first FULL blank line below
+
 IMPORTANT: Most PDF forms use underline-style. The boxes must capture WHERE TEXT IS WRITTEN (above the line), not empty space below the line!
 
 ## CRITICAL: Table Detection
