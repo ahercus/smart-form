@@ -60,17 +60,30 @@ function createOverlaySvg(
     }
     svg += `</g>`;
 
-    // Percentage labels on edges - helps Gemini know exact positions
-    svg += `<g font-size="10" font-family="Arial, sans-serif" fill="#333333" font-weight="bold">`;
-    // Left edge labels (Y axis - top percentage)
-    for (let y = 0; y <= 100; y += 25) {
+    // Percentage labels on edges - every 10% for precision
+    // Major labels (every 10%) - these help Gemini measure exact positions
+    svg += `<g font-family="Arial, sans-serif" fill="#000000">`;
+
+    // Left edge ruler (Y axis - top percentage) - every 10%
+    for (let y = 0; y <= 100; y += 10) {
       const py = (y / 100) * height;
-      svg += `<text x="2" y="${py + 10}">${y}%</text>`;
+      const isMajor = y % 20 === 0;
+      const fontSize = isMajor ? 11 : 9;
+      const fontWeight = isMajor ? "bold" : "normal";
+      // White background for readability
+      svg += `<rect x="0" y="${py}" width="24" height="14" fill="white" opacity="0.8"/>`;
+      svg += `<text x="2" y="${py + 11}" font-size="${fontSize}" font-weight="${fontWeight}">${y}</text>`;
     }
-    // Top edge labels (X axis - left percentage)
-    for (let x = 25; x <= 100; x += 25) {
+
+    // Top edge ruler (X axis - left percentage) - every 10%
+    for (let x = 10; x <= 100; x += 10) {
       const px = (x / 100) * width;
-      svg += `<text x="${px - 15}" y="12">${x}%</text>`;
+      const isMajor = x % 20 === 0;
+      const fontSize = isMajor ? 11 : 9;
+      const fontWeight = isMajor ? "bold" : "normal";
+      // White background for readability
+      svg += `<rect x="${px - 12}" y="0" width="24" height="14" fill="white" opacity="0.8"/>`;
+      svg += `<text x="${px - 10}" y="11" font-size="${fontSize}" font-weight="${fontWeight}">${x}</text>`;
     }
     svg += `</g>`;
   }

@@ -99,20 +99,12 @@ When you find fragmented table cells:
    - Label matching the column header (e.g., "First Name - Row 1")
    - Proper field type
 
-## CRITICAL: Circle-Choice Field Detection (Yes/No Patterns)
+## Circle-Choice Fields (Yes/No)
 
-**ANY field with "Yes/No" or "Yes / No" in the label MUST be fieldType "circle_choice" with choiceOptions.**
+For "Yes/No" patterns, use fieldType "circle_choice" with choiceOptions:
+- Each choiceOption needs precise coordinates measured from the grid
+- Use the 10% grid labels on edges to measure exactly where "Yes" and "No" text appears
 
-Look for these patterns:
-- "Question? Yes/No" - user circles Yes or No
-- "AT KGSC: Yes/No" - user circles their answer
-- "Do you have X? Yes/No" - user circles Yes or No
-- "Circle one:" followed by options
-
-**WRONG - Do NOT do this:**
-{ "label": "Do you have equipment? Yes/No", "fieldType": "text" }
-
-**CORRECT - Always use circle_choice with choiceOptions:**
 {
   "label": "Do you have equipment",
   "fieldType": "circle_choice",
@@ -122,12 +114,6 @@ Look for these patterns:
     { "label": "No", "coordinates": { "left": 77, "top": 66, "width": 4, "height": 3 } }
   ]
 }
-
-**Rules for circle_choice:**
-- Remove "Yes/No" from the label (it's in the choiceOptions)
-- Main coordinates span the Yes/No text area (where the options appear)
-- Each choiceOption has precise coordinates for drawing a circle around it
-- Measure the ACTUAL position of "Yes" and "No" text on the page using the grid
 
 ## Color Legend
 - Blue boxes = text fields
