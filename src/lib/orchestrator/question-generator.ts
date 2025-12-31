@@ -37,16 +37,28 @@ export async function generateQuestions(
 
   const supabase = createAdminClient();
 
-  // Check for existing processing lock to prevent duplicate runs
+  // Check for existing processing lock and questions_generated_at to prevent duplicate runs
   const { data: doc } = await supabase
     .from("documents")
-    .select("status, processing_lock")
+    .select("status, processing_lock, questions_generated_at")
     .eq("id", documentId)
     .single();
 
   const now = Date.now();
   const lockAge = doc?.processing_lock ? now - new Date(doc.processing_lock).getTime() : Infinity;
   const LOCK_TIMEOUT = 5 * 60 * 1000; // 5 minutes - stale lock timeout
+
+  // If questions were already generated, skip (prevents duplicate generation)
+  if (doc?.questions_generated_at) {
+    console.log("[AutoForm] Questions already generated, skipping:", {
+      documentId,
+      generatedAt: doc.questions_generated_at,
+    });
+    return {
+      success: true,
+      questionsGenerated: 0,
+    };
+  }
 
   // If already processing and lock is fresh, skip
   if (doc?.status === "extracting" && lockAge < LOCK_TIMEOUT) {
@@ -155,10 +167,13 @@ export async function generateQuestions(
 
     await updateDocumentStatus(documentId, "ready");
 
-    // Clear processing lock
+    // Clear processing lock and mark questions as generated
     await supabase
       .from("documents")
-      .update({ processing_lock: null })
+      .update({
+        processing_lock: null,
+        questions_generated_at: new Date().toISOString(),
+      })
       .eq("id", documentId);
 
     return {
