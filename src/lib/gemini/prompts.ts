@@ -41,6 +41,30 @@ Review the detected field boxes and:
 5. **RECLASSIFY** - If a field type is wrong (e.g., marked as "text" but it's a checkbox), correct it
 6. **MERGE TABLE CELLS** - CRITICAL: If you see multiple small boxes inside what should be ONE table cell, REMOVE the small boxes and create ONE properly-sized field per cell
 
+## CRITICAL: Field Positioning for Different Form Styles
+
+Forms use different styles for input areas. Position boxes correctly for each:
+
+### Underline-style fields (most common)
+Format: "LABEL: _______________" or "Name ___________"
+- The input area is ON and SLIGHTLY BELOW the horizontal line
+- The box should cover the LINE ITSELF (where user writes)
+- Do NOT cover the label text - only the writable line area
+- Height should be ~3-4% to cover the writing space
+- Example: For "NAME: ____________", the box covers the underline, NOT "NAME:"
+
+### Box-style fields
+Format: A visible rectangle/box drawn on the form
+- The input area is INSIDE the drawn rectangle
+- The box should match the rectangle boundaries exactly
+
+### Blank-space fields
+Format: Just empty space after a label with no visible line/box
+- The input area is the blank space after the label
+- Estimate a reasonable width based on expected content
+
+IMPORTANT: Most PDF forms use underline-style. If you see horizontal lines after labels, those lines ARE the input areas - position your boxes to cover them!
+
 ## CRITICAL: Table Detection
 Document AI often fragments table cells into multiple small boxes. Look for:
 - Tables with column headers (e.g., "First Name", "Last Name", "Phone")
