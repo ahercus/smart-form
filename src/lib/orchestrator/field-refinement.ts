@@ -85,15 +85,71 @@ export async function refineFields(
       }
 
       // Call Gemini Vision for field review (it creates its own composite internally)
+      const qcStartTime = Date.now();
       const reviewResult = await reviewFieldsWithVision({
         documentId,
         pageNumber,
         pageImageBase64: imageBase64,
         fields: pageFields as ExtractedField[],
       });
+      const qcDuration = Date.now() - qcStartTime;
 
       // Apply adjustments
       const { adjustments, newFields, removeFields } = reviewResult;
+
+      // Log QC summary with timing
+      console.log(`[AutoForm] QC Results for page ${pageNumber}:`, {
+        documentId,
+        duration: `${(qcDuration / 1000).toFixed(1)}s`,
+        fieldsReviewed: pageFields.length,
+        adjustments: adjustments.length,
+        newFields: newFields.length,
+        removals: removeFields.length,
+      });
+
+      // Log detailed adjustments for debugging
+      if (adjustments.length > 0) {
+        console.log(`[AutoForm] QC Adjustments (page ${pageNumber}):`,
+          adjustments.map(adj => {
+            const originalField = pageFields.find(f => f.id === adj.fieldId);
+            return {
+              fieldId: adj.fieldId.slice(0, 8) + "...",
+              originalLabel: originalField?.label,
+              changes: {
+                label: adj.changes?.label ? `"${originalField?.label}" → "${adj.changes.label}"` : null,
+                type: adj.changes?.fieldType ? `${originalField?.field_type} → ${adj.changes.fieldType}` : null,
+                coords: adj.changes?.coordinates ? {
+                  leftDelta: adj.changes.coordinates.left - (originalField?.coordinates?.left || 0),
+                  topDelta: adj.changes.coordinates.top - (originalField?.coordinates?.top || 0),
+                  widthDelta: adj.changes.coordinates.width - (originalField?.coordinates?.width || 0),
+                  heightDelta: adj.changes.coordinates.height - (originalField?.coordinates?.height || 0),
+                } : null,
+              },
+            };
+          }).filter(a => a.changes.label || a.changes.type || a.changes.coords)
+        );
+      }
+
+      // Log new fields added
+      if (newFields.length > 0) {
+        console.log(`[AutoForm] QC New Fields (page ${pageNumber}):`,
+          newFields.map(f => ({
+            label: f.label,
+            type: f.fieldType,
+            coords: `(${f.coordinates.left.toFixed(1)}%, ${f.coordinates.top.toFixed(1)}%)`,
+          }))
+        );
+      }
+
+      // Log removed fields
+      if (removeFields.length > 0) {
+        console.log(`[AutoForm] QC Removed Fields (page ${pageNumber}):`,
+          removeFields.map(id => {
+            const field = pageFields.find(f => f.id === id);
+            return { id: id.slice(0, 8) + "...", label: field?.label };
+          })
+        );
+      }
 
       // Update existing fields
       for (const adj of adjustments) {
@@ -145,11 +201,7 @@ export async function refineFields(
         totalRemoved++;
       }
 
-      console.log(`[AutoForm] Page ${pageNumber} refinement complete:`, {
-        adjusted: adjustments.length,
-        added: newFields.length,
-        removed: removeFields.length,
-      });
+      console.log(`[AutoForm] Page ${pageNumber} QC applied to database`);
     }
 
     // Mark fields as QC complete AND set status to ready

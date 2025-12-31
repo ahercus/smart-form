@@ -89,7 +89,13 @@ export async function reviewFieldsWithVision(
     };
 
     console.log(`[AutoForm] Calling Gemini Vision for field review...`);
-    const result = await model.generateContent([prompt, imagePart]);
+
+    // 60s timeout to prevent extreme waits (was taking 116s without timeout)
+    const result = await withTimeout(
+      model.generateContent([prompt, imagePart]),
+      60000, // 60 seconds max
+      "Field review (Gemini Vision)"
+    );
     const response = result.response;
     const text = response.text();
 
