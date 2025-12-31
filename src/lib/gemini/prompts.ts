@@ -239,13 +239,17 @@ export function buildQuestionGenerationPrompt(
   contextNotes?: string,
   memoryContext?: string
 ): string {
-  // Include character limits for each field
+  // Include character limits and choice options for each field
   const fieldsWithLimits = fields.map((f) => ({
     id: f.id,
     label: f.label,
     fieldType: f.field_type,
     currentValue: f.value || f.ai_suggested_value || null,
     charLimits: formatCharacterLimitsForPrompt(f.coordinates, f.field_type),
+    // Include choiceOptions for circle_choice fields so Gemini can populate choices
+    ...(f.field_type === "circle_choice" && f.choice_options
+      ? { choiceOptions: f.choice_options.map((opt) => opt.label) }
+      : {}),
   }));
 
   const fieldsJson = JSON.stringify(fieldsWithLimits, null, 2);
@@ -308,11 +312,29 @@ Each field has a "charLimits" property showing MAX and RECOMMENDED character cou
 ## Input Types (ONLY use these exact values for inputType)
 - "text": Single-line text input (most common - use for names, addresses, phone numbers, etc.)
 - "textarea": Multi-line text for longer responses (comments, descriptions)
-- "checkbox": Yes/no questions
+- "checkbox": Yes/no questions (single checkbox)
 - "date": Date inputs
 - "signature": Signature fields (full signature)
 - "initials": Initials fields (small boxes for writing initials)
+- "circle_choice": For fields with fieldType "circle_choice" - shows all options from the field's choiceOptions
 - "memory_choice": Use ONLY when the user's saved memory contains MULTIPLE distinct items that could answer a question (see below)
+
+## Circle-Choice Fields in Questions
+When a field has fieldType "circle_choice", use inputType "circle_choice":
+- Include a "choices" array with each option from the field's choiceOptions
+- Do NOT use "checkbox" for circle_choice fields - that only shows one option
+- The choices array should have {label, values} format like memory_choice
+
+Example for a field with choiceOptions [{"label": "Yes"}, {"label": "No"}]:
+{
+  "question": "Does the student attend KGSC?",
+  "fieldIds": ["field-id"],
+  "inputType": "circle_choice",
+  "choices": [
+    { "label": "Yes", "values": { "At KGSC": "Yes" } },
+    { "label": "No", "values": { "At KGSC": "No" } }
+  ]
+}
 
 ## Memory-Driven Multiple Choice (memory_choice)
 When the user's saved memory contains MULTIPLE distinct items that could answer a question:

@@ -184,6 +184,31 @@ export function QuestionCard({
           />
         );
 
+      case "circle_choice": {
+        // Circle choice fields show all options - click to select and submit
+        const choices = question.choices || [];
+        return (
+          <div className="flex flex-wrap gap-2">
+            {choices.map((choice) => (
+              <Button
+                key={choice.label}
+                variant={answer === choice.label ? "default" : "outline"}
+                size="sm"
+                disabled={isAnswering}
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  setAnswer(choice.label);
+                  await onAnswer(choice.label);
+                }}
+                className="transition-all"
+              >
+                {choice.label}
+              </Button>
+            ))}
+          </div>
+        );
+      }
+
       case "memory_choice": {
         const choices = question.choices || [];
 
@@ -329,6 +354,9 @@ export function QuestionCard({
           <p className="font-medium text-sm">{question.question}</p>
 
           {question.input_type === "signature" || question.input_type === "initials" ? (
+            <div>{renderInput()}</div>
+          ) : question.input_type === "circle_choice" ? (
+            // Circle choice with buttons - click to select and auto-submit
             <div>{renderInput()}</div>
           ) : question.input_type === "memory_choice" && !showOtherInput ? (
             // Memory choice with pre-built buttons - no submit needed
