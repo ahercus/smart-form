@@ -7,11 +7,204 @@
 // - If QC added fields -> generate questions for them
 // - If QC removed fields -> hide their questions
 // - If QC adjusted fields -> no action needed (questions still valid)
+//
+// SMART QUADRANT SPLITTING:
+// To improve QC speed and accuracy, we split each page into quadrants:
+// 1. Analyze field positions from Azure to find natural gaps
+// 2. Split page at gaps (avoiding cutting through fields)
+// 3. Process each quadrant with a separate QC call (in parallel)
+// This allows Flash model to focus on smaller regions with better accuracy.
 
-import { reviewFieldsWithVision, generateQuestionsForPage } from "../gemini/vision";
+import { reviewFieldsWithVision, reviewQuadrantWithVision, discoverMissedFields, generateQuestionsForPage, type FieldReviewResult } from "../gemini/vision";
+import { compositeFieldsOntoImage } from "../image-compositor";
 import { createAdminClient } from "../supabase/admin";
 import { getConversationHistory, saveQuestion } from "./state";
 import type { ExtractedField, FieldType, NormalizedCoordinates, ChoiceOption } from "../types";
+
+/**
+ * Represents a cluster of nearby fields for focused QC
+ */
+interface FieldCluster {
+  /** Bounding box as percentage of page (0-100), with padding */
+  bounds: {
+    top: number;
+    left: number;
+    bottom: number;
+    right: number;
+  };
+  /** Fields in this cluster */
+  fields: ExtractedField[];
+  /** Cluster index */
+  index: number;
+}
+
+/**
+ * Calculate distance between two fields (center-to-center)
+ */
+function fieldDistance(a: ExtractedField, b: ExtractedField): number {
+  const aCenterX = a.coordinates.left + a.coordinates.width / 2;
+  const aCenterY = a.coordinates.top + a.coordinates.height / 2;
+  const bCenterX = b.coordinates.left + b.coordinates.width / 2;
+  const bCenterY = b.coordinates.top + b.coordinates.height / 2;
+
+  return Math.sqrt(
+    Math.pow(aCenterX - bCenterX, 2) + Math.pow(aCenterY - bCenterY, 2)
+  );
+}
+
+/**
+ * Cluster fields by proximity using a simple greedy algorithm
+ * Fields within `proximityThreshold` of any field in a cluster join that cluster
+ */
+function clusterFieldsByProximity(
+  fields: ExtractedField[],
+  proximityThreshold: number = 15 // percentage of page
+): ExtractedField[][] {
+  if (fields.length === 0) return [];
+  if (fields.length === 1) return [[fields[0]]];
+
+  const clusters: ExtractedField[][] = [];
+  const assigned = new Set<string>();
+
+  // Sort fields by position (top-left to bottom-right) for consistent clustering
+  const sortedFields = [...fields].sort((a, b) => {
+    const aPos = a.coordinates.top * 100 + a.coordinates.left;
+    const bPos = b.coordinates.top * 100 + b.coordinates.left;
+    return aPos - bPos;
+  });
+
+  for (const field of sortedFields) {
+    if (assigned.has(field.id)) continue;
+
+    // Start a new cluster with this field
+    const cluster: ExtractedField[] = [field];
+    assigned.add(field.id);
+
+    // Find all fields close to any field in this cluster
+    let expanded = true;
+    while (expanded) {
+      expanded = false;
+      for (const candidate of sortedFields) {
+        if (assigned.has(candidate.id)) continue;
+
+        // Check if candidate is close to any field in the cluster
+        for (const clusterField of cluster) {
+          if (fieldDistance(candidate, clusterField) <= proximityThreshold) {
+            cluster.push(candidate);
+            assigned.add(candidate.id);
+            expanded = true;
+            break;
+          }
+        }
+      }
+    }
+
+    clusters.push(cluster);
+  }
+
+  return clusters;
+}
+
+/**
+ * Calculate tight bounding box around a cluster of fields with padding
+ */
+function getClusterBounds(
+  fields: ExtractedField[],
+  padding: number = 8 // percentage padding around cluster
+): FieldCluster["bounds"] {
+  if (fields.length === 0) {
+    return { top: 0, left: 0, bottom: 100, right: 100 };
+  }
+
+  let minTop = 100, minLeft = 100, maxBottom = 0, maxRight = 0;
+
+  for (const field of fields) {
+    const top = field.coordinates.top;
+    const left = field.coordinates.left;
+    const bottom = top + field.coordinates.height;
+    const right = left + field.coordinates.width;
+
+    minTop = Math.min(minTop, top);
+    minLeft = Math.min(minLeft, left);
+    maxBottom = Math.max(maxBottom, bottom);
+    maxRight = Math.max(maxRight, right);
+  }
+
+  // Add padding, clamped to page bounds
+  return {
+    top: Math.max(0, minTop - padding),
+    left: Math.max(0, minLeft - padding),
+    bottom: Math.min(100, maxBottom + padding),
+    right: Math.min(100, maxRight + padding),
+  };
+}
+
+/**
+ * Cluster fields on a page for focused QC
+ * Returns clusters with tight bounding boxes for precision coordinate adjustment
+ */
+export function clusterPageFields(
+  fields: ExtractedField[],
+  pageNumber: number
+): FieldCluster[] {
+  const pageFields = fields.filter((f) => f.page_number === pageNumber);
+
+  if (pageFields.length === 0) {
+    return [];
+  }
+
+  // Cluster fields by proximity
+  const fieldGroups = clusterFieldsByProximity(pageFields, 15);
+
+  // Create cluster objects with bounds
+  const clusters: FieldCluster[] = fieldGroups.map((group, index) => ({
+    bounds: getClusterBounds(group, 8),
+    fields: group,
+    index,
+  }));
+
+  console.log(`[AutoForm] Page ${pageNumber} clustered into ${clusters.length} groups:`, {
+    fieldCount: pageFields.length,
+    clusterDetails: clusters.map((c) => ({
+      index: c.index,
+      fields: c.fields.length,
+      bounds: `${c.bounds.top.toFixed(0)}-${c.bounds.bottom.toFixed(0)}%, ${c.bounds.left.toFixed(0)}-${c.bounds.right.toFixed(0)}%`,
+    })),
+  });
+
+  return clusters;
+}
+
+/**
+ * Merge results from multiple cluster QC calls into a single page result
+ */
+function mergeClusterResults(
+  clusterResults: FieldReviewResult[]
+): FieldReviewResult {
+  const adjustments: FieldReviewResult["adjustments"] = [];
+  const newFields: FieldReviewResult["newFields"] = [];
+  const removeFields: string[] = [];
+  let allValidated = true;
+
+  for (const result of clusterResults) {
+    adjustments.push(...result.adjustments);
+    newFields.push(...result.newFields);
+    removeFields.push(...result.removeFields);
+    if (!result.fieldsValidated) {
+      allValidated = false;
+    }
+  }
+
+  // Deduplicate removeFields (same field might be flagged in overlapping regions)
+  const uniqueRemoveFields = [...new Set(removeFields)];
+
+  return {
+    adjustments,
+    newFields,
+    removeFields: uniqueRemoveFields,
+    fieldsValidated: allValidated,
+  };
+}
 
 interface RefineFieldsParams {
   documentId: string;
@@ -107,32 +300,110 @@ export async function refineFields(
     // Run Gemini Vision QC on ALL pages in parallel
     // IMPORTANT: Even pages with 0 Azure fields should be analyzed by Vision
     // Vision can detect fields that Azure missed (e.g., scanned forms, unusual layouts)
+    //
+    // DUAL-TRACK QC:
+    // 1. CLUSTER TRACK: Tight crops around field clusters for precision coordinate adjustment
+    // 2. DISCOVERY TRACK: Full page scan to find fields Azure missed
+    // Both tracks run in parallel for maximum speed.
     const pageQCPromises = pageImages.map(async (pageImage): Promise<PageQCResult> => {
       const { pageNumber, imageBase64 } = pageImage;
       const pageFields = (allFields?.filter((f) => f.page_number === pageNumber) || []) as ExtractedField[];
 
-      const mode = pageFields.length === 0 ? "full-detection" : "QC";
-      console.log(`[AutoForm] Gemini Vision analyzing page ${pageNumber}:`, {
+      const qcStartTime = Date.now();
+
+      // If no Azure fields, just do full-page discovery
+      if (pageFields.length === 0) {
+        console.log(`[AutoForm] Page ${pageNumber}: No Azure fields, running discovery only`, {
+          documentId,
+        });
+
+        const discoveryResult = await discoverMissedFields({
+          documentId,
+          pageNumber,
+          pageImageBase64: imageBase64,
+          existingFieldIds: [],
+        });
+
+        const qcDuration = Date.now() - qcStartTime;
+
+        return {
+          pageNumber,
+          skipped: false,
+          pageFields,
+          ...discoveryResult,
+          duration: qcDuration,
+        };
+      }
+
+      // Cluster fields for precision QC
+      const clusters = clusterPageFields(allFields as ExtractedField[] || [], pageNumber);
+
+      console.log(`[AutoForm] Page ${pageNumber}: Running dual-track QC`, {
         documentId,
-        mode,
         azureFieldCount: pageFields.length,
+        clusterCount: clusters.length,
       });
 
-      // Call Gemini Vision for field review (works with 0 fields too - it will detect them)
-      const qcStartTime = Date.now();
-      const reviewResult = await reviewFieldsWithVision({
+      // Create composite image with field overlays for discovery track
+      const compositedForDiscovery = await compositeFieldsOntoImage({
+        imageBase64,
+        fields: pageFields,
+        showGrid: true,
+        gridSpacing: 10,
+      });
+
+      // PARALLEL: Run all cluster QC + discovery scan together
+      const clusterPromises = clusters.map(async (cluster) => {
+        return reviewQuadrantWithVision({
+          documentId,
+          pageNumber,
+          pageImageBase64: imageBase64,
+          fields: cluster.fields,
+          quadrantBounds: cluster.bounds,
+          quadrantIndex: cluster.index,
+        });
+      });
+
+      const discoveryPromise = discoverMissedFields({
         documentId,
         pageNumber,
-        pageImageBase64: imageBase64,
-        fields: pageFields,
+        pageImageBase64: compositedForDiscovery.imageBase64,
+        existingFieldIds: pageFields.map((f) => f.id),
       });
+
+      // Wait for all to complete
+      const [clusterResults, discoveryResult] = await Promise.all([
+        Promise.all(clusterPromises),
+        discoveryPromise,
+      ]);
+
       const qcDuration = Date.now() - qcStartTime;
+
+      // Merge cluster results (adjustments + removals)
+      const clusterMerged = mergeClusterResults(clusterResults);
+
+      // Combine with discovery results (new fields only)
+      const finalResult: FieldReviewResult = {
+        adjustments: clusterMerged.adjustments,
+        newFields: [...clusterMerged.newFields, ...discoveryResult.newFields],
+        removeFields: clusterMerged.removeFields,
+        fieldsValidated: clusterMerged.fieldsValidated && discoveryResult.fieldsValidated,
+      };
+
+      console.log(`[AutoForm] Page ${pageNumber} dual-track QC complete:`, {
+        clusterCount: clusters.length,
+        adjustments: finalResult.adjustments.length,
+        newFieldsFromClusters: clusterMerged.newFields.length,
+        newFieldsFromDiscovery: discoveryResult.newFields.length,
+        removals: finalResult.removeFields.length,
+        duration: `${(qcDuration / 1000).toFixed(1)}s`,
+      });
 
       return {
         pageNumber,
         skipped: false,
         pageFields,
-        ...reviewResult,
+        ...finalResult,
         duration: qcDuration,
       };
     });

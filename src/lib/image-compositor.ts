@@ -20,13 +20,16 @@ interface CompositeResult {
 /**
  * Creates an SVG overlay with field boxes and optional grid
  * Grid includes percentage labels to help Gemini orient accurately
+ *
+ * @param pageBounds - If provided, grid labels show actual page coordinates (for cluster crops)
  */
 function createOverlaySvg(
   width: number,
   height: number,
   fields: ExtractedField[],
   showGrid: boolean,
-  gridSpacing: number
+  gridSpacing: number,
+  pageBounds?: { top: number; left: number; bottom: number; right: number }
 ): string {
   let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
 
@@ -63,6 +66,13 @@ function createOverlaySvg(
     // Percentage labels on edges - every 10% for precision
     // Major labels (every 10%) - these help Gemini measure exact positions
     svg += `<g font-family="Arial, sans-serif" fill="#000000">`;
+
+    // If this is a cluster crop, add a header showing the page region
+    if (pageBounds) {
+      const regionLabel = `Region: ${Math.round(pageBounds.left)}-${Math.round(pageBounds.right)}% left, ${Math.round(pageBounds.top)}-${Math.round(pageBounds.bottom)}% top`;
+      svg += `<rect x="30" y="0" width="${regionLabel.length * 6 + 10}" height="16" fill="rgba(0,0,0,0.8)"/>`;
+      svg += `<text x="35" y="12" font-size="10" fill="white" font-weight="bold">${regionLabel}</text>`;
+    }
 
     // Left edge ruler (Y axis - top percentage) - every 10%
     for (let y = 0; y <= 100; y += 10) {
@@ -212,4 +222,100 @@ export async function createGridOverlay(
     showGrid: true,
     gridSpacing,
   });
+}
+
+/**
+ * Quadrant bounds as percentages (0-100)
+ */
+export interface QuadrantBounds {
+  top: number;
+  left: number;
+  bottom: number;
+  right: number;
+}
+
+/**
+ * Crop an image to a quadrant and composite fields onto it
+ * Returns the cropped image with field overlays, plus coordinate adjustment info
+ */
+export async function cropAndCompositeQuadrant(options: {
+  imageBase64: string;
+  fields: ExtractedField[];
+  bounds: QuadrantBounds;
+  showGrid?: boolean;
+  gridSpacing?: number;
+}): Promise<CompositeResult & { bounds: QuadrantBounds }> {
+  const { imageBase64, fields, bounds, showGrid = true, gridSpacing = 10 } = options;
+
+  // Decode base64 image
+  const imageBuffer = Buffer.from(imageBase64, "base64");
+
+  // Get image dimensions
+  const metadata = await sharp(imageBuffer).metadata();
+  const fullWidth = metadata.width || 800;
+  const fullHeight = metadata.height || 1000;
+
+  // Calculate crop region in pixels
+  const cropLeft = Math.round((bounds.left / 100) * fullWidth);
+  const cropTop = Math.round((bounds.top / 100) * fullHeight);
+  const cropWidth = Math.round(((bounds.right - bounds.left) / 100) * fullWidth);
+  const cropHeight = Math.round(((bounds.bottom - bounds.top) / 100) * fullHeight);
+
+  console.log("[AutoForm] Cropping quadrant:", {
+    bounds,
+    pixels: { left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight },
+  });
+
+  // Crop the image
+  const croppedBuffer = await sharp(imageBuffer)
+    .extract({
+      left: cropLeft,
+      top: cropTop,
+      width: cropWidth,
+      height: cropHeight,
+    })
+    .toBuffer();
+
+  // Adjust field coordinates relative to quadrant
+  const quadrantFields = fields.map((field) => ({
+    ...field,
+    coordinates: {
+      // Remap coordinates from page-relative to quadrant-relative
+      left: ((field.coordinates.left - bounds.left) / (bounds.right - bounds.left)) * 100,
+      top: ((field.coordinates.top - bounds.top) / (bounds.bottom - bounds.top)) * 100,
+      width: (field.coordinates.width / (bounds.right - bounds.left)) * 100,
+      height: (field.coordinates.height / (bounds.bottom - bounds.top)) * 100,
+    },
+  }));
+
+  // Create SVG overlay for the cropped image
+  // Pass bounds so grid shows region header for cluster context
+  const overlaySvg = createOverlaySvg(
+    cropWidth,
+    cropHeight,
+    quadrantFields,
+    showGrid,
+    gridSpacing,
+    bounds
+  );
+  const overlayBuffer = Buffer.from(overlaySvg);
+
+  // Composite the overlay onto the cropped image
+  const composited = await sharp(croppedBuffer)
+    .composite([
+      {
+        input: overlayBuffer,
+        top: 0,
+        left: 0,
+      },
+    ])
+    .png()
+    .toBuffer();
+
+  return {
+    imageBase64: composited.toString("base64"),
+    width: cropWidth,
+    height: cropHeight,
+    bounds,
+  };
 }

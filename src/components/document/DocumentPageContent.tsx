@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/drawer";
 import { Download, Loader2, Sparkles, FolderOpen, MessageSquare, Cloud } from "lucide-react";
 import { toast } from "sonner";
-import { PDFWithOverlays } from "./PDFWithOverlays";
+import { PDFWithKonva } from "./PDFWithKonva";
 import { QuestionsPanel } from "./QuestionsPanel";
 import { SignatureManager } from "@/components/signature";
 import { AppHeader } from "@/components/layout";
@@ -26,7 +26,7 @@ import { useQuestions } from "@/hooks/useQuestions";
 import { useFieldSync } from "@/hooks/useFieldSync";
 import { usePageImageUpload } from "@/hooks/usePageImageUpload";
 import type { NormalizedCoordinates, SignatureType, MemoryChoice } from "@/lib/types";
-import { renderAllPageOverlays } from "@/lib/export-utils";
+import { renderAllPageOverlaysKonva } from "@/lib/konva-export";
 
 interface DocumentPageContentProps {
   documentId: string;
@@ -382,11 +382,12 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
         throw new Error("No page dimensions found");
       }
 
-      // Render overlays for all pages using the PDF dimensions
+      // Render overlays for all pages using Konva (WYSIWYG)
       // Use dimensions.length (actual PDF page count) - document.page_count can be stale
       const firstPage = dimensions[0];
-      const overlays = await renderAllPageOverlays(
+      const overlays = await renderAllPageOverlaysKonva(
         fields,
+        fieldValues,
         dimensions.length,
         firstPage.width,
         firstPage.height
@@ -420,7 +421,7 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
     } finally {
       setExporting(false);
     }
-  }, [documentId, document, fields, hasUnsavedChanges, saveFieldUpdates]);
+  }, [documentId, document, fields, fieldValues, hasUnsavedChanges, saveFieldUpdates]);
 
   const isEarlyProcessing =
     !document ||
@@ -551,7 +552,7 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
             {/* PDF Viewer - Full height on mobile */}
             <div className={`h-full relative overflow-hidden ${isEarlyProcessing ? "pointer-events-none" : ""}`}>
               {pdfUrl ? (
-                <PDFWithOverlays
+                <PDFWithKonva
                   url={pdfUrl}
                   fields={fields}
                   fieldValues={fieldValues}
@@ -648,7 +649,7 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
               <div className="h-full relative overflow-hidden border-r">
                 <div className={isEarlyProcessing ? "pointer-events-none h-full" : "h-full"}>
                   {pdfUrl ? (
-                    <PDFWithOverlays
+                    <PDFWithKonva
                       url={pdfUrl}
                       fields={fields}
                       fieldValues={fieldValues}

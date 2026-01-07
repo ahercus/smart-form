@@ -37,7 +37,12 @@ Review the detected field boxes and:
 1. **VERIFY** - Are the box positions accurate? Do they cover the actual input areas?
 2. **ADJUST** - If a box is misaligned or wrong size, provide corrected coordinates
 3. **ADD** - If any fillable fields were MISSED (no box covering them), add them
-4. **REMOVE** - If a box covers something that's NOT a fillable field, flag for removal
+4. **REMOVE** - Flag for removal if a box:
+   - Covers static text, headers, instructions, or section titles (NOT fillable)
+   - Is floating in margins or white space with no visible input area nearby
+   - Covers decorative elements, logos, or page numbers
+   - Has no corresponding underline, box border, or checkbox visible in that location
+   - Appears to be an Azure detection error (orphaned field with no form element)
 5. **RECLASSIFY** - If a field type is wrong (e.g., marked as "text" but it's a checkbox), correct it
 6. **MERGE TABLE CELLS** - CRITICAL: If you see multiple small boxes inside what should be ONE table cell, REMOVE the small boxes and create ONE properly-sized field per cell
 
@@ -436,6 +441,82 @@ Note: The "choices" field is ONLY required for "memory_choice" inputType questio
 - employer, job_title
 - emergency_contact_name, emergency_contact_phone
 
+Return ONLY the JSON object, nothing else.`;
+}
+
+/**
+ * Build prompt for DISCOVERY ONLY - finding fields Azure missed
+ * This runs on the full page while clusters handle precision adjustments
+ */
+export function buildFieldDiscoveryPrompt(
+  pageNumber: number,
+  existingFieldIds: string[]
+): string {
+  return `You are scanning page ${pageNumber} of a PDF form to find MISSED form fields.
+
+## Already Detected Fields
+The following field IDs have already been detected and are marked with colored boxes in the image:
+${existingFieldIds.length > 0 ? existingFieldIds.map(id => `- ${id.slice(0, 8)}...`).join('\n') : '(No fields detected yet)'}
+
+## Your ONLY Task
+Look for fillable form fields that are NOT already marked with a colored box.
+- Text input lines or boxes without an overlay
+- Checkboxes without a green box
+- Signature/initial lines without a red/pink box
+- Date fields without an amber box
+- Circle-choice options (Yes/No, etc.) without an orange box
+
+## DO NOT
+- Adjust or comment on existing detected fields (they have colored boxes)
+- Report fields that already have colored overlays
+- Worry about coordinate precision (this is a discovery scan)
+
+## Field Types to Look For
+- text: Single-line text input
+- textarea: Multi-line text area
+- date: Date input fields
+- checkbox: Checkboxes
+- radio: Radio button groups
+- circle_choice: "Circle your answer" fields (Yes/No, multiple choice)
+- signature: Signature lines
+- initials: Initial boxes
+
+## Circle-Choice Fields
+For circle_choice, include choiceOptions with approximate positions:
+{
+  "label": "Has allergies",
+  "fieldType": "circle_choice",
+  "coordinates": { "left": 50, "top": 70, "width": 12, "height": 4 },
+  "choiceOptions": [
+    { "label": "Yes", "coordinates": { "left": 50, "top": 70, "width": 5, "height": 4 } },
+    { "label": "No", "coordinates": { "left": 57, "top": 70, "width": 5, "height": 4 } }
+  ]
+}
+
+## Response Format
+Return ONLY valid JSON:
+{
+  "adjustments": [],
+  "newFields": [
+    {
+      "label": "Missed Field Label",
+      "fieldType": "text",
+      "coordinates": { "left": 50, "top": 60, "width": 20, "height": 4 }
+    }
+  ],
+  "removeFields": [],
+  "fieldsValidated": true
+}
+
+If NO missed fields were found, return:
+{
+  "adjustments": [],
+  "newFields": [],
+  "removeFields": [],
+  "fieldsValidated": true
+}
+
+Important: Coordinates are percentages (0-100) relative to page dimensions.
 Return ONLY the JSON object, nothing else.`;
 }
 

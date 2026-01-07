@@ -139,6 +139,48 @@ export async function generateFast(options: GenerateContentOptions) {
   return response.text || "";
 }
 
+/**
+ * Generate content with Gemini 3 Flash + Vision (fast QC)
+ * Use for: Field QC where we need image analysis but want speed
+ *
+ * Flash is ~5-10x faster than Pro for vision tasks with similar accuracy for QC
+ */
+export async function generateWithVisionFast(options: GenerateContentOptions) {
+  const client = getGeminiClient();
+  const { prompt, imageParts, thinkingLevel = ThinkingLevel.MINIMAL, jsonOutput = false } = options;
+
+  const contents = imageParts
+    ? [{ text: prompt }, ...imageParts.map((p) => ({ inlineData: p.inlineData }))]
+    : prompt;
+
+  const config: Record<string, unknown> = {
+    thinkingConfig: {
+      thinkingLevel,
+    },
+  };
+
+  if (jsonOutput) {
+    config.responseMimeType = "application/json";
+  }
+
+  const response = await client.models.generateContent({
+    model: GEMINI_FLASH,
+    contents,
+    config,
+  });
+
+  // Log token usage for efficiency tracking
+  if (response.usageMetadata) {
+    console.log("[AutoForm] Flash Vision Token Usage:", {
+      promptTokens: response.usageMetadata.promptTokenCount,
+      responseTokens: response.usageMetadata.candidatesTokenCount,
+      totalTokens: response.usageMetadata.totalTokenCount,
+    });
+  }
+
+  return response.text || "";
+}
+
 // Legacy exports for compatibility - these wrap the new API
 // Note: These use jsonOutput: true because they're used by vision.ts which expects JSON
 export function getVisionModel() {
@@ -151,6 +193,25 @@ export function getVisionModel() {
       );
 
       const text = await generateWithVision({ prompt, imageParts, jsonOutput: true });
+      return { response: { text: () => text } };
+    },
+  };
+}
+
+/**
+ * Fast Vision model for QC - uses Flash instead of Pro
+ * ~5-10x faster with similar accuracy for field review tasks
+ */
+export function getVisionModelFast() {
+  return {
+    async generateContent(parts: unknown[]) {
+      const prompt = typeof parts[0] === "string" ? parts[0] : "";
+      const imageParts = parts.slice(1).filter(
+        (p): p is { inlineData: { data: string; mimeType: string } } =>
+          typeof p === "object" && p !== null && "inlineData" in p
+      );
+
+      const text = await generateWithVisionFast({ prompt, imageParts, jsonOutput: true });
       return { response: { text: () => text } };
     },
   };
