@@ -31,7 +31,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log("[AutoForm] Process route called");
+  const processStartTime = Date.now();
+  console.log("[AutoForm] ⏱️ PROCESS ROUTE START");
 
   const supabase = await createClient();
   const {
@@ -77,9 +78,13 @@ export async function POST(
     }
 
     // Get file data from storage
+    const fileLoadStart = Date.now();
     const fileData = await getFile(document.storage_path);
+    const fileLoadDuration = Date.now() - fileLoadStart;
+    console.log(`[AutoForm] ⏱️ File loaded from storage (${fileLoadDuration}ms)`);
 
     // Process the document with Azure Document Intelligence
+    const azureStart = Date.now();
     const result = await processDocument(
       id,
       fileData,
@@ -87,6 +92,8 @@ export async function POST(
         await updateDocumentStatus(id, status as DocumentStatus);
       }
     );
+    const azureDuration = Date.now() - azureStart;
+    console.log(`[AutoForm] ⏱️ Azure DI processing complete (${(azureDuration / 1000).toFixed(1)}s)`);
 
     if (!result.success) {
       await updateDocumentStatus(id, "failed", result.error);
@@ -94,16 +101,26 @@ export async function POST(
     }
 
     // Store extracted fields
+    const dbSaveStart = Date.now();
     await setDocumentFields(id, result.fields);
     await updateDocument(id, { page_count: result.pageCount });
+    const dbSaveDuration = Date.now() - dbSaveStart;
+    console.log(`[AutoForm] ⏱️ Fields saved to database (${dbSaveDuration}ms)`);
 
     // DON'T mark as ready yet - wait for QC to complete
     // Azure's confidence scores don't reflect coordinate accuracy
     // QC is essential for proper field positioning
 
-    console.log("[AutoForm] Fields extracted, triggering QC:", {
+    const totalProcessDuration = Date.now() - processStartTime;
+    console.log("[AutoForm] ⏱️ PROCESS ROUTE COMPLETE - triggering QC:", {
       documentId: id,
       fieldCount: result.fields.length,
+      totalDurationMs: totalProcessDuration,
+      breakdown: {
+        fileLoad: `${fileLoadDuration}ms`,
+        azureDI: `${(azureDuration / 1000).toFixed(1)}s`,
+        dbSave: `${dbSaveDuration}ms`,
+      },
     });
 
     // Always run QC - it's essential for field coordinate accuracy

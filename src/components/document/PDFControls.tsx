@@ -12,6 +12,8 @@ import {
   Plus,
   Trash2,
   PenLine,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 export type EditMode = "type" | "pointer";
@@ -22,10 +24,12 @@ interface PDFControlsProps {
   scale: number;
   editMode: EditMode;
   activeFieldId: string | null;
+  hideFieldColors: boolean;
   isMobile?: boolean;
   onPageChange: (page: number) => void;
   onScaleChange: (scale: number) => void;
   onEditModeChange: (mode: EditMode) => void;
+  onToggleFieldColors: () => void;
   onAddField: () => void;
   onCopyField: () => void;
   onDeleteField: () => void;
@@ -38,10 +42,12 @@ export function PDFControls({
   scale,
   editMode,
   activeFieldId,
+  hideFieldColors,
   isMobile,
   onPageChange,
   onScaleChange,
   onEditModeChange,
+  onToggleFieldColors,
   onAddField,
   onCopyField,
   onDeleteField,
@@ -138,6 +144,16 @@ export function PDFControls({
             </Button>
           </>
         )}
+        <div className="w-px h-6 bg-border mx-1" />
+        <Button
+          variant={hideFieldColors ? "secondary" : "ghost"}
+          size="icon"
+          className="h-8 w-8"
+          onClick={onToggleFieldColors}
+          title={hideFieldColors ? "Show field highlights" : "Hide field highlights"}
+        >
+          {hideFieldColors ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </Button>
       </div>
 
       {/* Right: Zoom controls */}

@@ -539,11 +539,12 @@ Clean up the user's rough input for professional form output:
 - Keep addresses, emails, phone numbers in standard formats
 - Do NOT add or remove any actual information - only clean up presentation
 
-## CRITICAL: Confidence Check
-- Set "confident": true ONLY if you can clearly extract values for the fields
-- Set "confident": false if the answer doesn't match the expected fields or is ambiguous
-- If not confident, set ALL values to empty strings "" and provide a "warning" message
-- NEVER guess or make assumptions - if unsure, mark as not confident
+## CRITICAL: Partial Fill Support
+- Fill what you CAN confidently extract, leave empty what you CANNOT
+- Set "confident": true if you can extract AT LEAST ONE field value
+- Set "confident": false ONLY if the answer is completely irrelevant to ALL fields
+- For partially provided information, fill the fields you can and leave others empty
+- The "missingFields" array should list field IDs that still need values
 
 ## Response Format
 Return ONLY valid JSON:
@@ -551,30 +552,46 @@ Return ONLY valid JSON:
   "confident": true,
   "parsedValues": [
     { "fieldId": "field-id-1", "value": "extracted value for this field" },
-    { "fieldId": "field-id-2", "value": "extracted value for this field" }
-  ]
+    { "fieldId": "field-id-2", "value": "" }
+  ],
+  "missingFields": ["field-id-2"],
+  "followUpQuestion": "What is the last name?"
 }
 
-If NOT confident:
+If completely irrelevant answer (CANNOT extract anything):
 {
   "confident": false,
-  "warning": "Brief explanation of why parsing failed (e.g., 'Answer doesn't contain phone number information')",
+  "warning": "Brief explanation of why parsing failed (e.g., 'Answer doesn't relate to the requested information')",
   "parsedValues": [
     { "fieldId": "field-id-1", "value": "" },
     { "fieldId": "field-id-2", "value": "" }
-  ]
+  ],
+  "missingFields": ["field-id-1", "field-id-2"]
 }
 
-Example (confident): Answer "John Smith" for fields [First Name, Last Name]:
+Example (full answer): Answer "John Smith" for fields [First Name, Last Name]:
 {
   "confident": true,
   "parsedValues": [
     { "fieldId": "first-name-id", "value": "John" },
     { "fieldId": "last-name-id", "value": "Smith" }
-  ]
+  ],
+  "missingFields": []
 }
 
-Example (not confident): Answer "yes" for fields [First Name, Last Name, Phone]:
+Example (partial answer): Answer "John" for fields [First Name, Last Name, Phone]:
+{
+  "confident": true,
+  "parsedValues": [
+    { "fieldId": "first-name-id", "value": "John" },
+    { "fieldId": "last-name-id", "value": "" },
+    { "fieldId": "phone-id", "value": "" }
+  ],
+  "missingFields": ["last-name-id", "phone-id"],
+  "followUpQuestion": "What is the last name and phone number?"
+}
+
+Example (irrelevant answer): Answer "yes" for fields [First Name, Last Name, Phone]:
 {
   "confident": false,
   "warning": "Answer 'yes' doesn't contain name or phone information",
@@ -582,7 +599,8 @@ Example (not confident): Answer "yes" for fields [First Name, Last Name, Phone]:
     { "fieldId": "first-name-id", "value": "" },
     { "fieldId": "last-name-id", "value": "" },
     { "fieldId": "phone-id", "value": "" }
-  ]
+  ],
+  "missingFields": ["first-name-id", "last-name-id", "phone-id"]
 }
 
 Return ONLY the JSON object, nothing else.`;

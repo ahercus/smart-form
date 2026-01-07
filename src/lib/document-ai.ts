@@ -174,8 +174,9 @@ export async function extractFieldsFromPDF(
   documentId: string,
   pdfData: ArrayBuffer
 ): Promise<DocumentAIResult> {
+  const totalStartTime = Date.now();
   console.log(`[AutoForm] ==========================================`);
-  console.log(`[AutoForm] Azure Document Intelligence extraction starting:`, {
+  console.log(`[AutoForm] ⏱️ AZURE DI START:`, {
     documentId,
     pdfSize: pdfData.byteLength,
   });
@@ -184,7 +185,12 @@ export async function extractFieldsFromPDF(
   const config = getConfig();
 
   // Start the analysis
-  const analyzeUrl = `${config.endpoint}documentintelligence/documentModels/prebuilt-layout:analyze?api-version=2024-11-30&features=keyValuePairs`;
+  // Request multiple features to catch all form elements:
+  // - keyValuePairs: labeled form fields
+  // - (tables, selectionMarks are included by default in prebuilt-layout)
+  // - pages=1-: Force processing ALL pages (workaround for Azure blank page detection bug)
+  //   See: https://learn.microsoft.com/en-us/answers/questions/2138766
+  const analyzeUrl = `${config.endpoint}documentintelligence/documentModels/prebuilt-layout:analyze?api-version=2024-11-30&features=keyValuePairs&pages=1-`;
 
   console.log(`[AutoForm] Calling Azure Document Intelligence:`, {
     documentId,
@@ -223,10 +229,30 @@ export async function extractFieldsFromPDF(
     throw new Error("Azure returned no analyzeResult");
   }
 
+  // Log detailed Azure response for debugging
+  // Cast to any to access all potential properties
+  const rawResult = analyzeResult as Record<string, unknown>;
   console.log(`[AutoForm] Azure Document Intelligence response:`, {
     documentId,
     pageCount: analyzeResult.pages?.length || 0,
     keyValuePairsCount: analyzeResult.keyValuePairs?.length || 0,
+    // Log which pages Azure actually detected
+    pagesDetected: analyzeResult.pages?.map(p => ({
+      pageNumber: p.pageNumber,
+      dimensions: `${p.width}x${p.height} ${p.unit}`,
+    })),
+    // Log page numbers that have key-value pairs
+    pagesWithKVP: [...new Set(
+      analyzeResult.keyValuePairs?.flatMap(kvp => [
+        ...(kvp.key.boundingRegions?.map(r => r.pageNumber) || []),
+        ...(kvp.value?.boundingRegions?.map(r => r.pageNumber) || []),
+      ]) || []
+    )].sort(),
+    // Log other content types Azure found
+    tablesCount: Array.isArray(rawResult.tables) ? rawResult.tables.length : 0,
+    paragraphsCount: Array.isArray(rawResult.paragraphs) ? rawResult.paragraphs.length : 0,
+    // Check what top-level keys Azure returned
+    responseKeys: Object.keys(rawResult),
   });
 
   // Build page dimensions map
@@ -293,7 +319,8 @@ export async function extractFieldsFromPDF(
     fields.push(field);
   });
 
-  console.log(`[AutoForm] Azure Document Intelligence extraction complete:`, {
+  const totalDuration = Date.now() - totalStartTime;
+  console.log(`[AutoForm] ⏱️ AZURE DI COMPLETE (${(totalDuration / 1000).toFixed(1)}s):`, {
     documentId,
     pageCount: analyzeResult.pages?.length || 1,
     fieldsExtracted: fields.length,
@@ -304,6 +331,7 @@ export async function extractFieldsFromPDF(
       },
       {} as Record<number, number>
     ),
+    durationMs: totalDuration,
   });
 
   return {

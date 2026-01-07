@@ -157,19 +157,25 @@ export function QuestionCard({
         );
 
       case "checkbox":
+        // Checkbox fields show Yes/No buttons - click to select and submit (like circle_choice)
         return (
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={question.id}
-              checked={answer === "true" || answer === "yes"}
-              onCheckedChange={(checked) =>
-                setAnswer(checked ? "yes" : "no")
-              }
-              disabled={isAnswering}
-            />
-            <Label htmlFor={question.id} className="text-sm cursor-pointer">
-              Yes
-            </Label>
+          <div className="flex flex-wrap gap-2">
+            {[{ label: "Yes", value: "true" }, { label: "No", value: "false" }].map((choice) => (
+              <Button
+                key={choice.value}
+                variant={answer === choice.value ? "default" : "outline"}
+                size="sm"
+                disabled={isAnswering}
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  setAnswer(choice.value);
+                  await onAnswer(choice.value);
+                }}
+                className="transition-all"
+              >
+                {choice.label}
+              </Button>
+            ))}
           </div>
         );
 
@@ -357,6 +363,9 @@ export function QuestionCard({
             <div>{renderInput()}</div>
           ) : question.input_type === "circle_choice" ? (
             // Circle choice with buttons - click to select and auto-submit
+            <div>{renderInput()}</div>
+          ) : question.input_type === "checkbox" ? (
+            // Checkbox with Yes/No buttons - click to select and auto-submit
             <div>{renderInput()}</div>
           ) : question.input_type === "memory_choice" && !showOtherInput ? (
             // Memory choice with pre-built buttons - no submit needed

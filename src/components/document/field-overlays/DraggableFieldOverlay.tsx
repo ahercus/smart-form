@@ -3,7 +3,7 @@
 import { useRef, useCallback } from "react";
 import Image from "next/image";
 import { Rnd } from "react-rnd";
-import { Check, PenLine } from "lucide-react";
+import { X, PenLine } from "lucide-react";
 import type { NormalizedCoordinates, SignatureType } from "@/lib/types";
 import {
   getFieldClasses,
@@ -23,6 +23,7 @@ export function DraggableFieldOverlay({
   isActive,
   isHighlighted,
   isFilled,
+  hideFieldColors,
   onClick,
   onDoubleClick,
   onCoordinatesChange,
@@ -41,10 +42,10 @@ export function DraggableFieldOverlay({
   const hasFilledSignature = isSignature && isFilled && isImageValue;
   const isChecked = isCheckbox && value === "true";
   const baseClasses = isSignature
-    ? getSignatureFieldClasses(isActive, isHighlighted, isFilled, isImageValue)
+    ? getSignatureFieldClasses(isActive, isHighlighted, isFilled, isImageValue, hideFieldColors)
     : isCheckbox
-      ? getCheckboxClasses(isActive, isHighlighted, isChecked)
-      : getFieldClasses(isActive, isHighlighted, isFilled);
+      ? getCheckboxClasses(isActive, isHighlighted, isChecked, hideFieldColors)
+      : getFieldClasses(isActive, isHighlighted, isFilled, hideFieldColors);
 
   const handleDragStart = useCallback(
     (_e: unknown, d: { x: number; y: number }) => {
@@ -156,7 +157,7 @@ export function DraggableFieldOverlay({
 
       // Checkbox fields: toggle on single click
       if (isCheckbox && onValueChange) {
-        const newValue = value === "true" ? "false" : "true";
+        const newValue = isChecked ? "false" : "true";
         onValueChange(field.id, newValue);
         onClick(field.id); // Also select the field
         return;
@@ -169,7 +170,7 @@ export function DraggableFieldOverlay({
         onClick(field.id);
       }
     },
-    [isSignature, isCheckbox, onSignatureClick, onValueChange, onClick, field.id, field.field_type, value]
+    [isSignature, isCheckbox, isChecked, onSignatureClick, onValueChange, onClick, field.id, field.field_type]
   );
 
   const handleDoubleClick = useCallback(
@@ -304,9 +305,9 @@ export function DraggableFieldOverlay({
             </div>
           )
         ) : isCheckbox ? (
-          // Checkbox field rendering - show check icon when checked
+          // Checkbox field rendering - show X mark when checked (like marking on paper)
           isChecked && (
-            <Check className="w-full h-full text-green-600 stroke-[3] pointer-events-none" />
+            <X className="w-full h-full text-black stroke-[3] pointer-events-none" />
           )
         ) : (
           isFilled && (

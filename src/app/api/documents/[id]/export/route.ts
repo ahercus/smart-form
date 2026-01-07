@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getDocument, getFile } from "@/lib/storage";
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
-import { createAdminClient } from "@/lib/supabase/admin";
-import type { ExtractedField } from "@/lib/types";
+import { PDFDocument } from "pdf-lib";
 
-// GET /api/documents/[id]/export - Export filled PDF
-export async function GET(
+interface PageOverlay {
+  pageNumber: number;
+  imageDataUrl: string;
+  width: number;
+  height: number;
+}
+
+// POST /api/documents/[id]/export - Export filled PDF with client-rendered overlays
+export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -31,180 +36,45 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
+    // Parse request body for overlay images
+    const body = await request.json();
+    const overlays: PageOverlay[] = body.overlays || [];
+
     // Get the original PDF
     const pdfBuffer = await getFile(document.storage_path);
-
-    // Get all fields with values
-    const adminClient = createAdminClient();
-    const { data: fields, error: fieldsError } = await adminClient
-      .from("extracted_fields")
-      .select("*")
-      .eq("document_id", documentId)
-      .is("deleted_at", null)
-      .order("page_number")
-      .order("field_index");
-
-    if (fieldsError) {
-      throw new Error(`Failed to get fields: ${fieldsError.message}`);
-    }
 
     // Load the PDF
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     const pages = pdfDoc.getPages();
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    // Draw field values onto the PDF
-    for (const field of (fields || []) as ExtractedField[]) {
-      if (!field.value) continue;
-
-      const pageIndex = field.page_number - 1;
+    // Overlay each page's rendered image
+    for (const overlay of overlays) {
+      const pageIndex = overlay.pageNumber - 1;
       if (pageIndex < 0 || pageIndex >= pages.length) continue;
 
       const page = pages[pageIndex];
-      const { width, height } = page.getSize();
+      const { width: pdfWidth, height: pdfHeight } = page.getSize();
 
-      // Convert normalized coordinates (percentages) to PDF points
-      const coords = field.coordinates;
-      const x = (coords.left / 100) * width;
-      const fieldWidth = (coords.width / 100) * width;
-      const fieldHeight = (coords.height / 100) * height;
-      // Y position for PDF (bottom-up coordinate system)
-      const y = height - ((coords.top / 100) * height) - fieldHeight;
-
-      // Handle signature/initials fields (data URL images)
-      if (
-        (field.field_type === "signature" || field.field_type === "initials") &&
-        field.value.startsWith("data:image")
-      ) {
-        try {
-          // Extract base64 data from data URL
-          const base64Match = field.value.match(/^data:image\/\w+;base64,(.+)$/);
-          if (base64Match) {
-            const base64Data = base64Match[1];
-            const imageBytes = Buffer.from(base64Data, "base64");
-
-            // Embed the PNG image
-            const pngImage = await pdfDoc.embedPng(imageBytes);
-
-            // Calculate dimensions to fit within field while maintaining aspect ratio
-            const imageAspect = pngImage.width / pngImage.height;
-            const fieldAspect = fieldWidth / fieldHeight;
-
-            let drawWidth = fieldWidth;
-            let drawHeight = fieldHeight;
-
-            if (imageAspect > fieldAspect) {
-              // Image is wider than field - fit to width
-              drawHeight = fieldWidth / imageAspect;
-            } else {
-              // Image is taller than field - fit to height
-              drawWidth = fieldHeight * imageAspect;
-            }
-
-            // Center the image within the field
-            const offsetX = (fieldWidth - drawWidth) / 2;
-            const offsetY = (fieldHeight - drawHeight) / 2;
-
-            page.drawImage(pngImage, {
-              x: x + offsetX,
-              y: y + offsetY,
-              width: drawWidth,
-              height: drawHeight,
-            });
-          }
-        } catch (imgError) {
-          console.error("[AutoForm] Failed to embed signature image:", imgError);
-          // Fall through to text rendering as fallback
-        }
+      // Extract base64 data from data URL
+      const base64Match = overlay.imageDataUrl.match(/^data:image\/png;base64,(.+)$/);
+      if (!base64Match) {
+        console.warn(`[AutoForm] Invalid overlay image for page ${overlay.pageNumber}`);
         continue;
       }
 
-      // Calculate font size based on field height (use 70% of field height)
-      let fontSize = Math.min(fieldHeight * 0.7, 12);
-      fontSize = Math.max(fontSize, 6); // Minimum 6pt
+      const base64Data = base64Match[1];
+      const imageBytes = Buffer.from(base64Data, "base64");
 
-      // Adjust Y for text (add offset for baseline)
-      const textY = y + fieldHeight * 0.3;
+      // Embed the PNG overlay
+      const pngImage = await pdfDoc.embedPng(imageBytes);
 
-      // Handle checkbox fields
-      if (field.field_type === "checkbox") {
-        if (field.value === "yes" || field.value === "true") {
-          // Draw a checkmark
-          page.drawText("✓", {
-            x: x + fieldWidth * 0.3,
-            y: textY,
-            size: fontSize * 1.2,
-            font,
-            color: rgb(0, 0, 0),
-          });
-        }
-        continue;
-      }
-
-      // Handle circle_choice fields - draw circles around selected options (multi-select)
-      if (field.field_type === "circle_choice" && field.choice_options) {
-        // Parse comma-separated selected values
-        const selectedLabels = field.value
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-
-        for (const label of selectedLabels) {
-          const selectedOption = field.choice_options.find(
-            (opt) => opt.label === label
-          );
-
-          if (selectedOption) {
-            const optCoords = selectedOption.coordinates;
-            // Calculate option position in PDF coordinates
-            const optX = (optCoords.left / 100) * width;
-            const optY = height - ((optCoords.top / 100) * height);
-            const optWidth = (optCoords.width / 100) * width;
-            const optHeight = (optCoords.height / 100) * height;
-
-            // Calculate ellipse center and radii with padding
-            const padding = 4;
-            const centerX = optX + optWidth / 2;
-            const centerY = optY - optHeight / 2;
-            const radiusX = optWidth / 2 + padding;
-            const radiusY = optHeight / 2 + padding;
-
-            page.drawEllipse({
-              x: centerX,
-              y: centerY,
-              xScale: radiusX,
-              yScale: radiusY,
-              borderWidth: 2,
-              borderColor: rgb(0, 0, 0),
-            });
-          }
-        }
-        continue;
-      }
-
-      // Draw text value
-      const text = field.value;
-
-      // Truncate text if it's too long for the field
-      let displayText = text;
-      const maxWidth = fieldWidth - 4; // Small padding
-      let textWidth = font.widthOfTextAtSize(displayText, fontSize);
-
-      while (textWidth > maxWidth && displayText.length > 0) {
-        displayText = displayText.slice(0, -1);
-        textWidth = font.widthOfTextAtSize(displayText + "...", fontSize);
-      }
-
-      if (displayText !== text) {
-        displayText += "...";
-      }
-
-      page.drawText(displayText, {
-        x: x + 2, // Small left padding
-        y: textY,
-        size: fontSize,
-        font,
-        color: rgb(0, 0, 0),
+      // Draw the overlay to cover the entire page
+      // The overlay was rendered at the same aspect ratio as the page
+      page.drawImage(pngImage, {
+        x: 0,
+        y: 0,
+        width: pdfWidth,
+        height: pdfHeight,
       });
     }
 

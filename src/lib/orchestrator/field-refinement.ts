@@ -11,7 +11,7 @@
 import { reviewFieldsWithVision, generateQuestionsForPage } from "../gemini/vision";
 import { createAdminClient } from "../supabase/admin";
 import { getConversationHistory, saveQuestion } from "./state";
-import type { ExtractedField } from "../types";
+import type { ExtractedField, FieldType, NormalizedCoordinates, ChoiceOption } from "../types";
 
 interface RefineFieldsParams {
   documentId: string;
@@ -37,9 +37,10 @@ export async function refineFields(
 ): Promise<FieldRefinementResult> {
   const { documentId, userId, pageImages } = params;
   const supabase = createAdminClient();
+  const totalStartTime = Date.now();
 
   console.log("[AutoForm] ==========================================");
-  console.log("[AutoForm] Field refinement starting:", {
+  console.log("[AutoForm] ⏱️ FIELD REFINEMENT (QC) START:", {
     documentId,
     pageCount: pageImages.length,
   });
@@ -69,46 +70,107 @@ export async function refineFields(
     let totalAdded = 0;
     let totalRemoved = 0;
 
-    // Process each page
-    for (const pageImage of pageImages) {
-      const { pageNumber, imageBase64 } = pageImage;
-      const pageFields = allFields?.filter((f) => f.page_number === pageNumber) || [];
+    // Process all pages in PARALLEL for maximum speed
+    console.log(`[AutoForm] ⏱️ QC PARALLEL START - Processing ${pageImages.length} pages:`, {
+      documentId,
+      pageNumbers: pageImages.map(p => p.pageNumber),
+    });
 
-      console.log(`[AutoForm] Refining page ${pageNumber}:`, {
+    const qcParallelStart = Date.now();
+
+    // Define the type for QC results
+    interface PageQCResult {
+      pageNumber: number;
+      skipped: boolean;
+      pageFields: ExtractedField[];
+      adjustments: Array<{
+        fieldId: string;
+        action: "update";
+        changes: Partial<{
+          label: string;
+          fieldType: FieldType;
+          coordinates: NormalizedCoordinates;
+          choiceOptions: ChoiceOption[];
+        }>;
+      }>;
+      newFields: Array<{
+        label: string;
+        fieldType: FieldType;
+        coordinates: NormalizedCoordinates;
+        choiceOptions?: ChoiceOption[];
+      }>;
+      removeFields: string[];
+      fieldsValidated: boolean;
+      duration: number;
+    }
+
+    // Run Gemini Vision QC on ALL pages in parallel
+    // IMPORTANT: Even pages with 0 Azure fields should be analyzed by Vision
+    // Vision can detect fields that Azure missed (e.g., scanned forms, unusual layouts)
+    const pageQCPromises = pageImages.map(async (pageImage): Promise<PageQCResult> => {
+      const { pageNumber, imageBase64 } = pageImage;
+      const pageFields = (allFields?.filter((f) => f.page_number === pageNumber) || []) as ExtractedField[];
+
+      const mode = pageFields.length === 0 ? "full-detection" : "QC";
+      console.log(`[AutoForm] Gemini Vision analyzing page ${pageNumber}:`, {
         documentId,
-        fieldCount: pageFields.length,
+        mode,
+        azureFieldCount: pageFields.length,
       });
 
-      if (pageFields.length === 0) {
-        console.log(`[AutoForm] No fields on page ${pageNumber}, skipping QC`);
-        continue;
-      }
-
-      // Call Gemini Vision for field review (it creates its own composite internally)
+      // Call Gemini Vision for field review (works with 0 fields too - it will detect them)
       const qcStartTime = Date.now();
       const reviewResult = await reviewFieldsWithVision({
         documentId,
         pageNumber,
         pageImageBase64: imageBase64,
-        fields: pageFields as ExtractedField[],
+        fields: pageFields,
       });
       const qcDuration = Date.now() - qcStartTime;
 
-      // Apply adjustments
-      const { adjustments, newFields, removeFields } = reviewResult;
+      return {
+        pageNumber,
+        skipped: false,
+        pageFields,
+        ...reviewResult,
+        duration: qcDuration,
+      };
+    });
+
+    // Wait for all pages to complete QC
+    const pageQCResults = await Promise.all(pageQCPromises);
+
+    const qcParallelDuration = Date.now() - qcParallelStart;
+    const longestPageQC = Math.max(...pageQCResults.map(r => r.duration));
+
+    console.log(`[AutoForm] ⏱️ QC PARALLEL COMPLETE (${(qcParallelDuration / 1000).toFixed(1)}s wall clock):`, {
+      documentId,
+      longestPage: `${(longestPageQC / 1000).toFixed(1)}s`,
+      perPage: pageQCResults.map(r => ({
+        page: r.pageNumber,
+        duration: `${(r.duration / 1000).toFixed(1)}s`,
+        skipped: r.skipped,
+      })),
+    });
+
+    // Now apply all results to the database
+    for (const result of pageQCResults) {
+      if (result.skipped) continue;
+
+      const { pageNumber, pageFields, adjustments, newFields, removeFields, duration } = result;
 
       // Log QC summary with timing
       console.log(`[AutoForm] QC Results for page ${pageNumber}:`, {
         documentId,
-        duration: `${(qcDuration / 1000).toFixed(1)}s`,
-        fieldsReviewed: pageFields.length,
+        duration: `${(duration / 1000).toFixed(1)}s`,
+        fieldsReviewed: pageFields?.length || 0,
         adjustments: adjustments.length,
         newFields: newFields.length,
         removals: removeFields.length,
       });
 
       // Log detailed adjustments for debugging
-      if (adjustments.length > 0) {
+      if (adjustments.length > 0 && pageFields) {
         const adjustmentDetails = adjustments.map(adj => {
           const originalField = pageFields.find(f => f.id === adj.fieldId);
           const orig = originalField?.coordinates;
@@ -151,7 +213,7 @@ export async function refineFields(
       }
 
       // Log removed fields
-      if (removeFields.length > 0) {
+      if (removeFields.length > 0 && pageFields) {
         console.log(`[AutoForm] QC Removed Fields (page ${pageNumber}):`,
           removeFields.map(id => {
             const field = pageFields.find(f => f.id === id);
@@ -187,7 +249,7 @@ export async function refineFields(
         const insertData: Record<string, unknown> = {
           document_id: documentId,
           page_number: pageNumber,
-          field_index: pageFields.length + newFields.indexOf(newField),
+          field_index: (pageFields?.length || 0) + newFields.indexOf(newField),
           label: newField.label,
           field_type: newField.fieldType,
           coordinates: newField.coordinates,
@@ -283,14 +345,16 @@ export async function refineFields(
       }
     }
 
+    const totalDuration = Date.now() - totalStartTime;
     console.log("[AutoForm] ==========================================");
-    console.log("[AutoForm] Field refinement complete:", {
+    console.log(`[AutoForm] ⏱️ FIELD REFINEMENT (QC) COMPLETE (${(totalDuration / 1000).toFixed(1)}s):`, {
       documentId,
       totalAdjusted,
       totalAdded,
       totalRemoved,
       questionsGenerated,
       questionsHidden,
+      durationMs: totalDuration,
     });
     console.log("[AutoForm] ==========================================");
 

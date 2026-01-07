@@ -157,29 +157,83 @@ export async function PATCH(
         fields: fieldsForParsing,
       });
 
-      // Only write values if AI is confident in the parsing
-      if (parseResult.confident) {
+      // Fill fields that have values (even if partial)
+      const fieldsToUpdate = parseResult.parsedValues.filter(
+        ({ value }) => value && value.trim().length > 0
+      );
+
+      if (fieldsToUpdate.length > 0) {
         await batchUpdateFieldValues(
-          parseResult.parsedValues.map(({ fieldId, value }) => ({
+          fieldsToUpdate.map(({ fieldId, value }) => ({
             fieldId,
             value,
           }))
         );
 
-        console.log("[AutoForm] Question answered with parsed values:", {
+        console.log("[AutoForm] Fields updated:", {
           documentId,
           questionId,
-          answer: answer.slice(0, 50),
-          linkedFields: linkedFields.length,
-          parsedFields: parseResult.parsedValues.length,
+          filledCount: fieldsToUpdate.length,
+          totalFields: linkedFields.length,
         });
-      } else {
-        // Not confident - don't write anything, return warning
+      }
+
+      // Check if there are missing fields that still need values
+      const hasMissingFields =
+        parseResult.missingFields && parseResult.missingFields.length > 0;
+
+      if (hasMissingFields && parseResult.confident) {
+        // Partial fill: update the question to ask only for remaining fields
+        const missingFieldIds = parseResult.missingFields!;
+        const newQuestion =
+          parseResult.followUpQuestion || question.question;
+
+        await updateQuestion(questionId, {
+          status: "pending", // Keep as pending since not all fields filled
+          answer: undefined, // Clear answer so user can re-answer
+          question: newQuestion,
+          field_ids: missingFieldIds,
+        });
+
+        // Return info about partial fill
+        const filledLabels = fieldsToUpdate
+          .map(({ fieldId }) => linkedFields.find((f) => f.id === fieldId)?.label)
+          .filter(Boolean);
+
+        console.log("[AutoForm] Partial fill - question updated:", {
+          documentId,
+          questionId,
+          filledFields: filledLabels,
+          missingFields: missingFieldIds.length,
+          newQuestion: newQuestion.slice(0, 50),
+        });
+
+        return NextResponse.json({
+          success: true,
+          partial: true,
+          filledFields: filledLabels,
+          updatedQuestion: newQuestion,
+        });
+      } else if (!parseResult.confident) {
+        // Not confident at all - revert question status
+        await updateQuestion(questionId, {
+          status: "pending",
+          answer: undefined,
+        });
         warning = parseResult.warning;
         console.log("[AutoForm] Answer parsing not confident, fields not updated:", {
           documentId,
           questionId,
           warning,
+        });
+      } else {
+        // All fields filled successfully
+        console.log("[AutoForm] Question fully answered:", {
+          documentId,
+          questionId,
+          answer: answer.slice(0, 50),
+          linkedFields: linkedFields.length,
+          parsedFields: fieldsToUpdate.length,
         });
       }
     } else {

@@ -26,6 +26,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const contextStartTime = Date.now();
+  console.log("[AutoForm] ⏱️ CONTEXT ROUTE START");
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -108,10 +111,12 @@ export async function POST(
           useMemory: useMemory !== undefined ? useMemory : true,
         });
 
-        console.log("[AutoForm] Question generation complete:", {
+        const totalDuration = Date.now() - contextStartTime;
+        console.log(`[AutoForm] ⏱️ CONTEXT ROUTE COMPLETE (${(totalDuration / 1000).toFixed(1)}s):`, {
           documentId,
           success: result.success,
           questionsGenerated: result.questionsGenerated,
+          durationMs: totalDuration,
         });
 
         return NextResponse.json({

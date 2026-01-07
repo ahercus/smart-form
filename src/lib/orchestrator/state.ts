@@ -260,7 +260,7 @@ export async function getQuestions(
 // Update a question
 export async function updateQuestion(
   questionId: string,
-  updates: Partial<Pick<QuestionGroup, "status" | "answer">>
+  updates: Partial<Pick<QuestionGroup, "status" | "answer" | "question" | "field_ids">>
 ): Promise<void> {
   const supabase = createAdminClient();
 

@@ -73,7 +73,7 @@ interface PDFWithOverlaysProps {
   onFieldCoordinatesChange?: (fieldId: string, coords: NormalizedCoordinates) => void;
   onFieldCopy?: (fieldId: string) => void;
   onFieldDelete?: (fieldId: string) => void;
-  onFieldAdd?: (pageNumber: number, coords: NormalizedCoordinates) => void;
+  onFieldAdd?: (pageNumber: number, coords: NormalizedCoordinates, fieldType?: string, initialValue?: string) => void;
   onNavigateToQuestion?: (fieldId: string) => void;
   activeFieldId?: string | null;
   highlightedFieldIds?: string[];
@@ -119,6 +119,7 @@ export function PDFWithOverlays({
     fieldId: string;
     type: SignatureType;
   } | null>(null);
+  const [hideFieldColors, setHideFieldColors] = useState(false);
   const pageRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -310,10 +311,23 @@ export function PDFWithOverlays({
     setEditingFieldId(null);
   };
 
-  const handleSignatureInsert = (dataUrl: string) => {
+  const handleSignatureInsert = (dataUrl: string, type: SignatureType) => {
     if (signatureFieldContext) {
+      // Insert into existing signature field
       onFieldChange(signatureFieldContext.fieldId, dataUrl);
       setSignatureFieldContext(null);
+    } else if (onFieldAdd) {
+      // Create a new signature field at center of current page
+      const defaultCoords: NormalizedCoordinates = {
+        left: 30,
+        top: 40,
+        width: 25,
+        height: type === "initials" ? 4 : 6,
+      };
+      // We need to add the field and then set its value
+      // This requires a callback pattern - for now, create the field
+      // and the parent component will need to handle setting the value
+      onFieldAdd(currentPage, defaultCoords, type === "initials" ? "initials" : "signature", dataUrl);
     }
   };
 
@@ -343,6 +357,7 @@ export function PDFWithOverlays({
           containerSize={containerSize}
           isActive={isActive}
           isHighlighted={isHighlighted}
+          hideFieldColors={hideFieldColors}
           onClick={handleFieldClick}
           onValueChange={onFieldChange}
         />
@@ -360,6 +375,7 @@ export function PDFWithOverlays({
           isActive={isActive}
           isHighlighted={isHighlighted}
           isFilled={isFilled}
+          hideFieldColors={hideFieldColors}
           onClick={handleFieldClick}
           onDoubleClick={handleFieldDoubleClick}
           onValueChange={onFieldChange}
@@ -383,6 +399,7 @@ export function PDFWithOverlays({
           isActive={isActive}
           isHighlighted={isHighlighted}
           isFilled={isFilled}
+          hideFieldColors={hideFieldColors}
           onClick={handleFieldClick}
           onDoubleClick={handleFieldDoubleClick}
           onCoordinatesChange={onFieldCoordinatesChange || (() => {})}
@@ -405,6 +422,7 @@ export function PDFWithOverlays({
         isActive={isActive}
         isHighlighted={isHighlighted}
         isFilled={isFilled}
+        hideFieldColors={hideFieldColors}
         onClick={handleFieldClick}
         onDoubleClick={handleFieldDoubleClick}
         onSignatureClick={handleSignatureClick}
@@ -422,10 +440,12 @@ export function PDFWithOverlays({
         scale={scale}
         editMode={editMode}
         activeFieldId={activeFieldId || null}
+        hideFieldColors={hideFieldColors}
         isMobile={isMobile}
         onPageChange={onPageChange}
         onScaleChange={setScale}
         onEditModeChange={setEditMode}
+        onToggleFieldColors={() => setHideFieldColors((prev) => !prev)}
         onAddField={handleAddField}
         onCopyField={handleCopyField}
         onDeleteField={handleDeleteField}
@@ -435,7 +455,7 @@ export function PDFWithOverlays({
       <SignatureManager
         open={showSignatureManager}
         onOpenChange={handleSignatureManagerClose}
-        onInsert={signatureFieldContext ? handleSignatureInsert : undefined}
+        onInsert={handleSignatureInsert}
         initialTab={signatureFieldContext?.type || "signature"}
       />
 

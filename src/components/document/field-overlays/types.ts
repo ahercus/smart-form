@@ -14,6 +14,8 @@ export interface BaseFieldOverlayProps {
   isActive: boolean;
   isHighlighted: boolean;
   isFilled: boolean;
+  /** When true, hides background colors but keeps hover effects and functionality */
+  hideFieldColors?: boolean;
   onClick: (fieldId: string) => void;
   onDoubleClick: (fieldId: string) => void;
   /** Called when clicking on a signature/initials field - opens SignatureManager */
@@ -38,7 +40,12 @@ export interface DraggableFieldOverlayProps extends BaseFieldOverlayProps {
   pixelToPercent: (x: number, y: number, width: number, height: number) => NormalizedCoordinates;
 }
 
-export function getFieldClasses(isActive: boolean, isHighlighted: boolean, isFilled: boolean): string {
+export function getFieldClasses(isActive: boolean, isHighlighted: boolean, isFilled: boolean, hideFieldColors?: boolean): string {
+  // When hideFieldColors is true, show no colors by default but reveal on hover (only active field keeps styling)
+  if (hideFieldColors && !isActive) {
+    return `w-full h-full transition-colors hover:bg-gray-500/10`;
+  }
+
   // Subtle fill visible by default, slightly more opaque on hover
   // No borders unless active/highlighted, single border (no ring)
   return `w-full h-full transition-colors ${
@@ -63,8 +70,14 @@ export function isCheckboxField(fieldType: string): boolean {
 export function getCheckboxClasses(
   isActive: boolean,
   isHighlighted: boolean,
-  isChecked: boolean
+  isChecked: boolean,
+  hideFieldColors?: boolean
 ): string {
+  // When hideFieldColors is true, show no colors by default but reveal on hover (only active field keeps styling)
+  if (hideFieldColors && !isActive) {
+    return `w-full h-full flex items-center justify-center transition-colors hover:bg-gray-500/10`;
+  }
+
   return `w-full h-full flex items-center justify-center transition-colors ${
     isActive
       ? "border-2 border-blue-500 bg-blue-500/15"
@@ -80,7 +93,8 @@ export function getSignatureFieldClasses(
   isActive: boolean,
   isHighlighted: boolean,
   isFilled: boolean,
-  hasImageValue: boolean = false
+  hasImageValue: boolean = false,
+  hideFieldColors?: boolean
 ): string {
   // If filled with an image, show minimal styling (just the image, only show border when active)
   if (isFilled && hasImageValue) {
@@ -91,6 +105,11 @@ export function getSignatureFieldClasses(
           ? "ring-2 ring-purple-400 ring-offset-1"
           : "hover:ring-1 hover:ring-gray-300"
     }`;
+  }
+
+  // When hideFieldColors is true, show no colors by default but reveal on hover (only active field keeps styling)
+  if (hideFieldColors && !isActive) {
+    return `w-full h-full transition-colors hover:bg-gray-500/10 hover:border hover:border-dashed hover:border-gray-400`;
   }
 
   return `w-full h-full border-2 border-dashed transition-colors ${

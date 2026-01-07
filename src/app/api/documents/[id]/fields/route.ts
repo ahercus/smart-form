@@ -129,17 +129,21 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { sourceFieldId, pageNumber, coordinates } = body;
+    const { sourceFieldId, pageNumber, coordinates, fieldType, value } = body;
 
     // Create a new field from scratch
     if (pageNumber && coordinates) {
+      // Determine label based on field type
+      const type = fieldType || "text";
+      const label = type === "signature" ? "Signature" : type === "initials" ? "Initials" : "New Field";
+
       const newField = await createField({
         document_id: documentId,
         page_number: pageNumber,
-        label: "New Field",
-        field_type: "text",
+        label,
+        field_type: type,
         coordinates: coordinates as NormalizedCoordinates,
-        value: null,
+        value: value || null,
         ai_suggested_value: null,
         ai_confidence: null,
         help_text: null,
@@ -152,6 +156,8 @@ export async function POST(
       console.log("[AutoForm] Field created:", {
         fieldId: newField.id,
         pageNumber,
+        fieldType: type,
+        hasValue: !!value,
       });
 
       return NextResponse.json({ success: true, field: newField });

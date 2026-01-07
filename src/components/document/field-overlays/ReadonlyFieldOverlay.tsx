@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Check, PenLine } from "lucide-react";
+import { X, PenLine } from "lucide-react";
 import {
   getFieldClasses,
   getSignatureFieldClasses,
@@ -19,6 +19,7 @@ export function ReadonlyFieldOverlay({
   isActive,
   isHighlighted,
   isFilled,
+  hideFieldColors,
   onClick,
   onDoubleClick,
   onSignatureClick,
@@ -33,16 +34,16 @@ export function ReadonlyFieldOverlay({
   const isChecked = isCheckbox && value === "true";
 
   const baseClasses = isSignature
-    ? getSignatureFieldClasses(isActive, isHighlighted, isFilled, isImageValue)
+    ? getSignatureFieldClasses(isActive, isHighlighted, isFilled, isImageValue, hideFieldColors)
     : isCheckbox
-      ? getCheckboxClasses(isActive, isHighlighted, isChecked)
-      : getFieldClasses(isActive, isHighlighted, isFilled);
+      ? getCheckboxClasses(isActive, isHighlighted, isChecked, hideFieldColors)
+      : getFieldClasses(isActive, isHighlighted, isFilled, hideFieldColors);
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent background deselect
     // Checkbox fields: toggle on single click
     if (isCheckbox && onValueChange) {
-      const newValue = value === "true" ? "false" : "true";
+      const newValue = isChecked ? "false" : "true";
       onValueChange(field.id, newValue);
       return;
     }
@@ -102,9 +103,9 @@ export function ReadonlyFieldOverlay({
           </div>
         )
       ) : isCheckbox ? (
-        // Checkbox field rendering - show check icon when checked
+        // Checkbox field rendering - show X mark when checked (like circling/marking on paper)
         isChecked && (
-          <Check className="w-full h-full text-green-600 stroke-[3]" />
+          <X className="w-full h-full text-black stroke-[3]" />
         )
       ) : (
         // Regular field rendering

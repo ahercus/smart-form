@@ -26,6 +26,7 @@ import { useQuestions } from "@/hooks/useQuestions";
 import { useFieldSync } from "@/hooks/useFieldSync";
 import { usePageImageUpload } from "@/hooks/usePageImageUpload";
 import type { NormalizedCoordinates, SignatureType, MemoryChoice } from "@/lib/types";
+import { renderAllPageOverlays } from "@/lib/export-utils";
 
 interface DocumentPageContentProps {
   documentId: string;
@@ -211,12 +212,17 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
   );
 
   const handleFieldAdd = useCallback(
-    async (pageNumber: number, coords: NormalizedCoordinates) => {
+    async (pageNumber: number, coords: NormalizedCoordinates, fieldType?: string, initialValue?: string) => {
       try {
         const response = await fetch(`/api/documents/${documentId}/fields`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pageNumber, coordinates: coords }),
+          body: JSON.stringify({
+            pageNumber,
+            coordinates: coords,
+            fieldType: fieldType || "text",
+            value: initialValue,
+          }),
         });
 
         if (!response.ok) {
@@ -224,7 +230,7 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
         }
 
         const { field } = await response.json();
-        toast.success("Field added");
+        toast.success(fieldType === "signature" ? "Signature added" : fieldType === "initials" ? "Initials added" : "Field added");
         setActiveFieldId(field.id);
       } catch (error) {
         console.error("[AutoForm] Failed to add field:", error);
@@ -276,6 +282,12 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
         if (result?.warning) {
           // AI wasn't confident - fields not updated
           toast.warning(result.warning, { duration: 5000 });
+        } else if (result?.partial) {
+          // Partial fill - some fields were filled, question updated for remaining
+          const filledList = result.filledFields?.join(", ") || "some fields";
+          toast.success(`Saved ${filledList}. Please provide the remaining info.`, {
+            duration: 4000,
+          });
         } else {
           toast.success("Answer saved");
         }
@@ -359,7 +371,34 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
         await saveFieldUpdates();
       }
 
-      const response = await fetch(`/api/documents/${documentId}/export`);
+      // Get PDF page dimensions
+      const dimResponse = await fetch(`/api/documents/${documentId}/dimensions`);
+      if (!dimResponse.ok) {
+        throw new Error("Failed to get PDF dimensions");
+      }
+      const { dimensions } = await dimResponse.json();
+
+      if (!dimensions || dimensions.length === 0) {
+        throw new Error("No page dimensions found");
+      }
+
+      // Render overlays for all pages using the PDF dimensions
+      // Use dimensions.length (actual PDF page count) - document.page_count can be stale
+      const firstPage = dimensions[0];
+      const overlays = await renderAllPageOverlays(
+        fields,
+        dimensions.length,
+        firstPage.width,
+        firstPage.height
+      );
+
+      // Send overlays to server for merging with PDF
+      const response = await fetch(`/api/documents/${documentId}/export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ overlays }),
+      });
+
       if (!response.ok) {
         throw new Error("Export failed");
       }
@@ -381,7 +420,7 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
     } finally {
       setExporting(false);
     }
-  }, [documentId, document, hasUnsavedChanges, saveFieldUpdates]);
+  }, [documentId, document, fields, hasUnsavedChanges, saveFieldUpdates]);
 
   const isEarlyProcessing =
     !document ||

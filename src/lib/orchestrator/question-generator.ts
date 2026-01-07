@@ -82,8 +82,9 @@ export async function generateQuestions(
     console.error("[AutoForm] Failed to acquire processing lock:", lockError);
   }
 
+  const questionGenStartTime = Date.now();
   console.log("[AutoForm] ==========================================");
-  console.log("[AutoForm] Question generation starting:", {
+  console.log("[AutoForm] ⏱️ QUESTION GENERATION START:", {
     documentId,
     userId,
     pageImageCount: pageImages.length,
@@ -150,13 +151,17 @@ export async function generateQuestions(
     const totalAutoAnswered = pageResults.reduce((sum, r) => sum + r.autoAnswered, 0);
     const totalTime = pageResults.reduce((sum, r) => sum + r.timings.total, 0);
 
-    console.log("[AutoForm] Question generation complete:", {
+    const questionGenDuration = Date.now() - questionGenStartTime;
+    console.log("[AutoForm] ==========================================");
+    console.log(`[AutoForm] ⏱️ QUESTION GENERATION COMPLETE (${(questionGenDuration / 1000).toFixed(1)}s):`, {
       documentId,
       totalQuestions,
       totalAutoAnswered,
       pagesProcessed: pageResults.length,
-      totalTime: formatDuration(totalTime),
+      wallClockTime: `${(questionGenDuration / 1000).toFixed(1)}s`,
+      perPageSumTime: formatDuration(totalTime),
     });
+    console.log("[AutoForm] ==========================================");
 
     // Phase: READY - All done
     await updateProcessingProgress(documentId, {

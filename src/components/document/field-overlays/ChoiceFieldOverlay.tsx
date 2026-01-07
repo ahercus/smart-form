@@ -9,6 +9,8 @@ interface ChoiceFieldOverlayProps {
   containerSize: { width: number; height: number };
   isActive: boolean;
   isHighlighted: boolean;
+  /** When true, hides background colors but keeps hover effects and functionality */
+  hideFieldColors?: boolean;
   onClick: (fieldId: string) => void;
   onValueChange: (fieldId: string, value: string) => void;
 }
@@ -54,6 +56,7 @@ export function ChoiceFieldOverlay({
   containerSize,
   isActive,
   isHighlighted,
+  hideFieldColors,
   onClick,
   onValueChange,
 }: ChoiceFieldOverlayProps) {
@@ -99,8 +102,8 @@ export function ChoiceFieldOverlay({
         const isSelected = selected.includes(option.label);
         const pixel = toPixels(option.coordinates, containerSize);
 
-        // Hide unselected options unless hovering (when there's a selection)
-        const shouldHide = hasSelection && !isSelected && !isHovering;
+        // Hide unselected options unless hovering (when there's a selection or hideFieldColors is on)
+        const shouldHide = (hasSelection || hideFieldColors) && !isSelected && !isHovering;
 
         const circleStyle = {
           left: pixel.x - padding,
@@ -109,16 +112,24 @@ export function ChoiceFieldOverlay({
           height: pixel.height + padding * 2,
         };
 
+        // Determine classes based on state
+        const getOptionClasses = () => {
+          if (isSelected) {
+            return "border-2 border-black bg-transparent";
+          }
+          if (hideFieldColors && !isActive) {
+            return "hover:bg-gray-500/10";
+          }
+          if (isActive || isHighlighted) {
+            return "bg-purple-500/15 hover:bg-purple-500/25";
+          }
+          return "bg-orange-400/10 hover:bg-orange-400/20";
+        };
+
         return (
           <div
             key={`${field.id}-${option.label}`}
-            className={`absolute cursor-pointer transition-all rounded-full ${
-              isSelected
-                ? "border-2 border-black bg-transparent"
-                : isActive || isHighlighted
-                  ? "bg-purple-500/15 hover:bg-purple-500/25"
-                  : "bg-orange-400/10 hover:bg-orange-400/20"
-            } ${shouldHide ? "opacity-0" : "opacity-100"}`}
+            className={`absolute cursor-pointer transition-all rounded-full ${getOptionClasses()} ${shouldHide ? "opacity-0" : "opacity-100"}`}
             style={circleStyle}
             onClick={(e) => handleOptionClick(e, option.label)}
             onMouseEnter={() => setIsHovering(true)}

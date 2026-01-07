@@ -306,6 +306,10 @@ export interface ParseAnswerResult {
   confident: boolean;
   warning?: string;
   parsedValues: ParsedFieldValue[];
+  /** Field IDs that still need values (partial fill scenario) */
+  missingFields?: string[];
+  /** Suggested follow-up question for missing fields */
+  followUpQuestion?: string;
 }
 
 /**
@@ -402,19 +406,23 @@ export async function parseAnswerForFields(
     const confident = parsed.confident !== false; // Default to true for backwards compat
     const warning = parsed.warning;
     const parsedValues = parsed.parsedValues || [];
+    const missingFields = parsed.missingFields || [];
+    const followUpQuestion = parsed.followUpQuestion;
 
     console.log("[AutoForm] Answer parsed:", {
       confident,
       warning,
       inputAnswer: answer,
       outputFields: parsedValues.length,
+      missingFieldCount: missingFields.length,
+      hasFollowUp: !!followUpQuestion,
       values: parsedValues.map((v: ParsedFieldValue) => ({
         label: fields.find((f) => f.id === v.fieldId)?.label,
         value: v.value?.slice(0, 20) || "",
       })),
     });
 
-    return { confident, warning, parsedValues };
+    return { confident, warning, parsedValues, missingFields, followUpQuestion };
   } catch (error) {
     console.error("[AutoForm] Answer parsing failed:", error);
     // Return empty values with warning - never dump raw answer to all fields
@@ -422,6 +430,7 @@ export async function parseAnswerForFields(
       confident: false,
       warning: "Failed to parse answer. Please try rephrasing.",
       parsedValues: fields.map((f) => ({ fieldId: f.id, value: "" })),
+      missingFields: fields.map((f) => f.id),
     };
   }
 }
