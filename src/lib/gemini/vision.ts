@@ -60,7 +60,8 @@ export async function reviewFieldsWithVision(
   const { documentId, pageNumber, pageImageBase64, fields } = params;
   const hasDocumentAIFields = fields.length > 0;
 
-  console.log(`[AutoForm] Reviewing fields for page ${pageNumber}:`, {
+  const qcStartTime = Date.now();
+  console.log(`[AutoForm] ⏱️ START: Field review page ${pageNumber}:`, {
     documentId,
     fieldCount: fields.length,
     mode: hasDocumentAIFields ? "QC" : "full-detection",
@@ -68,14 +69,16 @@ export async function reviewFieldsWithVision(
 
   try {
     // Create composite image with field overlays (or just grid if no fields)
+    const compositeStart = Date.now();
     const composited = await compositeFieldsOntoImage({
       imageBase64: pageImageBase64,
       fields,
       showGrid: true,
       gridSpacing: 10,
     });
+    const compositeTime = Date.now() - compositeStart;
 
-    console.log(`[AutoForm] Composite image created:`, {
+    console.log(`[AutoForm] ⏱️ Composite image created (${compositeTime}ms):`, {
       documentId,
       pageNumber,
       dimensions: `${composited.width}x${composited.height}`,
@@ -92,19 +95,24 @@ export async function reviewFieldsWithVision(
       },
     };
 
-    console.log(`[AutoForm] Calling Gemini Vision for field review...`);
+    console.log(`[AutoForm] ⏱️ Calling Gemini Vision for field review...`);
 
     // No timeout for now - let it complete so we can see thinking tokens and timing
+    const geminiStart = Date.now();
     const result = await model.generateContent([prompt, imagePart]);
     const response = result.response;
     const text = response.text();
+    const geminiTime = Date.now() - geminiStart;
 
-    console.log(`[AutoForm] Gemini Vision field review response:`, {
+    const totalTime = Date.now() - qcStartTime;
+    console.log(`[AutoForm] ⏱️ Gemini Vision field review response (${geminiTime}ms, total ${totalTime}ms):`, {
       documentId,
       pageNumber,
       responseLength: text.length,
-      responsePreview: text.slice(0, 200),
     });
+
+    // Log the FULL Gemini response for debugging QC decisions
+    console.log(`[AutoForm] Gemini QC raw response (page ${pageNumber}):\n${text}`);
 
     // Parse the response
     return parseFieldReviewResponse(text);
@@ -165,18 +173,23 @@ export async function reviewQuadrantWithVision(
       },
     };
 
+    const geminiStart = Date.now();
     const result = await model.generateContent([prompt, imagePart]);
     const response = result.response;
     const text = response.text();
+    const geminiDuration = Date.now() - geminiStart;
 
     const totalDuration = Date.now() - startTime;
 
-    console.log(`[AutoForm] Cluster ${quadrantIndex} QC complete (page ${pageNumber}):`, {
+    console.log(`[AutoForm] ⏱️ Cluster ${quadrantIndex} QC complete (page ${pageNumber}):`, {
       durationMs: totalDuration,
       cropMs: cropDuration,
-      geminiMs: totalDuration - cropDuration,
+      geminiMs: geminiDuration,
       responseLength: text.length,
     });
+
+    // Log the FULL Gemini response for debugging QC decisions
+    console.log(`[AutoForm] Gemini cluster ${quadrantIndex} raw response (page ${pageNumber}):\n${text}`);
 
     // Parse and return with bounds for coordinate mapping
     const parsed = parseFieldReviewResponse(text);
@@ -333,17 +346,23 @@ export async function discoverMissedFields(
       },
     };
 
+    const geminiStart = Date.now();
     const result = await model.generateContent([prompt, imagePart]);
     const response = result.response;
     const text = response.text();
+    const geminiDuration = Date.now() - geminiStart;
 
     const totalDuration = Date.now() - startTime;
 
-    console.log(`[AutoForm] Discovery scan complete (page ${pageNumber}):`, {
+    console.log(`[AutoForm] ⏱️ Discovery scan complete (page ${pageNumber}):`, {
       durationMs: totalDuration,
+      geminiMs: geminiDuration,
       responseLength: text.length,
       newFieldsFound: parseFieldReviewResponse(text).newFields.length,
     });
+
+    // Log the FULL Gemini response for debugging
+    console.log(`[AutoForm] Gemini discovery raw response (page ${pageNumber}):\n${text}`);
 
     const parsed = parseFieldReviewResponse(text);
 
