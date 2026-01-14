@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getDocument } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkAndFinalizeIfReady } from "@/lib/orchestrator/question-finalization";
 import { generateQuestions } from "@/lib/orchestrator/question-generator";
 import { getPageImageBase64 } from "@/lib/storage";
 
@@ -9,18 +10,20 @@ import { getPageImageBase64 } from "@/lib/storage";
 export const maxDuration = 300;
 
 /**
- * POST /api/documents/[id]/context - Submit context and trigger question generation
+ * POST /api/documents/[id]/context - Submit context and trigger question finalization
  *
- * OPTIMISTIC QUESTION GENERATION:
- * Questions are generated from Azure fields IMMEDIATELY (no QC wait).
- * If QC completes later and changes fields, reconciliation handles it.
+ * PRE-WARM OPTIMIZATION:
+ * Questions are pre-generated immediately after Azure completes (status="pending_context").
+ * When context is submitted:
+ * - If QC + pre-gen complete → finalize instantly (apply context, make visible)
+ * - If still waiting → finalization triggered by QC/pre-gen completion
  *
- * Timeline:
+ * Fallback: If pre-generation didn't run (edge case), generate questions normally.
+ *
+ * Timeline (typical):
  * - T+0s: User submits context
- * - T+1-3s: Questions generated from Azure fields (parallel, no vision)
- * - T+10s: QC may complete in background, may add 1-2 questions
- *
- * This is 5-10s faster than waiting for QC to complete.
+ * - T+0.1s: Check if pre-gen + QC complete
+ * - T+0.3s: Finalize questions (apply context) → questions appear INSTANTLY
  */
 export async function POST(
   request: NextRequest,
@@ -66,75 +69,123 @@ export async function POST(
       })
       .eq("id", documentId);
 
-    console.log("[AutoForm] Context submitted (OPTIMISTIC - no QC wait):", {
+    console.log("[AutoForm] Context submitted:", {
       documentId,
       hasContext: !!context,
       skipped: !!skip,
       useMemory: useMemory !== undefined ? useMemory : true,
       qcComplete: document.fields_qc_complete,
+      pregenerated: document.questions_pregenerated,
     });
 
-    // NO LONGER WAITING FOR QC - generate questions from Azure fields immediately
-    // This is the key optimization: 5-10s faster
+    // PRE-WARM PATH: Try to finalize pre-generated questions
+    // This is the fast path - questions appear instantly if pre-gen + QC are ready
+    const finalized = await checkAndFinalizeIfReady(documentId, user.id);
 
-    // Get page images for question generation
-    const pageImages = document.page_images || [];
+    if (finalized) {
+      const totalDuration = Date.now() - contextStartTime;
+      console.log(`[AutoForm] ⏱️ CONTEXT ROUTE COMPLETE - INSTANT FINALIZATION (${(totalDuration / 1000).toFixed(1)}s):`, {
+        documentId,
+        durationMs: totalDuration,
+      });
 
-    if (pageImages.length > 0) {
-      // Prepare page images for question generator
-      // Note: pageImageBase64 is still passed for backward compatibility
-      // but generateQuestionsForPage no longer uses it (Flash, no vision)
-      const pageImagesWithBase64 = await Promise.all(
-        pageImages.map(async (p: { page: number; storage_path: string }) => ({
-          pageNumber: p.page,
-          imageBase64: await getPageImageBase64(p.storage_path).catch(() => ""),
-        }))
-      );
+      return NextResponse.json({
+        success: true,
+        message: skip
+          ? "Skipped context, questions finalized"
+          : "Context saved, questions finalized",
+        finalized: true,
+        instant: true,
+      });
+    }
 
-      // Filter out pages without images
-      const validPageImages = pageImagesWithBase64.filter((p) => p.imageBase64);
+    // Check fresh document state
+    const freshDoc = await getDocument(documentId);
 
-      if (validPageImages.length > 0) {
-        console.log("[AutoForm] Starting question generation (OPTIMISTIC):", {
-          documentId,
-          pageCount: validPageImages.length,
-          strategy: document.fields_qc_complete
-            ? "post-QC"
-            : "optimistic (Azure fields)",
-        });
+    // If questions were already generated (race condition), we're done
+    if (freshDoc?.questions_generated_at) {
+      const totalDuration = Date.now() - contextStartTime;
+      console.log(`[AutoForm] ⏱️ CONTEXT ROUTE COMPLETE - ALREADY GENERATED (${(totalDuration / 1000).toFixed(1)}s):`, {
+        documentId,
+      });
 
-        // Generate questions from current fields (Azure or QC'd if already complete)
-        const result = await generateQuestions({
-          documentId,
-          userId: user.id,
-          pageImages: validPageImages,
-          useMemory: useMemory !== undefined ? useMemory : true,
-        });
+      return NextResponse.json({
+        success: true,
+        message: "Context saved, questions already generated",
+        finalized: true,
+      });
+    }
 
-        const totalDuration = Date.now() - contextStartTime;
-        console.log(`[AutoForm] ⏱️ CONTEXT ROUTE COMPLETE (${(totalDuration / 1000).toFixed(1)}s):`, {
-          documentId,
-          success: result.success,
-          questionsGenerated: result.questionsGenerated,
-          durationMs: totalDuration,
-        });
+    // FALLBACK PATH: Pre-generation didn't run or failed
+    // This handles edge cases like:
+    // - Azure returned 0 fields
+    // - Pre-generation crashed
+    // - Very old documents without pre-gen
+    if (!freshDoc?.questions_pregenerated) {
+      console.log("[AutoForm] Pre-generation not complete, falling back to direct generation:", {
+        documentId,
+        qcComplete: freshDoc?.fields_qc_complete,
+        pregenerated: freshDoc?.questions_pregenerated,
+      });
 
-        return NextResponse.json({
-          success: true,
-          message: skip
-            ? "Skipped context, questions generated"
-            : "Context saved, questions generated",
-          questionsGenerated: result.questionsGenerated,
-          optimistic: !document.fields_qc_complete,
-        });
+      // Get page images for question generation
+      const pageImages = freshDoc?.page_images || [];
+
+      if (pageImages.length > 0) {
+        const pageImagesWithBase64 = await Promise.all(
+          pageImages.map(async (p: { page: number; storage_path: string }) => ({
+            pageNumber: p.page,
+            imageBase64: await getPageImageBase64(p.storage_path).catch(() => ""),
+          }))
+        );
+
+        const validPageImages = pageImagesWithBase64.filter((p) => p.imageBase64);
+
+        if (validPageImages.length > 0) {
+          const result = await generateQuestions({
+            documentId,
+            userId: user.id,
+            pageImages: validPageImages,
+            useMemory: useMemory !== undefined ? useMemory : true,
+          });
+
+          const totalDuration = Date.now() - contextStartTime;
+          console.log(`[AutoForm] ⏱️ CONTEXT ROUTE COMPLETE - FALLBACK GENERATION (${(totalDuration / 1000).toFixed(1)}s):`, {
+            documentId,
+            questionsGenerated: result.questionsGenerated,
+          });
+
+          return NextResponse.json({
+            success: true,
+            message: skip
+              ? "Skipped context, questions generated"
+              : "Context saved, questions generated",
+            questionsGenerated: result.questionsGenerated,
+            fallback: true,
+          });
+        }
       }
     }
+
+    // WAITING PATH: Pre-gen exists but QC not complete
+    // Finalization will be triggered by QC completion (field-refinement.ts)
+    console.log("[AutoForm] Context saved, waiting for QC to complete:", {
+      documentId,
+      qcComplete: freshDoc?.fields_qc_complete,
+      pregenerated: freshDoc?.questions_pregenerated,
+    });
+
+    const totalDuration = Date.now() - contextStartTime;
+    console.log(`[AutoForm] ⏱️ CONTEXT ROUTE COMPLETE - WAITING (${(totalDuration / 1000).toFixed(1)}s):`, {
+      documentId,
+    });
 
     return NextResponse.json({
       success: true,
       message: skip
-        ? "Skipped context, no pages to process"
-        : "Context saved, no pages to process",
+        ? "Skipped context, waiting for processing to complete"
+        : "Context saved, waiting for processing to complete",
+      waiting: true,
     });
   } catch (error) {
     console.error("[AutoForm] Context submission error:", error);

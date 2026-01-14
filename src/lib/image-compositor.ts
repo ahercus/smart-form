@@ -245,7 +245,20 @@ export async function cropAndCompositeQuadrant(options: {
   showGrid?: boolean;
   gridSpacing?: number;
 }): Promise<CompositeResult & { bounds: QuadrantBounds }> {
-  const { imageBase64, fields, bounds, showGrid = true, gridSpacing = 10 } = options;
+  const { imageBase64, fields, bounds, showGrid = true, gridSpacing: providedGridSpacing } = options;
+
+  // DYNAMIC GRID SPACING: Smaller crops get finer grids for precision
+  // Calculate crop area as percentage of full page
+  const cropWidthPct = bounds.right - bounds.left;
+  const cropHeightPct = bounds.bottom - bounds.top;
+  const cropAreaPct = (cropWidthPct * cropHeightPct) / 100; // 0-100 scale
+
+  // Determine optimal grid spacing:
+  // - cropArea < 15%: very tight crop → 5% grid (2x precision)
+  // - cropArea < 30%: medium crop → 7% grid (~1.4x precision)
+  // - cropArea >= 30%: large crop → 10% grid (standard)
+  const dynamicGridSpacing = cropAreaPct < 15 ? 5 : cropAreaPct < 30 ? 7 : 10;
+  const gridSpacing = providedGridSpacing ?? dynamicGridSpacing;
 
   // Decode base64 image
   const imageBuffer = Buffer.from(imageBase64, "base64");
@@ -264,6 +277,8 @@ export async function cropAndCompositeQuadrant(options: {
   console.log("[AutoForm] Cropping quadrant:", {
     bounds,
     pixels: { left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight },
+    cropAreaPct: cropAreaPct.toFixed(1) + "%",
+    gridSpacing: `${gridSpacing}% (${providedGridSpacing ? "provided" : "dynamic"})`,
   });
 
   // Crop the image

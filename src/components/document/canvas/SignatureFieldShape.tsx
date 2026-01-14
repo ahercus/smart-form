@@ -24,6 +24,8 @@ interface SignatureFieldShapeProps {
   isActive: boolean;
   hideFieldColors?: boolean;
   onClick: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
 // Signature = red, Initials = pink
@@ -42,6 +44,8 @@ export function SignatureFieldShape({
   isActive,
   hideFieldColors,
   onClick,
+  onMouseEnter,
+  onMouseLeave,
 }: SignatureFieldShapeProps) {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const color = field.field_type === "initials" ? COLORS.initials : COLORS.signature;
@@ -107,7 +111,12 @@ export function SignatureFieldShape({
   const imageDims = getImageDimensions();
 
   return (
-    <Group onClick={onClick} onTap={onClick}>
+    <Group
+      onClick={onClick}
+      onTap={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
       {/* Field box */}
       <Rect
         x={x}

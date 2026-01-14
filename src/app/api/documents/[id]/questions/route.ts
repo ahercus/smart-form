@@ -6,8 +6,9 @@ import {
   updateQuestion,
   batchUpdateFieldValues,
 } from "@/lib/orchestrator/state";
-import { parseAnswerForFields } from "@/lib/gemini/vision";
+import { parseAnswerForFields, reevaluatePendingQuestions } from "@/lib/gemini/vision";
 import { getDocumentFields } from "@/lib/storage";
+import type { ExtractedField, QuestionGroup } from "@/lib/types";
 
 // GET /api/documents/[id]/questions - Get all questions for a document
 export async function GET(
@@ -137,13 +138,27 @@ export async function PATCH(
       return NextResponse.json({ success: true });
     }
 
-    // Standard answer flow: Update the question status and answer
-    await updateQuestion(questionId, {
-      status: "answered",
-      answer,
-    });
+    // Check if this is an edit (question already answered)
+    const isEdit = question.status === "answered";
 
-    // Parse the answer and distribute to correct fields using Gemini
+    if (isEdit) {
+      // Clear all linked field values first before re-parsing
+      const clearUpdates = linkedFields.map((f) => ({
+        fieldId: f.id,
+        value: "",
+      }));
+      if (clearUpdates.length > 0) {
+        await batchUpdateFieldValues(clearUpdates);
+        console.log("[AutoForm] Editing answer - cleared previous field values:", {
+          documentId,
+          questionId,
+          clearedFields: clearUpdates.length,
+        });
+      }
+    }
+
+    // Standard answer flow: Parse FIRST, then update status based on result
+    // This fixes the race condition where status was set to "answered" before parsing
     if (linkedFields.length > 0) {
       const fieldsForParsing = linkedFields.map((f) => ({
         id: f.id,
@@ -184,12 +199,13 @@ export async function PATCH(
 
       if (hasMissingFields && parseResult.confident) {
         // Partial fill: update the question to ask only for remaining fields
+        // Single status update - no race condition
         const missingFieldIds = parseResult.missingFields!;
         const newQuestion =
           parseResult.followUpQuestion || question.question;
 
         await updateQuestion(questionId, {
-          status: "pending", // Keep as pending since not all fields filled
+          status: "visible", // Keep visible (not "pending") so user can continue
           answer: undefined, // Clear answer so user can re-answer
           question: newQuestion,
           field_ids: missingFieldIds,
@@ -215,19 +231,24 @@ export async function PATCH(
           updatedQuestion: newQuestion,
         });
       } else if (!parseResult.confident) {
-        // Not confident at all - revert question status
-        await updateQuestion(questionId, {
-          status: "pending",
-          answer: undefined,
-        });
+        // Not confident at all - keep question visible, don't mark answered
+        // Single status update - no race condition
         warning = parseResult.warning;
-        console.log("[AutoForm] Answer parsing not confident, fields not updated:", {
+        console.log("[AutoForm] Answer parsing not confident:", {
           documentId,
           questionId,
           warning,
         });
+        // Don't update status - question stays "visible"
+        return NextResponse.json({ success: true, warning });
       } else {
-        // All fields filled successfully
+        // All fields filled successfully - NOW mark as answered
+        // Single status update - no race condition
+        await updateQuestion(questionId, {
+          status: "answered",
+          answer,
+        });
+
         console.log("[AutoForm] Question fully answered:", {
           documentId,
           questionId,
@@ -235,17 +256,40 @@ export async function PATCH(
           linkedFields: linkedFields.length,
           parsedFields: fieldsToUpdate.length,
         });
+
+        // Trigger cross-question auto-fill in background
+        triggerCrossQuestionAutoFill(
+          documentId,
+          questionId,
+          { question: question.question, answer },
+          questions,
+          allFields
+        );
       }
     } else {
+      // No linked fields - just mark as answered
+      await updateQuestion(questionId, {
+        status: "answered",
+        answer,
+      });
+
       console.log("[AutoForm] Question answered (no linked fields):", {
         documentId,
         questionId,
         answer: answer.slice(0, 50),
       });
+
+      // Trigger cross-question auto-fill in background
+      triggerCrossQuestionAutoFill(
+        documentId,
+        questionId,
+        { question: question.question, answer },
+        questions,
+        allFields
+      );
     }
 
     // Scoped write: Only the linked fields are populated
-    // No cross-question auto-fill - that's handled during initial context gathering
     return NextResponse.json({ success: true, warning });
   } catch (error) {
     console.error(`[AutoForm] Answer question error:`, error);
@@ -254,4 +298,96 @@ export async function PATCH(
       { status: 500 }
     );
   }
+}
+
+/**
+ * Fire-and-forget: Check if a new answer can auto-fill other pending questions
+ * This runs in the background and doesn't block the response
+ */
+function triggerCrossQuestionAutoFill(
+  documentId: string,
+  answeredQuestionId: string,
+  newAnswer: { question: string; answer: string },
+  allQuestions: QuestionGroup[],
+  allFields: ExtractedField[]
+) {
+  // Find other visible questions (excluding the one we just answered)
+  const pendingQuestions = allQuestions.filter(
+    (q) => q.status === "visible" && q.id !== answeredQuestionId
+  );
+
+  if (pendingQuestions.length === 0) {
+    console.log("[AutoForm] No pending questions to auto-fill");
+    return;
+  }
+
+  console.log("[AutoForm] Triggering cross-question auto-fill:", {
+    documentId,
+    pendingCount: pendingQuestions.length,
+  });
+
+  // Run in background - don't block the response
+  (async () => {
+    try {
+      const autoAnswers = await reevaluatePendingQuestions({
+        newAnswer,
+        pendingQuestions: pendingQuestions.map((q) => ({
+          id: q.id,
+          question: q.question,
+          fieldIds: q.field_ids,
+        })),
+        fields: allFields,
+      });
+
+      if (autoAnswers.length === 0) {
+        console.log("[AutoForm] No questions could be auto-filled");
+        return;
+      }
+
+      console.log("[AutoForm] Auto-filling questions:", {
+        documentId,
+        count: autoAnswers.length,
+      });
+
+      // Apply auto-answers
+      for (const aa of autoAnswers) {
+        try {
+          const question = pendingQuestions.find((q) => q.id === aa.questionId);
+          if (!question) continue;
+
+          // Mark question as answered
+          await updateQuestion(aa.questionId, {
+            status: "answered",
+            answer: aa.answer,
+          });
+
+          // Update field values
+          if (question.field_ids.length > 0) {
+            await batchUpdateFieldValues(
+              question.field_ids.map((fieldId) => ({
+                fieldId,
+                value: aa.answer,
+              }))
+            );
+          }
+
+          console.log("[AutoForm] Auto-filled question:", {
+            questionId: aa.questionId,
+            answer: aa.answer.slice(0, 50),
+            reasoning: aa.reasoning,
+          });
+        } catch (err) {
+          console.error("[AutoForm] Failed to auto-fill question:", {
+            questionId: aa.questionId,
+            error: err instanceof Error ? err.message : "Unknown error",
+          });
+        }
+      }
+    } catch (err) {
+      console.error("[AutoForm] Cross-question auto-fill failed:", {
+        documentId,
+        error: err instanceof Error ? err.message : "Unknown error",
+      });
+    }
+  })();
 }

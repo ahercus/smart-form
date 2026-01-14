@@ -23,6 +23,8 @@ interface TextFieldShapeProps {
   isEditing: boolean;
   hideFieldColors?: boolean;
   onClick: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
 // Field type colors
@@ -44,6 +46,8 @@ export function TextFieldShape({
   isEditing,
   hideFieldColors,
   onClick,
+  onMouseEnter,
+  onMouseLeave,
 }: TextFieldShapeProps) {
   const color = COLORS[field.field_type as keyof typeof COLORS] || COLORS.default;
 
@@ -64,7 +68,12 @@ export function TextFieldShape({
   const strokeWidth = isEditing ? 2 : isActive ? 1.5 : 1;
 
   return (
-    <Group onClick={onClick} onTap={onClick}>
+    <Group
+      onClick={onClick}
+      onTap={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
       {/* Field box */}
       <Rect
         x={x}

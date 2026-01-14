@@ -46,14 +46,14 @@ export function usePageImageUpload({
         pendingCount: pendingUploads.current.length,
       });
 
-      // Debounce the upload - wait for more pages or 2 seconds
+      // Debounce the upload - wait for more pages or 500ms (reduced from 2s for faster QC start)
       if (uploadTimeoutRef.current) {
         clearTimeout(uploadTimeoutRef.current);
       }
 
       uploadTimeoutRef.current = setTimeout(() => {
         uploadPendingPages();
-      }, 2000);
+      }, 500);
 
       // If we have all pages, upload immediately
       if (seenPages.current.size >= totalPages && totalPages > 0) {

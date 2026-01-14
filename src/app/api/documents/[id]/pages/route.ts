@@ -91,6 +91,46 @@ export async function POST(
       pages: uploadedPages.length,
     });
 
+    // PIPELINE OPTIMIZATION: Check if Azure has completed and QC hasn't run yet
+    // If so, trigger QC now. This handles the case where Azure finished before page images.
+    // (If Azure hasn't finished yet, process/route.ts will trigger QC when it completes)
+    const freshDocument = await getDocument(documentId);
+    const azureComplete = freshDocument?.status === "extracting" ||
+                          freshDocument?.status === "refining" ||
+                          freshDocument?.status === "ready";
+    const qcNotStarted = !freshDocument?.fields_qc_complete;
+
+    if (azureComplete && qcNotStarted) {
+      console.log("[AutoForm] Azure complete, triggering QC now:", {
+        documentId,
+        status: freshDocument?.status,
+      });
+
+      // Fire-and-forget QC trigger
+      const baseUrl = request.nextUrl.origin;
+      fetch(`${baseUrl}/api/documents/${documentId}/refine-fields`, {
+        method: "POST",
+        headers: {
+          Cookie: request.headers.get("cookie") || "",
+        },
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          console.log("[AutoForm] QC triggered from pages route:", {
+            documentId,
+            status: res.status,
+            ok: res.ok,
+            data,
+          });
+        })
+        .catch((err) => {
+          console.error("[AutoForm] QC trigger from pages route failed:", {
+            documentId,
+            error: err instanceof Error ? err.message : "Unknown error",
+          });
+        });
+    }
+
     // Check which pages need processing
     // A page needs processing if it has fields but those fields haven't been Gemini-reviewed
     const { createAdminClient } = await import("@/lib/supabase/admin");

@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { MicrophoneButton } from "@/components/ui/microphone-button";
-import { Check, Loader2, ChevronRight, PenLine, Brain } from "lucide-react";
+import { Check, Loader2, ChevronRight, PenLine, Brain, X, Pencil } from "lucide-react";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import { toast } from "sonner";
 import type { QuestionGroup, SignatureType, MemoryChoice } from "@/lib/types";
@@ -41,6 +41,8 @@ export function QuestionCard({
   const [answer, setAnswer] = useState(question.answer || "");
   const [showOtherInput, setShowOtherInput] = useState(false);
   const [saveToMemory, setSaveToMemory] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editAnswer, setEditAnswer] = useState("");
 
   // Voice recording for text input types - passes context for accurate transcription
   const supportsVoice = ["text", "textarea"].includes(question.input_type);
@@ -91,8 +93,105 @@ export function QuestionCard({
     // Don't show save to memory for signatures/initials
     const canSaveToMemory = onSaveToMemory && !isSignatureOrInitials && question.answer;
 
+    // Handle edit mode for answered questions
+    const handleStartEdit = () => {
+      setEditAnswer(question.answer || "");
+      setIsEditing(true);
+    };
+
+    const handleCancelEdit = () => {
+      setIsEditing(false);
+      setEditAnswer("");
+    };
+
+    const handleSubmitEdit = async () => {
+      if (!editAnswer.trim()) return;
+      try {
+        await onAnswer(editAnswer);
+        setIsEditing(false);
+        setEditAnswer("");
+        toast.success("Answer updated");
+      } catch {
+        toast.error("Failed to update answer");
+      }
+    };
+
+    const handleEditKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" && !e.shiftKey && question.input_type !== "textarea") {
+        e.preventDefault();
+        handleSubmitEdit();
+      }
+      if (e.key === "Escape") {
+        handleCancelEdit();
+      }
+    };
+
+    // Edit mode - show input with current answer
+    if (isEditing) {
+      return (
+        <Card className="border-primary ring-2 ring-primary shadow-md">
+          <CardContent className="p-3">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="font-medium text-sm">{question.question}</p>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={handleCancelEdit}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                {question.input_type === "textarea" ? (
+                  <Textarea
+                    value={editAnswer}
+                    onChange={(e) => setEditAnswer(e.target.value)}
+                    placeholder="Type your answer..."
+                    rows={3}
+                    className="resize-none"
+                    disabled={isAnswering}
+                    autoFocus
+                  />
+                ) : (
+                  <Input
+                    type={question.input_type === "date" ? "date" : "text"}
+                    value={editAnswer}
+                    onChange={(e) => setEditAnswer(e.target.value)}
+                    onKeyDown={handleEditKeyDown}
+                    placeholder="Type your answer..."
+                    disabled={isAnswering}
+                    autoFocus
+                  />
+                )}
+                <Button
+                  onClick={handleSubmitEdit}
+                  disabled={!editAnswer.trim() || isAnswering}
+                  size="icon"
+                  className="flex-shrink-0 h-9 w-9"
+                >
+                  {isAnswering ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    // Normal answered state - clickable to edit (except signatures)
     return (
-      <Card className="group border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800">
+      <Card
+        className={`group border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800 ${
+          !isSignatureOrInitials ? "cursor-pointer hover:bg-green-100/50 dark:hover:bg-green-900/30 transition-colors" : ""
+        }`}
+        onClick={!isSignatureOrInitials ? handleStartEdit : undefined}
+      >
         <CardContent className="p-3">
           <div className="flex items-start gap-2">
             <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -118,20 +217,36 @@ export function QuestionCard({
                 </p>
               )}
             </div>
-            {canSaveToMemory && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSaveToMemory(question.question, question.answer!);
-                }}
-                title="Save to memory"
-              >
-                <Brain className="h-3.5 w-3.5" />
-              </Button>
-            )}
+            <div className="flex items-center gap-1">
+              {!isSignatureOrInitials && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStartEdit();
+                  }}
+                  title="Edit answer"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              {canSaveToMemory && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSaveToMemory(question.question, question.answer!);
+                  }}
+                  title="Save to memory"
+                >
+                  <Brain className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

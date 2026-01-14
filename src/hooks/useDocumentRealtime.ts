@@ -68,12 +68,12 @@ export function useDocumentRealtime(documentId: string) {
 
       if (fieldsError) throw fieldsError;
 
-      // Fetch questions (exclude hidden questions)
+      // Fetch questions (exclude hidden and pending_context questions)
       const { data: questions, error: questionsError } = await supabase
         .from("document_questions")
         .select("*")
         .eq("document_id", documentId)
-        .neq("status", "hidden")
+        .not("status", "in", '("hidden","pending_context")')
         .order("page_number")
         .order("created_at");
 
@@ -195,9 +195,12 @@ export function useDocumentRealtime(documentId: string) {
           console.log("[AutoForm] Question changed:", payload);
           if (payload.eventType === "INSERT") {
             const newQuestion = payload.new;
-            // Don't add hidden questions
-            if (newQuestion.status === "hidden") {
-              console.log("[AutoForm] Ignoring hidden question:", newQuestion.id);
+            // Don't add hidden or pending_context questions
+            if (newQuestion.status === "hidden" || newQuestion.status === "pending_context") {
+              console.log("[AutoForm] Ignoring question with status:", {
+                id: newQuestion.id,
+                status: newQuestion.status,
+              });
               return;
             }
             console.log("[AutoForm] New question arrived via Realtime:", {
@@ -226,6 +229,8 @@ export function useDocumentRealtime(documentId: string) {
             }));
           } else if (payload.eventType === "UPDATE") {
             const updatedQuestion = payload.new;
+            const oldQuestion = payload.old;
+
             // If question was marked hidden, remove it from the list
             if (updatedQuestion.status === "hidden") {
               console.log("[AutoForm] Question hidden (QC reconciliation):", updatedQuestion.id);
@@ -233,6 +238,62 @@ export function useDocumentRealtime(documentId: string) {
                 ...prev,
                 questions: prev.questions.filter((q) => q.id !== updatedQuestion.id),
               }));
+            } else if (oldQuestion?.status === "pending_context" && updatedQuestion.status !== "pending_context") {
+              // Question transitioned from pending_context to visible/answered
+              // This happens when pre-generated questions are finalized
+              console.log("[AutoForm] Pre-generated question finalized:", {
+                id: updatedQuestion.id,
+                newStatus: updatedQuestion.status,
+              });
+              // Add to list if not already there
+              setState((prev) => {
+                const exists = prev.questions.some((q) => q.id === updatedQuestion.id);
+                if (exists) {
+                  // Update existing
+                  return {
+                    ...prev,
+                    questions: prev.questions.map((q) =>
+                      q.id === updatedQuestion.id
+                        ? ({
+                            id: updatedQuestion.id,
+                            document_id: updatedQuestion.document_id,
+                            question: updatedQuestion.question,
+                            field_ids: updatedQuestion.field_ids,
+                            input_type: updatedQuestion.input_type,
+                            profile_key: updatedQuestion.profile_key,
+                            page_number: updatedQuestion.page_number,
+                            status: updatedQuestion.status,
+                            answer: updatedQuestion.answer,
+                            choices: updatedQuestion.choices,
+                            created_at: updatedQuestion.created_at,
+                            updated_at: updatedQuestion.updated_at,
+                          } as QuestionGroup)
+                        : q
+                    ),
+                  };
+                }
+                // Add new question
+                return {
+                  ...prev,
+                  questions: [
+                    ...prev.questions,
+                    {
+                      id: updatedQuestion.id,
+                      document_id: updatedQuestion.document_id,
+                      question: updatedQuestion.question,
+                      field_ids: updatedQuestion.field_ids,
+                      input_type: updatedQuestion.input_type,
+                      profile_key: updatedQuestion.profile_key,
+                      page_number: updatedQuestion.page_number,
+                      status: updatedQuestion.status,
+                      answer: updatedQuestion.answer,
+                      choices: updatedQuestion.choices,
+                      created_at: updatedQuestion.created_at,
+                      updated_at: updatedQuestion.updated_at,
+                    } as QuestionGroup,
+                  ],
+                };
+              });
             } else {
               // Update in place
               setState((prev) => ({

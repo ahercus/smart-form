@@ -19,6 +19,7 @@ import { reviewFieldsWithVision, reviewQuadrantWithVision, discoverMissedFields,
 import { compositeFieldsOntoImage } from "../image-compositor";
 import { createAdminClient } from "../supabase/admin";
 import { getConversationHistory, saveQuestion } from "./state";
+import { checkAndFinalizeIfReady } from "./question-finalization";
 import type { ExtractedField, FieldType, NormalizedCoordinates, ChoiceOption } from "../types";
 
 /**
@@ -567,53 +568,42 @@ export async function refineFields(
 
     console.log("[AutoForm] Document marked ready after QC:", { documentId });
 
-    // QC RECONCILIATION: Handle questions if they were already generated
-    // This happens when questions were generated optimistically from Azure fields
+    // PRE-WARM FINALIZATION: Check if we can finalize pre-generated questions
+    // This happens when:
+    // 1. Context was already submitted (user was waiting)
+    // 2. Questions were pre-generated (not old document)
+    //
+    // The finalization will:
+    // - Filter out questions for QC-deleted fields
+    // - Generate questions for QC-discovered fields
+    // - Apply context to auto-answer questions
+    // - Make remaining questions visible
     let questionsGenerated = 0;
     let questionsHidden = 0;
 
-    // Check if questions were already generated (context was submitted)
-    const { data: doc } = await supabase
-      .from("documents")
-      .select("context_submitted")
-      .eq("id", documentId)
-      .single();
+    const finalized = await checkAndFinalizeIfReady(documentId, userId);
 
-    if (doc?.context_submitted) {
-      console.log("[AutoForm] QC reconciliation needed - questions already generated");
+    if (finalized) {
+      console.log("[AutoForm] Questions finalized after QC:", { documentId });
+    } else {
+      // Check why we didn't finalize
+      const { data: doc } = await supabase
+        .from("documents")
+        .select("context_submitted, questions_pregenerated, questions_generated_at")
+        .eq("id", documentId)
+        .single();
 
-      // Get all newly added fields for reconciliation
-      if (totalAdded > 0) {
-        const { data: newFields } = await supabase
-          .from("extracted_fields")
-          .select("*")
-          .eq("document_id", documentId)
-          .eq("detection_source", "gemini_vision")
-          .is("deleted_at", null);
-
-        if (newFields && newFields.length > 0) {
-          questionsGenerated = await generateQuestionsForNewFields(
-            documentId,
-            userId,
-            newFields as ExtractedField[]
-          );
-        }
-      }
-
-      // Hide questions for removed fields
-      if (totalRemoved > 0) {
-        // Get all removed field IDs from the pageImages we processed
-        const { data: removedFields } = await supabase
-          .from("extracted_fields")
-          .select("id")
-          .eq("document_id", documentId)
-          .not("deleted_at", "is", null);
-
-        if (removedFields && removedFields.length > 0) {
-          const removedFieldIds = removedFields.map((f) => f.id);
-          questionsHidden = await hideQuestionsForFields(documentId, removedFieldIds);
-        }
-      }
+      console.log("[AutoForm] Finalization not triggered:", {
+        documentId,
+        context_submitted: doc?.context_submitted,
+        questions_pregenerated: doc?.questions_pregenerated,
+        questions_generated_at: doc?.questions_generated_at,
+        reason: !doc?.context_submitted
+          ? "Waiting for user to submit context"
+          : !doc?.questions_pregenerated
+          ? "Pre-generation not complete"
+          : "Questions already generated",
+      });
     }
 
     const totalDuration = Date.now() - totalStartTime;

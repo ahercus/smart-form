@@ -297,7 +297,8 @@ export function PDFWithKonva({
       {/* PDF Display with Konva Canvas */}
       <div
         id="pdf-konva-container"
-        className="flex-1 overflow-y-auto overflow-x-hidden p-4 bg-muted/30 flex justify-center"
+        data-scroll-container
+        className="flex-1 overflow-auto p-4 bg-muted/30 flex justify-center"
       >
         {!isPdfJsReady ? (
           <Skeleton className="h-[600px] w-[450px]" />
@@ -334,11 +335,14 @@ export function PDFWithKonva({
                   fields={pageFields}
                   fieldValues={fieldValues}
                   activeFieldId={activeFieldId || null}
+                  editMode={editMode}
                   showGrid={false} // Grid hidden from users
                   hideFieldColors={hideFieldColors}
                   onFieldClick={handleFieldClick}
                   onFieldValueChange={onFieldChange}
+                  onFieldCoordinatesChange={onFieldCoordinatesChange}
                   onChoiceToggle={handleChoiceToggle}
+                  onEditModeChange={setEditMode}
                   stageRef={stageRef}
                 />
               </div>

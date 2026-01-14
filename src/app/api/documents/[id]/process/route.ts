@@ -8,7 +8,8 @@ import {
   setDocumentFields,
 } from "@/lib/storage";
 import { processDocument } from "@/lib/processing";
-import type { DocumentStatus } from "@/lib/types";
+import { preGenerateQuestions } from "@/lib/orchestrator/question-pregeneration";
+import type { DocumentStatus, ExtractedField } from "@/lib/types";
 
 /**
  * Document Processing Flow:
@@ -111,8 +112,32 @@ export async function POST(
     // Azure's confidence scores don't reflect coordinate accuracy
     // QC is essential for proper field positioning
 
+    // PRE-WARM OPTIMIZATION: Start question pre-generation immediately
+    // Questions are saved with status="pending_context" (hidden until context submitted)
+    // This runs in parallel with QC - when both complete + context submitted, questions appear instantly
+    if (result.fields.length > 0) {
+      preGenerateQuestions({
+        documentId: id,
+        fields: result.fields as ExtractedField[],
+      })
+        .then((pregenResult) => {
+          console.log("[AutoForm] Question pre-generation complete:", {
+            documentId: id,
+            questionsPregenerated: pregenResult.questionsPregenerated,
+            success: pregenResult.success,
+          });
+        })
+        .catch((err) => {
+          // Non-fatal: questions will be generated normally on context submit
+          console.error("[AutoForm] Question pre-generation failed (non-fatal):", {
+            documentId: id,
+            error: err instanceof Error ? err.message : "Unknown error",
+          });
+        });
+    }
+
     const totalProcessDuration = Date.now() - processStartTime;
-    console.log("[AutoForm] ⏱️ PROCESS ROUTE COMPLETE - triggering QC:", {
+    console.log("[AutoForm] ⏱️ PROCESS ROUTE COMPLETE:", {
       documentId: id,
       fieldCount: result.fields.length,
       totalDurationMs: totalProcessDuration,
@@ -123,33 +148,49 @@ export async function POST(
       },
     });
 
-    // Always run QC - it's essential for field coordinate accuracy
-    const baseUrl = request.nextUrl.origin;
-    fetch(`${baseUrl}/api/documents/${id}/refine-fields`, {
-      method: "POST",
-      headers: {
-        Cookie: request.headers.get("cookie") || "",
-      },
-    })
-      .then(async (res) => {
-        const data = await res.json().catch(() => ({}));
-        console.log("[AutoForm] Field refinement response:", {
-          documentId: id,
-          status: res.status,
-          ok: res.ok,
-          data,
-        });
-      })
-      .catch((err) => {
-        console.error("[AutoForm] Background refinement failed:", {
-          documentId: id,
-          error: err instanceof Error ? err.message : "Unknown error",
-        });
+    // Check if page images are already uploaded (client may have uploaded them while Azure was processing)
+    // If so, trigger QC immediately. If not, pages/route.ts will trigger QC when images arrive.
+    const freshDoc = await getDocument(id);
+    const pageImages = freshDoc?.page_images || [];
+
+    if (pageImages.length > 0) {
+      console.log("[AutoForm] Page images already available, triggering QC:", {
+        documentId: id,
+        pageCount: pageImages.length,
       });
+
+      const baseUrl = request.nextUrl.origin;
+      fetch(`${baseUrl}/api/documents/${id}/refine-fields`, {
+        method: "POST",
+        headers: {
+          Cookie: request.headers.get("cookie") || "",
+        },
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          console.log("[AutoForm] Field refinement response:", {
+            documentId: id,
+            status: res.status,
+            ok: res.ok,
+            data,
+          });
+        })
+        .catch((err) => {
+          console.error("[AutoForm] Background refinement failed:", {
+            documentId: id,
+            error: err instanceof Error ? err.message : "Unknown error",
+          });
+        });
+    } else {
+      console.log("[AutoForm] Waiting for page images before QC:", {
+        documentId: id,
+        message: "QC will be triggered by pages route when images are uploaded",
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      status: "extracting", // Not ready yet - QC in progress
+      status: "extracting", // Not ready yet - QC pending
       field_count: result.fields.length,
       page_count: result.pageCount,
     });

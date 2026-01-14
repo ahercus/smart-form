@@ -167,6 +167,7 @@ export async function saveQuestion(
     profileKey?: string;
     pageNumber: number;
     choices?: MemoryChoice[];
+    status?: QuestionGroup["status"]; // Default: "visible"
   }
 ): Promise<QuestionGroup> {
   return withRetry(
@@ -182,7 +183,7 @@ export async function saveQuestion(
           input_type: question.inputType,
           profile_key: question.profileKey || null,
           page_number: question.pageNumber,
-          status: "visible",
+          status: question.status || "visible",
           choices: question.choices || null,
         })
         .select()

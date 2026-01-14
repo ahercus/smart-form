@@ -37,7 +37,7 @@ export interface QuestionGroup {
   input_type: FieldType;
   profile_key?: string;
   page_number: number;
-  status: "pending" | "visible" | "answered" | "hidden";
+  status: "pending" | "pending_context" | "visible" | "answered" | "hidden";
   answer?: string;
   choices?: MemoryChoice[]; // Memory-driven choices for memory_choice type
   created_at: string;
@@ -192,6 +192,7 @@ export interface Document {
   qc_skipped: boolean; // True if QC was skipped due to high Azure confidence
   qc_skip_reason: string | null; // Why QC was skipped (for debugging)
   questions_generated_at: string | null; // When questions were generated (prevents duplicate)
+  questions_pregenerated: boolean; // True when questions pre-generated (before context submission)
   tailored_context_question: string | null; // AI-generated context question based on document
   use_memory: boolean; // Whether to use saved memories for auto-fill
   extraction_response: unknown | null; // Azure Document Intelligence response
