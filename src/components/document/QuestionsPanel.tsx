@@ -3,7 +3,8 @@
 import { useRef, useEffect, useMemo } from "react";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Sparkles, Loader2, X, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { QuestionCard } from "./QuestionCard";
 import { ProcessingOverlay } from "./ProcessingOverlay";
 import { ContextInputPanel } from "./ContextInputPanel";
@@ -27,6 +28,9 @@ interface QuestionsPanelProps {
   scrollToQuestionId?: string | null;
   onOpenSignatureManager?: (fieldIds: string[], type: SignatureType, questionId?: string) => void;
   loading?: boolean;
+  onClose?: () => void;
+  expanded?: boolean;
+  onToggleExpand?: () => void;
 }
 
 export function QuestionsPanel({
@@ -43,6 +47,9 @@ export function QuestionsPanel({
   scrollToQuestionId,
   onOpenSignatureManager,
   loading,
+  onClose,
+  expanded,
+  onToggleExpand,
 }: QuestionsPanelProps) {
   const questionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -120,18 +127,49 @@ export function QuestionsPanel({
   return (
     <div className="flex flex-col h-full bg-card overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 border-b flex-shrink-0">
-        <div className="flex items-center gap-2 mb-3">
-          <Sparkles className="w-5 h-5 text-primary" />
-          <h2 className="font-semibold">AI Assistant</h2>
+      <div className="px-4 py-2 border-b flex-shrink-0">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-primary" />
+            <h2 className="font-semibold">Smart Assist</h2>
+          </div>
+          <div className="flex items-center gap-1">
+            {onToggleExpand && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={onToggleExpand}
+                title={expanded ? "Collapse panel" : "Expand panel"}
+              >
+                {expanded ? (
+                  <PanelLeftClose className="h-4 w-4" />
+                ) : (
+                  <PanelLeftOpen className="h-4 w-4" />
+                )}
+                <span className="sr-only">{expanded ? "Collapse" : "Expand"}</span>
+              </Button>
+            )}
+            {onClose && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={onClose}
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Close</span>
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center justify-between text-sm mb-2">
+        <div className="flex items-center justify-between text-sm mb-1.5">
           <span className="text-muted-foreground">
             {answeredQuestions.length} of {totalQuestions} answered
           </span>
           <span className="font-medium">{Math.round(progressPercentage)}%</span>
         </div>
-        <Progress value={progressPercentage} className="h-2" />
+        <Progress value={progressPercentage} className="h-1.5" />
       </div>
 
       {/* Content - Scrollable (independent from PDF) */}

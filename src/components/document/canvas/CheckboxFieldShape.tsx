@@ -22,8 +22,6 @@ interface CheckboxFieldShapeProps {
   isActive: boolean;
   hideFieldColors?: boolean;
   onClick: () => void;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
 }
 
 const COLOR = "#10b981"; // green
@@ -38,8 +36,6 @@ export function CheckboxFieldShape({
   isActive,
   hideFieldColors,
   onClick,
-  onMouseEnter,
-  onMouseLeave,
 }: CheckboxFieldShapeProps) {
   const isChecked = value === "yes" || value === "true";
   const padding = Math.min(width, height) * 0.15;
@@ -58,8 +54,6 @@ export function CheckboxFieldShape({
     <Group
       onClick={onClick}
       onTap={onClick}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
     >
       {/* Checkbox box */}
       <Rect

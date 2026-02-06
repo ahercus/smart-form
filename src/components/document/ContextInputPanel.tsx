@@ -3,11 +3,10 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Skeleton } from "@/components/ui/skeleton";
 import { MicrophoneButton } from "@/components/ui/microphone-button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Sparkles, Loader2, ChevronRight, CheckCircle2, Brain } from "lucide-react";
+import { Sparkles, Loader2, ChevronRight, Brain } from "lucide-react";
 import { toast } from "sonner";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import type { Document } from "@/lib/types";
@@ -134,26 +133,11 @@ export function ContextInputPanel({
     <div className="flex flex-col h-full bg-card">
       {/* Header */}
       <div className="px-4 py-3 border-b">
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-primary" />
-          <h2 className="font-semibold">AI Assistant</h2>
+          <h2 className="font-semibold">Smart Assist</h2>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Add context while we analyze your form
-        </p>
       </div>
-
-      {/* Processing Status - only show when fields are ready */}
-      {fieldsReady && (
-        <div className="px-4 py-3 border-b bg-green-50 dark:bg-green-950/30">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
-            <span className="text-sm font-medium text-green-700 dark:text-green-300">
-              Fields detected and ready!
-            </span>
-          </div>
-        </div>
-      )}
 
       {/* Context Input */}
       <div className="flex-1 p-4 overflow-y-auto">
@@ -170,20 +154,15 @@ export function ContextInputPanel({
             />
             <div className="relative p-4 rounded-[10px] bg-white dark:bg-gray-900">
               <p className="font-bold text-gray-900 dark:text-gray-100 mb-2">
-                Share some broad context to get started...
+                While the document is being analyzed, please share some details about the document
               </p>
-              <div className="text-sm">
-                {loadingQuestion ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-4 w-full" />
-                  </div>
-                ) : (
+              {!loadingQuestion && tailoredQuestion && (
+                <div className="text-sm">
                   <p className="text-gray-600 dark:text-gray-300">
-                    {tailoredQuestion || "Share any context about this form that would help us fill it out accurately."}
+                    {tailoredQuestion}
                   </p>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -236,11 +215,7 @@ export function ContextInputPanel({
               ) : (
                 <ChevronRight className="mr-2 h-4 w-4" />
               )}
-              {submitting
-                ? "Generating questions..."
-                : fieldsReady
-                  ? "Continue to Questions"
-                  : "Submit & Generate Questions"}
+              {submitting ? "Generating questions..." : "Continue"}
             </Button>
 
             <Button
@@ -250,13 +225,9 @@ export function ContextInputPanel({
               className="w-full"
               size="sm"
             >
-              {fieldsReady ? "Skip context" : "Skip for now"}
+              Skip
             </Button>
           </div>
-
-          <p className="text-xs text-center text-muted-foreground">
-            You can always add more context later
-          </p>
         </div>
       </div>
     </div>

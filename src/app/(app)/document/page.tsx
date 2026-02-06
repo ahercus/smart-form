@@ -66,7 +66,7 @@ export default function NewDocumentPage() {
               <div className="px-4 py-3 border-b">
                 <div className="flex items-center gap-2 mb-2">
                   <Sparkles className="w-5 h-5 text-primary" />
-                  <h2 className="font-semibold">AI Assistant</h2>
+                  <h2 className="font-semibold">Smart Assist</h2>
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Upload a PDF to see AI-generated questions

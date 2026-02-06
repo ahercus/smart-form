@@ -6,18 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable";
-import {
   Drawer,
   DrawerContentTransparent,
   DrawerTrigger,
   DrawerTitle,
   DrawerDescription,
 } from "@/components/ui/drawer";
-import { Download, Loader2, Sparkles, FolderOpen, MessageSquare, Cloud } from "lucide-react";
+import { Download, Loader2, Sparkles, FolderOpen, MessageSquare, Cloud, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { toast } from "sonner";
 import { PDFWithKonva } from "./PDFWithKonva";
 import { QuestionsPanel } from "./QuestionsPanel";
@@ -44,6 +39,8 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
   const [scrollToFieldId, setScrollToFieldId] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelExpanded, setPanelExpanded] = useState(false); // false = 360px, true = 480px
 
   const [showSignatureManager, setShowSignatureManager] = useState(false);
   const [signatureContext, setSignatureContext] = useState<{
@@ -657,87 +654,109 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
             </Drawer>
           </div>
         ) : (
-          /* Desktop: Resizable Panels */
-          <ResizablePanelGroup orientation="horizontal" className="h-full">
-            <ResizablePanel defaultSize={65} minSize={40}>
-              <div className="h-full relative overflow-hidden border-r">
-                <div className={isEarlyProcessing ? "pointer-events-none h-full" : "h-full"}>
-                  {pdfUrl ? (
-                    <PDFWithKonva
-                      url={pdfUrl}
-                      fields={fields}
-                      fieldValues={fieldValues}
-                      currentPage={currentPage}
-                      onPageChange={setCurrentPage}
-                      onFieldChange={onFieldChange}
-                      onFieldClick={handleFieldClick}
-                      onFieldCoordinatesChange={handleFieldCoordinatesChange}
-                      onFieldCopy={handleFieldCopy}
-                      onFieldDelete={handleFieldDelete}
-                      onFieldAdd={handleFieldAdd}
-                      onNavigateToQuestion={handleNavigateToQuestion}
-                      activeFieldId={activeFieldId}
-                      highlightedFieldIds={highlightedFieldIds}
-                      onPageRender={handlePageRender}
-                      onLoadError={handlePdfLoadError}
-                      scrollToFieldId={scrollToFieldId}
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-muted-foreground">
-                      <Skeleton className="h-[600px] w-full max-w-[600px]" />
-                    </div>
-                  )}
-                </div>
-
-                {/* Processing Overlay */}
-                {isEarlyProcessing && (
-                  <div className="absolute inset-0 z-10 flex items-center justify-center">
-                    <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
-                    <div className="relative text-center space-y-4 p-8 rounded-xl bg-card border shadow-lg max-w-md">
-                      <div className="flex items-center justify-center gap-3">
-                        <Sparkles className="h-8 w-8 text-primary animate-pulse" />
-                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold">{getProcessingLabel()}</h3>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          This usually takes 10-30 seconds
-                        </p>
-                      </div>
-                      {progress && progress.pagesTotal > 0 && (
-                        <div className="space-y-2">
-                          <Progress value={(progress.pagesComplete / progress.pagesTotal) * 100} className="h-2" />
-                          <p className="text-xs text-muted-foreground">
-                            {progress.pagesComplete} / {progress.pagesTotal} pages processed
-                          </p>
-                        </div>
-                      )}
-                    </div>
+          /* Desktop: PDF with collapsible sidebar panel */
+          <div className="h-full flex relative">
+            {/* PDF Viewer - takes remaining space */}
+            <div className="flex-1 h-full relative overflow-hidden">
+              <div className={isEarlyProcessing ? "pointer-events-none h-full" : "h-full"}>
+                {pdfUrl ? (
+                  <PDFWithKonva
+                    url={pdfUrl}
+                    fields={fields}
+                    fieldValues={fieldValues}
+                    currentPage={currentPage}
+                    onPageChange={setCurrentPage}
+                    onFieldChange={onFieldChange}
+                    onFieldClick={handleFieldClick}
+                    onFieldCoordinatesChange={handleFieldCoordinatesChange}
+                    onFieldCopy={handleFieldCopy}
+                    onFieldDelete={handleFieldDelete}
+                    onFieldAdd={handleFieldAdd}
+                    onNavigateToQuestion={handleNavigateToQuestion}
+                    activeFieldId={activeFieldId}
+                    highlightedFieldIds={highlightedFieldIds}
+                    onPageRender={handlePageRender}
+                    onLoadError={handlePdfLoadError}
+                    scrollToFieldId={scrollToFieldId}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    <Skeleton className="h-[600px] w-full max-w-[600px]" />
                   </div>
                 )}
               </div>
-            </ResizablePanel>
 
-            <ResizableHandle withHandle />
+              {/* Processing Overlay */}
+              {isEarlyProcessing && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
+                  <div className="relative text-center space-y-4 p-8 rounded-xl bg-card border shadow-lg max-w-md">
+                    <div className="flex items-center justify-center gap-3">
+                      <Sparkles className="h-8 w-8 text-primary animate-pulse" />
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold">{getProcessingLabel()}</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        This usually takes 10-30 seconds
+                      </p>
+                    </div>
+                    {progress && progress.pagesTotal > 0 && (
+                      <div className="space-y-2">
+                        <Progress value={(progress.pagesComplete / progress.pagesTotal) * 100} className="h-2" />
+                        <p className="text-xs text-muted-foreground">
+                          {progress.pagesComplete} / {progress.pagesTotal} pages processed
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
-            <ResizablePanel defaultSize={35} minSize={25} className="relative z-20">
-              <QuestionsPanel
-                documentId={documentId}
-                document={document}
-                questions={questions}
-                progress={progress}
-                currentQuestionIndex={currentQuestionIndex}
-                currentPage={currentPage}
-                onAnswer={handleAnswerQuestion}
-                onAnswerMemoryChoice={handleAnswerMemoryChoice}
-                answering={answering}
-                onGoToQuestion={handleGoToQuestion}
-                scrollToQuestionId={scrollToQuestionId}
-                onOpenSignatureManager={handleOpenSignatureManager}
-                loading={loading}
-              />
-            </ResizablePanel>
-          </ResizablePanelGroup>
+              {/* Toggle button when panel is closed */}
+              {!panelOpen && (
+                <Button
+                  className="absolute right-4 bottom-4 z-30 shadow-lg gap-2 px-6"
+                  size="lg"
+                  onClick={() => setPanelOpen(true)}
+                  disabled={isEarlyProcessing}
+                >
+                  <MessageSquare className="h-5 w-5" />
+                  <span>
+                    {completionStats.filled} / {completionStats.total} answered
+                  </span>
+                </Button>
+              )}
+            </div>
+
+            {/* Questions Panel - inline flex child */}
+            {panelOpen && (
+              <div
+                className={`h-full border-l bg-card flex-shrink-0 transition-[width] duration-300 ease-in-out ${
+                  panelExpanded ? "w-[480px]" : "w-[360px]"
+                }`}
+              >
+                <QuestionsPanel
+                  documentId={documentId}
+                  document={document}
+                  questions={questions}
+                  progress={progress}
+                  currentQuestionIndex={currentQuestionIndex}
+                  currentPage={currentPage}
+                  onAnswer={handleAnswerQuestion}
+                  onAnswerMemoryChoice={handleAnswerMemoryChoice}
+                  answering={answering}
+                  onGoToQuestion={handleGoToQuestion}
+                  scrollToQuestionId={scrollToQuestionId}
+                  onOpenSignatureManager={handleOpenSignatureManager}
+                  loading={loading}
+                  onClose={() => setPanelOpen(false)}
+                  expanded={panelExpanded}
+                  onToggleExpand={() => setPanelExpanded(!panelExpanded)}
+                />
+              </div>
+            )}
+          </div>
         )}
       </div>
 

@@ -1,6 +1,6 @@
 // Konva Canvas Components for WYSIWYG Field Rendering
 
-export { KonvaFieldCanvas, useCanvasExport, useClusterCapture, type EditMode } from "./KonvaFieldCanvas";
+export { KonvaFieldCanvas, useCanvasExport, useClusterCapture } from "./KonvaFieldCanvas";
 export { GridLayer } from "./GridLayer";
 export { FieldShape } from "./FieldShape";
 export { FloatingInput } from "./FloatingInput";

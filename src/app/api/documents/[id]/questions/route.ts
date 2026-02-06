@@ -176,7 +176,7 @@ export async function PATCH(
         label: f.label,
         fieldType: f.field_type,
         // Include choice options for circle_choice fields so parsing can match exactly
-        choiceOptions: f.field_type === "circle_choice" ? f.choice_options : undefined,
+        choiceOptions: f.field_type === "circle_choice" ? (f.choice_options ?? undefined) : undefined,
       }));
 
       const parseResult = await parseAnswerForFields({

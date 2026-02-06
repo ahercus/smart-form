@@ -13,14 +13,11 @@
 import { useRef, useCallback, useState, useEffect } from "react";
 import { Stage, Layer, Image as KonvaImage, Rect, Transformer } from "react-konva";
 import type { Stage as StageType } from "konva/lib/Stage";
-import type { KonvaEventObject } from "konva/lib/Node";
 import type Konva from "konva";
 import { GridLayer } from "./GridLayer";
 import { FieldShape } from "./FieldShape";
 import { FloatingInput } from "./FloatingInput";
 import type { ExtractedField, NormalizedCoordinates } from "@/lib/types";
-
-export type EditMode = "type" | "pointer";
 
 interface KonvaFieldCanvasProps {
   /** PDF page rendered as image (data URL or HTMLImageElement) */
@@ -36,18 +33,19 @@ interface KonvaFieldCanvasProps {
   fieldValues: Record<string, string>;
   /** Currently active field */
   activeFieldId: string | null;
-  /** Current edit mode */
-  editMode?: EditMode;
+  /** Layout editing mode - enables drag/resize of fields */
+  layoutMode?: boolean;
+  /** Whether on mobile device - affects interaction behavior */
+  isMobile?: boolean;
   /** Whether to show the grid */
   showGrid?: boolean;
   /** Whether to hide field background colors (for cleaner export preview) */
   hideFieldColors?: boolean;
   /** Callbacks */
-  onFieldClick: (fieldId: string) => void;
+  onFieldClick: (fieldId: string | null) => void;
   onFieldValueChange: (fieldId: string, value: string) => void;
   onFieldCoordinatesChange?: (fieldId: string, coords: NormalizedCoordinates) => void;
   onChoiceToggle?: (fieldId: string, optionLabel: string) => void;
-  onEditModeChange?: (mode: EditMode) => void;
   /** Ref to access stage for export */
   stageRef?: React.RefObject<StageType | null>;
 }
@@ -60,14 +58,14 @@ export function KonvaFieldCanvas({
   fields,
   fieldValues,
   activeFieldId,
-  editMode = "type",
+  layoutMode = false,
+  isMobile = false,
   showGrid = false,
   hideFieldColors = false,
   onFieldClick,
   onFieldValueChange,
   onFieldCoordinatesChange,
   onChoiceToggle,
-  onEditModeChange,
   stageRef: externalStageRef,
 }: KonvaFieldCanvasProps) {
   const internalStageRef = useRef<StageType>(null);
@@ -80,14 +78,9 @@ export function KonvaFieldCanvas({
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
   const [inputPosition, setInputPosition] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
-  // State for canvas panning
-  const [isOverField, setIsOverField] = useState(false);
-  const [isPanning, setIsPanning] = useState(false);
-  const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
-
-  // Update transformer when active field changes in pointer mode
+  // Update transformer when active field changes in layout mode
   useEffect(() => {
-    if (editMode !== "pointer" || !transformerRef.current) {
+    if (!layoutMode || !transformerRef.current) {
       transformerRef.current?.nodes([]);
       return;
     }
@@ -101,7 +94,7 @@ export function KonvaFieldCanvas({
     } else {
       transformerRef.current.nodes([]);
     }
-  }, [activeFieldId, editMode]);
+  }, [activeFieldId, layoutMode]);
 
   // Get the field being edited
   const editingField = editingFieldId
@@ -124,44 +117,52 @@ export function KonvaFieldCanvas({
     [pageWidth, pageHeight, scale]
   );
 
-  // Handle field click - behavior depends on edit mode
+  // Helper to check if field is a text-type field
+  const isTextType = useCallback((field: ExtractedField) => {
+    return ["text", "textarea", "date"].includes(field.field_type);
+  }, []);
+
+  // Handle field click - Google Slides-like interaction
   const handleFieldClick = useCallback(
     (field: ExtractedField) => {
-      onFieldClick(field.id);
+      // Checkbox: toggle immediately (no selection state)
+      if (field.field_type === "checkbox") {
+        const currentValue = fieldValues[field.id] || "";
+        const newValue = currentValue === "yes" || currentValue === "true" ? "" : "yes";
+        onFieldValueChange(field.id, newValue);
+        return;
+      }
 
-      if (editMode === "type") {
-        // Type mode: immediately edit text fields, toggle checkboxes
-        if (["text", "textarea", "date"].includes(field.field_type)) {
+      // On mobile: single tap = select + edit for text fields
+      if (isMobile && isTextType(field)) {
+        onFieldClick(field.id);
+        startEditing(field);
+        return;
+      }
+
+      // Desktop: click selected field to edit, or just select
+      if (activeFieldId === field.id) {
+        // Already selected - enter edit mode
+        if (isTextType(field)) {
           startEditing(field);
         }
-        if (field.field_type === "checkbox") {
-          const currentValue = fieldValues[field.id] || "";
-          const newValue = currentValue === "yes" || currentValue === "true" ? "" : "yes";
-          onFieldValueChange(field.id, newValue);
-        }
+      } else {
+        // Select the field
+        onFieldClick(field.id);
       }
-      // Pointer mode: just select (handled by onFieldClick), no editing
     },
-    [editMode, onFieldClick, onFieldValueChange, fieldValues, startEditing]
+    [activeFieldId, isMobile, isTextType, onFieldClick, onFieldValueChange, fieldValues, startEditing]
   );
 
-  // Handle double-click - enter type mode and start editing
+  // Handle double-click - always enters edit mode for text fields
   const handleFieldDoubleClick = useCallback(
     (field: ExtractedField) => {
-      if (editMode === "pointer") {
-        // Switch to type mode and start editing
-        onEditModeChange?.("type");
-        if (["text", "textarea", "date"].includes(field.field_type)) {
-          startEditing(field);
-        }
-        if (field.field_type === "checkbox") {
-          const currentValue = fieldValues[field.id] || "";
-          const newValue = currentValue === "yes" || currentValue === "true" ? "" : "yes";
-          onFieldValueChange(field.id, newValue);
-        }
+      if (isTextType(field)) {
+        onFieldClick(field.id);
+        startEditing(field);
       }
     },
-    [editMode, onEditModeChange, onFieldValueChange, fieldValues, startEditing]
+    [isTextType, onFieldClick, startEditing]
   );
 
   // Handle field drag end - update coordinates
@@ -232,73 +233,46 @@ export function KonvaFieldCanvas({
     setEditingFieldId(null);
   }, []);
 
-  // Handle click on empty space - close editing
+  // Handle click on empty space - close editing and deselect
   const handleStageClick = useCallback(
     (e: { target: { getStage: () => unknown } }) => {
-      // If clicking on the stage background (not a field), close editing
+      // If clicking on the stage background (not a field), close editing and deselect
       if (e.target === e.target.getStage()) {
         setEditingFieldId(null);
+        onFieldClick(null);
       }
     },
-    []
+    [onFieldClick]
   );
 
-  // Track when mouse enters/leaves field shapes
-  const handleFieldMouseEnter = useCallback(() => {
-    setIsOverField(true);
-  }, []);
+  // Keyboard listener for type-to-edit (desktop only)
+  useEffect(() => {
+    // Skip if no field selected, already editing, or on mobile
+    if (!activeFieldId || editingFieldId || isMobile) return;
 
-  const handleFieldMouseLeave = useCallback(() => {
-    setIsOverField(false);
-  }, []);
+    const field = fields.find((f) => f.id === activeFieldId);
+    if (!field || !isTextType(field)) return;
 
-  // Panning handlers - scroll the parent container
-  const handlePanStart = useCallback(
-    (e: KonvaEventObject<MouseEvent>) => {
-      // Only pan if not clicking on a field
-      if (isOverField) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if user is typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
 
-      // Find scrollable parent
-      const scrollParent = containerRef.current?.closest("[data-scroll-container]") as HTMLElement | null;
-      if (!scrollParent) return;
+      // Printable character - start editing
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        startEditing(field);
+      } else if (e.key === "Enter") {
+        startEditing(field);
+        e.preventDefault();
+      } else if (e.key === "Escape") {
+        onFieldClick(null); // Deselect
+      }
+    };
 
-      setIsPanning(true);
-      panStartRef.current = {
-        x: e.evt.clientX,
-        y: e.evt.clientY,
-        scrollLeft: scrollParent.scrollLeft,
-        scrollTop: scrollParent.scrollTop,
-      };
-    },
-    [isOverField]
-  );
-
-  const handlePanMove = useCallback(
-    (e: KonvaEventObject<MouseEvent>) => {
-      if (!isPanning) return;
-
-      const scrollParent = containerRef.current?.closest("[data-scroll-container]") as HTMLElement | null;
-      if (!scrollParent) return;
-
-      const dx = e.evt.clientX - panStartRef.current.x;
-      const dy = e.evt.clientY - panStartRef.current.y;
-
-      scrollParent.scrollLeft = panStartRef.current.scrollLeft - dx;
-      scrollParent.scrollTop = panStartRef.current.scrollTop - dy;
-    },
-    [isPanning]
-  );
-
-  const handlePanEnd = useCallback(() => {
-    setIsPanning(false);
-  }, []);
-
-  // Determine cursor style
-  const getCursorStyle = () => {
-    if (isPanning) return "grabbing";
-    if (isOverField) return "pointer";
-    return "grab";
-  };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeFieldId, editingFieldId, isMobile, fields, isTextType, startEditing, onFieldClick]);
 
   // Scaled dimensions
   const scaledWidth = pageWidth * scale;
@@ -308,7 +282,7 @@ export function KonvaFieldCanvas({
     <div
       ref={containerRef}
       className="relative"
-      style={{ width: scaledWidth, height: scaledHeight, cursor: getCursorStyle() }}
+      style={{ width: scaledWidth, height: scaledHeight }}
     >
       <Stage
         ref={stageRef}
@@ -317,10 +291,6 @@ export function KonvaFieldCanvas({
         scale={{ x: scale, y: scale }}
         onClick={handleStageClick}
         onTap={handleStageClick}
-        onMouseDown={handlePanStart}
-        onMouseMove={handlePanMove}
-        onMouseUp={handlePanEnd}
-        onMouseLeave={handlePanEnd}
       >
         {/* Background layer */}
         <Layer name="background">
@@ -360,15 +330,13 @@ export function KonvaFieldCanvas({
               pageHeight={pageHeight}
               isActive={field.id === activeFieldId}
               isEditing={field.id === editingFieldId}
-              draggable={editMode === "pointer"}
+              draggable={layoutMode}
               hideFieldColors={hideFieldColors}
               onClick={() => handleFieldClick(field)}
               onDblClick={() => handleFieldDoubleClick(field)}
               onDragEnd={(x, y) => handleFieldDragEnd(field, x, y)}
               onTransformEnd={(node) => handleTransformEnd(field, node)}
               onChoiceClick={(label) => handleChoiceClick(field.id, label)}
-              onMouseEnter={handleFieldMouseEnter}
-              onMouseLeave={handleFieldMouseLeave}
               shapeRef={(node) => {
                 if (node) {
                   shapeRefs.current.set(field.id, node);
@@ -378,8 +346,8 @@ export function KonvaFieldCanvas({
               }}
             />
           ))}
-          {/* Transformer for resize handles in pointer mode */}
-          {editMode === "pointer" && (
+          {/* Transformer for resize handles in layout mode */}
+          {layoutMode && (
             <Transformer
               ref={transformerRef}
               boundBoxFunc={(oldBox, newBox) => {

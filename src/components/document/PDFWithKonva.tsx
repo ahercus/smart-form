@@ -18,7 +18,7 @@ import dynamic from "next/dynamic";
 import type { Stage as StageType } from "konva/lib/Stage";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2 } from "lucide-react";
-import { PDFControls, type EditMode } from "./PDFControls";
+import { PDFControls } from "./PDFControls";
 import { KonvaFieldCanvas, useCanvasExport } from "./canvas";
 import { SignatureManager } from "@/components/signature";
 import type { ExtractedField, NormalizedCoordinates, SignatureType } from "@/lib/types";
@@ -57,10 +57,6 @@ interface PDFWithKonvaProps {
   stageRef?: React.RefObject<StageType>;
 }
 
-// PDF page dimensions in points (letter size)
-const PDF_PAGE_WIDTH = 612;
-const PDF_PAGE_HEIGHT = 792;
-
 export function PDFWithKonva({
   url,
   fields,
@@ -98,7 +94,7 @@ export function PDFWithKonva({
   const [currentPageImage, setCurrentPageImage] = useState<HTMLImageElement | null>(null);
 
   // UI state
-  const [editMode, setEditMode] = useState<EditMode>("type");
+  const [layoutMode, setLayoutMode] = useState(false);
   const [hideFieldColors, setHideFieldColors] = useState(false);
   const [showSignatureManager, setShowSignatureManager] = useState(false);
   const [signatureFieldContext, setSignatureFieldContext] = useState<{
@@ -106,10 +102,16 @@ export function PDFWithKonva({
     type: SignatureType;
   } | null>(null);
   const [deletedFieldIds, setDeletedFieldIds] = useState<Set<string>>(new Set());
+  // Track actual page dimensions from rendered canvas (not hardcoded)
+  const [pageDimensions, setPageDimensions] = useState<Map<number, { width: number; height: number }>>(new Map());
 
-  // Calculate scaled dimensions
+  // Calculate scaled dimensions from actual page dimensions
   const scaledWidth = containerWidth * scale;
-  const pageAspectRatio = PDF_PAGE_HEIGHT / PDF_PAGE_WIDTH;
+  const currentPageDims = pageDimensions.get(currentPage);
+  // Default to letter aspect ratio until we get actual dimensions
+  const pageAspectRatio = currentPageDims
+    ? currentPageDims.height / currentPageDims.width
+    : 792 / 612;
   const scaledHeight = scaledWidth * pageAspectRatio;
 
   // Configure PDF.js worker
@@ -140,6 +142,7 @@ export function PDFWithKonva({
     setNumPages(0);
     setPageError(false);
     setPageImages(new Map());
+    setPageDimensions(new Map());
     setCurrentPageImage(null);
   }, [url]);
 
@@ -170,8 +173,19 @@ export function PDFWithKonva({
     onLoadError?.();
   }, [onLoadError]);
 
-  // Page render callback - captures canvas as image
+  // Page render callback - captures canvas as image and records actual dimensions
   const handlePageRenderSuccess = useCallback((pageNumber: number, canvas: HTMLCanvasElement) => {
+    // Capture actual page dimensions from rendered canvas
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+    setPageDimensions((prev) => {
+      const next = new Map(prev);
+      next.set(pageNumber, { width: canvasWidth, height: canvasHeight });
+      return next;
+    });
+
+    console.log("[AutoForm] Page rendered:", { pageNumber, canvasWidth, canvasHeight, aspectRatio: canvasHeight / canvasWidth });
+
     // Convert canvas to image
     const dataUrl = canvas.toDataURL("image/png");
     const img = new window.Image();
@@ -199,9 +213,11 @@ export function PDFWithKonva({
   );
 
   // Field interaction handlers
-  const handleFieldClick = useCallback((fieldId: string) => {
-    onFieldClick?.(fieldId);
-    onNavigateToQuestion?.(fieldId);
+  const handleFieldClick = useCallback((fieldId: string | null) => {
+    if (fieldId) {
+      onFieldClick?.(fieldId);
+      onNavigateToQuestion?.(fieldId);
+    }
   }, [onFieldClick, onNavigateToQuestion]);
 
   const handleChoiceToggle = useCallback((fieldId: string, optionLabel: string) => {
@@ -270,13 +286,13 @@ export function PDFWithKonva({
         currentPage={currentPage}
         numPages={numPages}
         scale={scale}
-        editMode={editMode}
+        layoutMode={layoutMode}
         activeFieldId={activeFieldId || null}
         hideFieldColors={hideFieldColors}
         isMobile={isMobile}
         onPageChange={onPageChange}
         onScaleChange={setScale}
-        onEditModeChange={setEditMode}
+        onLayoutModeChange={setLayoutMode}
         onToggleFieldColors={() => setHideFieldColors((prev) => !prev)}
         onAddField={handleAddField}
         onCopyField={handleCopyField}
@@ -335,14 +351,14 @@ export function PDFWithKonva({
                   fields={pageFields}
                   fieldValues={fieldValues}
                   activeFieldId={activeFieldId || null}
-                  editMode={editMode}
+                  layoutMode={layoutMode}
+                  isMobile={isMobile}
                   showGrid={false} // Grid hidden from users
                   hideFieldColors={hideFieldColors}
                   onFieldClick={handleFieldClick}
                   onFieldValueChange={onFieldChange}
                   onFieldCoordinatesChange={onFieldCoordinatesChange}
                   onChoiceToggle={handleChoiceToggle}
-                  onEditModeChange={setEditMode}
                   stageRef={stageRef}
                 />
               </div>

@@ -27,7 +27,7 @@ interface FieldShapeProps {
   pageHeight: number;
   isActive: boolean;
   isEditing: boolean;
-  /** Whether in pointer mode (draggable) */
+  /** Whether in layout mode (draggable/resizable) */
   draggable?: boolean;
   hideFieldColors?: boolean;
   onClick: () => void;
@@ -35,8 +35,6 @@ interface FieldShapeProps {
   onDragEnd?: (x: number, y: number) => void;
   onTransformEnd?: (node: Konva.Group) => void;
   onChoiceClick?: (optionLabel: string) => void;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
   /** Ref callback to register this shape for transformer */
   shapeRef?: (node: Konva.Group | null) => void;
 }
@@ -55,8 +53,6 @@ export function FieldShape({
   onDragEnd,
   onTransformEnd,
   onChoiceClick,
-  onMouseEnter,
-  onMouseLeave,
   shapeRef,
 }: FieldShapeProps) {
   // Convert percentage coordinates to pixels
@@ -94,8 +90,6 @@ export function FieldShape({
             isActive={isActive}
             hideFieldColors={hideFieldColors}
             onClick={onClick}
-            onMouseEnter={onMouseEnter}
-            onMouseLeave={onMouseLeave}
           />
         );
 
@@ -112,8 +106,6 @@ export function FieldShape({
             isActive={isActive}
             hideFieldColors={hideFieldColors}
             onClick={onClick}
-            onMouseEnter={onMouseEnter}
-            onMouseLeave={onMouseLeave}
           />
         );
 
@@ -128,8 +120,6 @@ export function FieldShape({
             isActive={isActive}
             hideFieldColors={hideFieldColors}
             onClick={onChoiceClick || (() => {})}
-            onMouseEnter={onMouseEnter}
-            onMouseLeave={onMouseLeave}
           />
         );
 
@@ -149,8 +139,6 @@ export function FieldShape({
             isEditing={isEditing}
             hideFieldColors={hideFieldColors}
             onClick={onClick}
-            onMouseEnter={onMouseEnter}
-            onMouseLeave={onMouseLeave}
           />
         );
     }

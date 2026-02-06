@@ -139,7 +139,7 @@ export function AIWizardPanel({
             <div className="flex items-center justify-between">
               <DrawerTitle className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-primary" />
-                AI Assistant
+                Smart Assist
               </DrawerTitle>
               <Button
                 variant="ghost"
@@ -163,7 +163,7 @@ export function AIWizardPanel({
           <div className="flex items-center justify-between">
             <SheetTitle className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-primary" />
-              AI Assistant
+              Smart Assist
             </SheetTitle>
           </div>
         </SheetHeader>
@@ -197,7 +197,7 @@ export function WizardTrigger({
       ) : questionCount > 0 ? (
         `${questionCount} Questions`
       ) : (
-        "AI Assistant"
+        "Smart Assist"
       )}
       <ChevronUp className="w-4 h-4" />
     </Button>

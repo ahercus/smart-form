@@ -186,7 +186,7 @@ Return ONLY valid JSON:
 
 ## Guidelines
 - Keep the question under 2 sentences
-- Be conversational and friendly
+- Use neutral, third-person language - do NOT use "I", "me", "my", or similar first-person pronouns
 - Focus on the most important context that would help fill out this specific form
 - If asking about a person the form is for (student, patient, child, etc.), ask about them specifically
 - hasUsefulContext should be false if this appears to be a cover page or has no form fields${multiPageContext}

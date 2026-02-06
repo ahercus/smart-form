@@ -189,8 +189,8 @@ export async function generateFast(options: GenerateContentOptions) {
  */
 export async function generateWithVisionFast(options: GenerateContentOptions) {
   const client = getGeminiClient();
-  // Use MINIMAL for max speed (user requested)
-  const { prompt, imageParts, thinkingLevel = ThinkingLevel.MINIMAL, jsonOutput = false, responseSchema } = options;
+  // Use LOW for better coordinate accuracy (MINIMAL had 0 thinking tokens)
+  const { prompt, imageParts, thinkingLevel = ThinkingLevel.LOW, jsonOutput = false, responseSchema } = options;
 
   const contents = imageParts
     ? [{ text: prompt }, ...imageParts.map((p) => ({ inlineData: p.inlineData }))]

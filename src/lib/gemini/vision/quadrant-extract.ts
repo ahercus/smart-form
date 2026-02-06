@@ -7,10 +7,43 @@
  */
 
 import { generateWithVisionFast } from "../client";
-import {
-  buildQuadrantExtractionPrompt,
-  quadrantExtractionSchema,
-} from "../prompts/quadrant-extract";
+
+/**
+ * Flat response schema to force correct output structure
+ * Uses lowercase type strings for JSON Schema compatibility
+ */
+const fieldExtractionSchema = {
+  type: "object",
+  properties: {
+    fields: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          label: { type: "string" },
+          fieldType: {
+            type: "string",
+            enum: ["text", "textarea", "date", "checkbox", "radio", "signature", "initials", "circle_choice"]
+          },
+          coordinates: {
+            type: "object",
+            properties: {
+              left: { type: "number", description: "Percentage 0-100" },
+              top: { type: "number", description: "Percentage 0-100" },
+              width: { type: "number", description: "Percentage 0-100" },
+              height: { type: "number", description: "Percentage 0-100" },
+            },
+            required: ["left", "top", "width", "height"]
+          },
+        },
+        required: ["label", "fieldType", "coordinates"]
+      }
+    },
+    noFieldsInRegion: { type: "boolean" }
+  },
+  required: ["fields", "noFieldsInRegion"]
+};
+import { buildQuadrantExtractionPrompt } from "../prompts/quadrant-extract";
 import type { QuadrantNumber } from "../../image-compositor";
 import type { NormalizedCoordinates } from "../../types";
 
@@ -35,6 +68,39 @@ export interface QuadrantExtractionResult {
   fields: RawExtractedField[];
   noFieldsInRegion: boolean;
   durationMs: number;
+}
+
+/**
+ * Detect if coordinates are in pixels and convert to percentages
+ * Handles mixed coordinate systems (model sometimes mixes pixels and percentages)
+ * Images are resized to max 1600px width, with ~2000px height for letter aspect ratio
+ */
+function normalizeCoordinates(
+  coords: { left: number; top: number; width: number; height: number }
+): { left: number; top: number; width: number; height: number } {
+  const estimatedWidth = 1600;
+  const estimatedHeight = 2000;
+
+  let left = coords.left;
+  let top = coords.top;
+  let width = coords.width;
+  let height = coords.height;
+
+  // Handle horizontal axis (left/width) - if left > 100, it's pixels
+  if (left > 100) {
+    console.log("[AutoForm] Converting horizontal pixel coords:", { left, width });
+    left = (left / estimatedWidth) * 100;
+    width = (width / estimatedWidth) * 100;
+  }
+
+  // Handle vertical axis (top/height) - if top > 100, it's pixels
+  if (top > 100) {
+    console.log("[AutoForm] Converting vertical pixel coords:", { top, height });
+    top = (top / estimatedHeight) * 100;
+    height = (height / estimatedHeight) * 100;
+  }
+
+  return { left, top, width, height };
 }
 
 /**
@@ -70,14 +136,17 @@ function parseQuadrantExtractionResponse(
 
     const validFields: RawExtractedField[] = [];
     for (const field of parsed.fields || []) {
-      const coords = field.coordinates;
-      if (!coords || typeof coords.top !== "number") {
+      const rawCoords = field.coordinates;
+      if (!rawCoords || typeof rawCoords.top !== "number") {
         console.warn("[AutoForm] Quadrant extraction: Field missing coordinates, skipping", {
           quadrant,
           label: field.label,
         });
         continue;
       }
+
+      // Normalize coordinates (convert pixels to percentages if needed)
+      const coords = normalizeCoordinates(rawCoords);
 
       // Check if field is within quadrant bounds (with small tolerance for boundary fields)
       const fieldTop = coords.top;
@@ -162,14 +231,12 @@ export async function extractQuadrantFields(options: {
   };
 
   try {
-    // Call Gemini Flash Vision with MINIMAL thinking for speed
-    // Testing with refined prompts before increasing thinking level
+    // Call Gemini Flash Vision with responseSchema to force correct structure
     const responseText = await generateWithVisionFast({
       prompt,
       imageParts: [imagePart],
       jsonOutput: true,
-      // thinkingLevel defaults to MINIMAL
-      // Note: responseSchema removed - nested choiceOptions.coordinates exceeds Gemini's nesting limit
+      responseSchema: fieldExtractionSchema,
     });
 
     const durationMs = Date.now() - startTime;

@@ -20,8 +20,6 @@ interface ChoiceFieldShapeProps {
   isActive: boolean;
   hideFieldColors?: boolean;
   onClick: (optionLabel: string) => void;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
 }
 
 const COLOR = "#f97316"; // orange
@@ -40,8 +38,6 @@ export function ChoiceFieldShape({
   isActive,
   hideFieldColors,
   onClick,
-  onMouseEnter,
-  onMouseLeave,
 }: ChoiceFieldShapeProps) {
   const [isHovering, setIsHovering] = useState(false);
   const choiceOptions = field.choice_options || [];
@@ -75,14 +71,8 @@ export function ChoiceFieldShape({
         width={maxX - minX}
         height={maxY - minY}
         fill="transparent"
-        onMouseEnter={() => {
-          setIsHovering(true);
-          onMouseEnter?.();
-        }}
-        onMouseLeave={() => {
-          setIsHovering(false);
-          onMouseLeave?.();
-        }}
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
       />
 
       {/* Choice options */}

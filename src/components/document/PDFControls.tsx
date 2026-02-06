@@ -6,8 +6,7 @@ import {
   ChevronRight,
   ZoomIn,
   ZoomOut,
-  Type,
-  MousePointer2,
+  Move,
   Copy,
   Plus,
   Trash2,
@@ -16,19 +15,17 @@ import {
   EyeOff,
 } from "lucide-react";
 
-export type EditMode = "type" | "pointer";
-
 interface PDFControlsProps {
   currentPage: number;
   numPages: number;
   scale: number;
-  editMode: EditMode;
+  layoutMode: boolean;
   activeFieldId: string | null;
   hideFieldColors: boolean;
   isMobile?: boolean;
   onPageChange: (page: number) => void;
   onScaleChange: (scale: number) => void;
-  onEditModeChange: (mode: EditMode) => void;
+  onLayoutModeChange: (enabled: boolean) => void;
   onToggleFieldColors: () => void;
   onAddField: () => void;
   onCopyField: () => void;
@@ -40,13 +37,13 @@ export function PDFControls({
   currentPage,
   numPages,
   scale,
-  editMode,
+  layoutMode,
   activeFieldId,
   hideFieldColors,
   isMobile,
   onPageChange,
   onScaleChange,
-  onEditModeChange,
+  onLayoutModeChange,
   onToggleFieldColors,
   onAddField,
   onCopyField,
@@ -80,25 +77,16 @@ export function PDFControls({
         </Button>
       </div>
 
-      {/* Center: Edit mode tools */}
+      {/* Center: Edit tools */}
       <div className="flex items-center gap-1 border rounded-md p-0.5 bg-background">
         <Button
-          variant={editMode === "type" ? "secondary" : "ghost"}
+          variant={layoutMode ? "secondary" : "ghost"}
           size="icon"
           className="h-8 w-8"
-          onClick={() => onEditModeChange("type")}
-          title="Type mode - click to edit field values"
+          onClick={() => onLayoutModeChange(!layoutMode)}
+          title={layoutMode ? "Exit layout mode" : "Edit layout - move and resize fields"}
         >
-          <Type className="h-4 w-4" />
-        </Button>
-        <Button
-          variant={editMode === "pointer" ? "secondary" : "ghost"}
-          size="icon"
-          className="h-8 w-8"
-          onClick={() => onEditModeChange("pointer")}
-          title="Pointer mode - move and resize fields"
-        >
-          <MousePointer2 className="h-4 w-4" />
+          <Move className="h-4 w-4" />
         </Button>
         <div className="w-px h-6 bg-border mx-1" />
         <Button

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2 } from "lucide-react";
-import { PDFControls, type EditMode } from "./PDFControls";
+import { PDFControls } from "./PDFControls";
 import {
   EditableFieldOverlay,
   DraggableFieldOverlay,
@@ -110,7 +110,7 @@ export function PDFWithOverlays({
   const [isDocumentLoaded, setIsDocumentLoaded] = useState(false);
   const [isPdfJsReady, setIsPdfJsReady] = useState(false);
   const [pageError, setPageError] = useState(false);
-  const [editMode, setEditMode] = useState<EditMode>("pointer");
+  const [layoutMode, setLayoutMode] = useState(false);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [localCoords, setLocalCoords] = useState<Record<string, NormalizedCoordinates>>({});
   const [deletedFieldIds, setDeletedFieldIds] = useState<Set<string>>(new Set());
@@ -135,7 +135,7 @@ export function PDFWithOverlays({
     },
     onStartEditing: (fieldId) => setEditingFieldId(fieldId),
     onStopEditing: () => setEditingFieldId(null),
-    onSwitchToTypeMode: () => setEditMode("type"),
+    onSwitchToTypeMode: () => setLayoutMode(false), // Exit layout mode to enter typing mode
   });
 
   // Scroll to field when scrollToFieldId changes
@@ -255,8 +255,9 @@ export function PDFWithOverlays({
   };
 
   const handleFieldDoubleClick = (fieldId: string) => {
-    if (editMode === "pointer") {
-      setEditMode("type");
+    // Exit layout mode if active and start editing
+    if (layoutMode) {
+      setLayoutMode(false);
     }
     setEditingFieldId(fieldId);
     onFieldClick?.(fieldId);
@@ -299,8 +300,8 @@ export function PDFWithOverlays({
     onFieldClick?.(fieldId);
   };
 
-  const handleSwitchToPointerMode = () => {
-    setEditMode("pointer");
+  const handleSwitchToLayoutMode = () => {
+    setLayoutMode(true);
   };
 
   const handleBackgroundClick = () => {
@@ -364,8 +365,8 @@ export function PDFWithOverlays({
       );
     }
 
-    // Editing mode - show input/textarea
-    if (isEditing && editMode === "type") {
+    // Editing mode - show input/textarea (when not in layout mode)
+    if (isEditing && !layoutMode) {
       return (
         <EditableFieldOverlay
           key={field.id}
@@ -386,8 +387,8 @@ export function PDFWithOverlays({
       );
     }
 
-    // Pointer mode - draggable/resizable
-    if (editMode === "pointer" && containerSize.width > 0) {
+    // Layout mode - draggable/resizable
+    if (layoutMode && containerSize.width > 0) {
       return (
         <DraggableFieldOverlay
           key={field.id}
@@ -406,7 +407,7 @@ export function PDFWithOverlays({
           onLocalCoordsChange={handleLocalCoordsChange}
           pixelToPercent={pixelToPercent}
           onSignatureClick={handleSignatureClick}
-          onSwitchToPointerMode={handleSwitchToPointerMode}
+          onSwitchToPointerMode={handleSwitchToLayoutMode}
           onValueChange={onFieldChange}
         />
       );
@@ -426,7 +427,7 @@ export function PDFWithOverlays({
         onClick={handleFieldClick}
         onDoubleClick={handleFieldDoubleClick}
         onSignatureClick={handleSignatureClick}
-        onSwitchToPointerMode={handleSwitchToPointerMode}
+        onSwitchToPointerMode={handleSwitchToLayoutMode}
         onValueChange={onFieldChange}
       />
     );
@@ -438,13 +439,13 @@ export function PDFWithOverlays({
         currentPage={currentPage}
         numPages={numPages}
         scale={scale}
-        editMode={editMode}
+        layoutMode={layoutMode}
         activeFieldId={activeFieldId || null}
         hideFieldColors={hideFieldColors}
         isMobile={isMobile}
         onPageChange={onPageChange}
         onScaleChange={setScale}
-        onEditModeChange={setEditMode}
+        onLayoutModeChange={setLayoutMode}
         onToggleFieldColors={() => setHideFieldColors((prev) => !prev)}
         onAddField={handleAddField}
         onCopyField={handleCopyField}

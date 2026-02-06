@@ -125,8 +125,8 @@ export function QuestionCard({
     if (isEditing) {
       return (
         <Card className="border-primary ring-2 ring-primary shadow-md">
-          <CardContent className="p-2">
-            <div className="space-y-1.5">
+          <CardContent className="px-2 py-1.5">
+            <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <p className="font-medium text-sm">{question.question}</p>
                 <Button
@@ -187,7 +187,7 @@ export function QuestionCard({
         }`}
         onClick={!isSignatureOrInitials ? handleStartEdit : undefined}
       >
-        <CardContent className="p-2">
+        <CardContent className="px-2 py-1.5">
           <div className="flex items-start gap-2">
             <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 mt-0.5">
               <Check className="w-2.5 h-2.5 text-white" />
@@ -466,8 +466,8 @@ export function QuestionCard({
       }`}
       onClick={onClick}
     >
-      <CardContent className="p-2">
-        <div className="space-y-1.5">
+      <CardContent className="px-2 py-1.5">
+        <div className="space-y-1">
           {question.profile_key && (
             <div className="flex justify-end">
               <Badge variant="outline" className="text-xs">
