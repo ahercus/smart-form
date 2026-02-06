@@ -176,7 +176,7 @@ export function QuestionsPanel({
         ) : (
           /* Shimmer skeleton cards while loading */
           <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <div
                 key={i}
                 className="relative h-20 rounded-lg bg-muted/50 overflow-hidden"
