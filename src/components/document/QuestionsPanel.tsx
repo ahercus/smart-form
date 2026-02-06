@@ -139,7 +139,7 @@ export function QuestionsPanel({
         {isProcessing ? (
           <ProcessingOverlay progress={progress} />
         ) : questionsByPage.length > 0 ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {questionsByPage.map(([pageNumber, pageQuestions], pageIndex) => (
               <div
                 key={pageNumber}
@@ -148,7 +148,7 @@ export function QuestionsPanel({
                 }}
               >
                 {/* Page divider */}
-                <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-2 mb-2">
                   <div className="h-px flex-1 bg-border" />
                   <span className="text-xs font-medium text-muted-foreground px-2">
                     Page {pageNumber}
@@ -157,7 +157,7 @@ export function QuestionsPanel({
                 </div>
 
                 {/* Questions for this page */}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {pageQuestions.map((question) => {
                     const visibleIndex = visibleQuestions.findIndex((q) => q.id === question.id);
                     return (

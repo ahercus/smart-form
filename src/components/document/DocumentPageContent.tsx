@@ -12,8 +12,10 @@ import {
 } from "@/components/ui/resizable";
 import {
   Drawer,
-  DrawerContent,
+  DrawerContentTransparent,
   DrawerTrigger,
+  DrawerTitle,
+  DrawerDescription,
 } from "@/components/ui/drawer";
 import { Download, Loader2, Sparkles, FolderOpen, MessageSquare, Cloud } from "lucide-react";
 import { toast } from "sonner";
@@ -423,12 +425,20 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
     }
   }, [documentId, document, fields, fieldValues, hasUnsavedChanges, saveFieldUpdates]);
 
+  // Block PDF viewer until we have fields to show
+  // User sees context question while PDF is blocked
+  // Once fields arrive (via real-time), PDF reveals progressively
+  const hasFields = fields.length > 0;
   const isEarlyProcessing =
     !document ||
     document.status === "uploading" ||
     document.status === "analyzing" ||
-    document.status === "refining" ||
-    !document.fields_qc_complete;
+    !hasFields; // Block until we have fields
+
+  // Show extraction indicator if extracting but not blocking
+  const isExtracting =
+    document?.status === "extracting" ||
+    (document?.status !== "ready" && !document?.fields_qc_complete);
 
   const getProcessingLabel = () => {
     if (!document) return "Loading document...";
@@ -620,7 +630,11 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
                   </span>
                 </Button>
               </DrawerTrigger>
-              <DrawerContent className="h-[85vh]">
+              <DrawerContentTransparent>
+                <DrawerTitle className="sr-only">Form Questions</DrawerTitle>
+                <DrawerDescription className="sr-only">
+                  Answer the form questions below
+                </DrawerDescription>
                 <QuestionsPanel
                   documentId={documentId}
                   document={document}
@@ -639,7 +653,7 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
                   onOpenSignatureManager={handleOpenSignatureManager}
                   loading={loading}
                 />
-              </DrawerContent>
+              </DrawerContentTransparent>
             </Drawer>
           </div>
         ) : (

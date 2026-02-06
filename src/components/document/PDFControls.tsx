@@ -11,7 +11,7 @@ import {
   Copy,
   Plus,
   Trash2,
-  PenLine,
+  PenTool,
   Eye,
   EyeOff,
 } from "lucide-react";
@@ -140,7 +140,7 @@ export function PDFControls({
               onClick={onOpenSignatureManager}
               title="Manage signatures & initials"
             >
-              <PenLine className="h-4 w-4" />
+              <PenTool className="h-4 w-4" />
             </Button>
           </>
         )}

@@ -176,6 +176,20 @@ User drags a PDF onto the upload zone (or uses camera capture on mobile).
 - `uploading` → `analyzing` → `extracting` → `refining` → `ready`
 - Any failure → `failed` with error details
 
+### 4.1 Photo Preprocessing (Document Scanner Pass)
+
+For photo uploads (not PDFs), run a lightweight preprocessing pass before Azure/Gemini:
+
+1. **External Preprocessor (optional)**  
+   - If `DOC_PREPROCESSOR_URL` is set, send the image for:
+     - Perspective warp (edge/quad detection)
+     - Contrast normalization (CLAHE)
+     - Optional adaptive thresholding
+2. **Local Fallback**  
+   - If external service is unavailable, apply EXIF auto-rotation + resize via Sharp.
+
+This keeps accuracy high for phone photos while preserving speed.
+
 ### Step 3: Wizard View (Primary Interface)
 
 User lands on the **Wizard View** by default. This is a vertical list of form fields, each rendered as a card.

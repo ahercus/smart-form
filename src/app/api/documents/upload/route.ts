@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createDocument } from "@/lib/storage";
 import { PDFDocument } from "pdf-lib";
-import sharp from "sharp";
+import { preprocessImageForOCR } from "@/lib/image-preprocess";
 
 const ACCEPTED_TYPES = [
   "application/pdf",
@@ -15,78 +15,24 @@ const ACCEPTED_TYPES = [
 // Max dimension for images (Azure Document Intelligence has limits)
 const MAX_IMAGE_DIMENSION = 2000;
 
-async function resizeImageIfNeeded(imageBuffer: ArrayBuffer): Promise<{ buffer: Buffer; mimeType: string }> {
-  const inputBuffer = Buffer.from(imageBuffer);
+async function preprocessImageIfNeeded(
+  imageBuffer: ArrayBuffer,
+  originalMimeType: string
+): Promise<{ buffer: Buffer; mimeType: string }> {
+  const result = await preprocessImageForOCR(imageBuffer, {
+    maxDimension: MAX_IMAGE_DIMENSION,
+    sourceMimeType: originalMimeType,
+  });
 
-  // Get image metadata
-  const metadata = await sharp(inputBuffer).metadata();
-  const { width, height, orientation } = metadata;
-
-  console.log("[AutoForm] Image metadata:", { width, height, format: metadata.format, orientation });
-
-  // Check if resize is needed
-  const needsResize = (width && width > MAX_IMAGE_DIMENSION) || (height && height > MAX_IMAGE_DIMENSION);
-
-  if (needsResize) {
-    console.log("[AutoForm] Resizing large image:", {
-      originalWidth: width,
-      originalHeight: height,
-      maxDimension: MAX_IMAGE_DIMENSION,
-      orientation
-    });
-
-    // Auto-rotate based on EXIF orientation, then resize
-    // .rotate() without args uses EXIF orientation to correct rotation
-    const resized = await sharp(inputBuffer)
-      .rotate() // Auto-rotate based on EXIF orientation
-      .resize(MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION, {
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .jpeg({ quality: 85 })
-      .toBuffer();
-
-    const newMetadata = await sharp(resized).metadata();
-    console.log("[AutoForm] Resized image:", {
-      newWidth: newMetadata.width,
-      newHeight: newMetadata.height,
-      originalSize: inputBuffer.length,
-      newSize: resized.length
-    });
-
-    return { buffer: resized, mimeType: "image/jpeg" };
-  }
-
-  // Convert non-JPEG/PNG formats to JPEG for pdf-lib compatibility
-  // Also apply EXIF rotation for any image
-  if (metadata.format !== "jpeg" && metadata.format !== "png") {
-    console.log("[AutoForm] Converting image format:", { from: metadata.format, to: "jpeg" });
-    const converted = await sharp(inputBuffer)
-      .rotate() // Auto-rotate based on EXIF orientation
-      .jpeg({ quality: 85 })
-      .toBuffer();
-    return { buffer: converted, mimeType: "image/jpeg" };
-  }
-
-  // Even for JPEG/PNG, apply EXIF rotation if needed
-  if (orientation && orientation !== 1) {
-    console.log("[AutoForm] Applying EXIF rotation:", { orientation });
-    const rotated = await sharp(inputBuffer)
-      .rotate() // Auto-rotate based on EXIF orientation
-      .jpeg({ quality: 90 })
-      .toBuffer();
-    return { buffer: rotated, mimeType: "image/jpeg" };
-  }
-
-  return {
-    buffer: inputBuffer,
-    mimeType: metadata.format === "png" ? "image/png" : "image/jpeg"
-  };
+  return { buffer: result.buffer, mimeType: result.mimeType };
 }
 
 async function convertImageToPdf(imageBuffer: ArrayBuffer, originalMimeType: string): Promise<ArrayBuffer> {
   // Resize and normalize the image first
-  const { buffer: processedBuffer, mimeType } = await resizeImageIfNeeded(imageBuffer);
+  const { buffer: processedBuffer, mimeType } = await preprocessImageIfNeeded(
+    imageBuffer,
+    originalMimeType
+  );
 
   const pdfDoc = await PDFDocument.create();
 

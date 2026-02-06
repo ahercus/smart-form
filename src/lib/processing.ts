@@ -11,6 +11,14 @@ export interface ProcessingResult {
   error?: string;
 }
 
+// TEST MODE: Skip Azure and let Gemini do full detection
+// Set SKIP_AZURE=true to test pure Gemini field detection
+const SKIP_AZURE = process.env.SKIP_AZURE === "true";
+
+// NEW: Quadrant-based extraction (completely replaces Azure + cluster QC)
+// When enabled, Azure is skipped and fields are extracted via 4 parallel Gemini agents
+const USE_QUADRANT_EXTRACTION = process.env.USE_QUADRANT_EXTRACTION === "true";
+
 export async function processDocument(
   documentId: string,
   fileData: ArrayBuffer,
@@ -18,6 +26,37 @@ export async function processDocument(
 ): Promise<ProcessingResult> {
   try {
     await onStatusChange("analyzing");
+
+    // Quadrant extraction mode: Skip Azure entirely
+    // Fields will be extracted by quadrant agents when page images are available
+    if (USE_QUADRANT_EXTRACTION) {
+      console.log(`[AutoForm] QUADRANT MODE: Skipping Azure, fields will be extracted via quadrant agents:`, { documentId });
+
+      // Mark as extracting - not ready yet, waiting for page images
+      await onStatusChange("extracting");
+
+      // Return empty fields - quadrant extraction will populate these
+      return {
+        success: true,
+        pageCount: 1, // Will be updated by page images
+        fields: [],
+      };
+    }
+
+    if (SKIP_AZURE) {
+      console.log(`[AutoForm] TEST MODE: Skipping Azure, will rely on Gemini full-page detection:`, { documentId });
+
+      // Mark as ready so QC can run
+      await onStatusChange("ready");
+
+      // Return empty fields - Gemini QC will detect everything from scratch
+      return {
+        success: true,
+        pageCount: 1, // Will be updated by page images
+        fields: [],
+      };
+    }
+
     console.log(`[AutoForm] Starting Azure Document Intelligence analysis:`, { documentId });
 
     // Call Azure Document Intelligence to extract form fields

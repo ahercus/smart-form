@@ -17,6 +17,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Note**: Row-Level Security (RLS) will be applied at the end after thorough testing.
 
+### Gemini Models
+
+**Use only Gemini 3 models.** Do not use Gemini 2.x models anywhere in the codebase.
+
+| Model | Use Case |
+|-------|----------|
+| `gemini-3-flash-preview` | All vision tasks, question generation, answer parsing, memory extraction |
+| `gemini-3-pro-preview` | Reserved for complex reasoning (not currently used) |
+
+Thinking levels for Flash: `MINIMAL` (default, fastest) or `MEDIUM` (more reasoning).
+
 ## Development Principles
 
 **No placeholders or dummy code.** Never introduce mock data, placeholder implementations, or dummy content. If a feature requires an external API or service that isn't configured, the code should fail with a clear error message rather than silently returning fake data. Hidden placeholder debt is worse than a visible failure.

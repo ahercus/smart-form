@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getDocument, getPageImageBase64 } from "@/lib/storage";
+import { getDocument, getPageImageBase64, setDocumentFields, updateDocument } from "@/lib/storage";
 import { refineFields } from "@/lib/orchestrator/field-refinement";
+import { extractAllPagesWithQuadrants } from "@/lib/orchestrator/quadrant-extraction";
+
+// Feature flag for new quadrant-based extraction
+const USE_QUADRANT_EXTRACTION = process.env.USE_QUADRANT_EXTRACTION === "true";
 
 // POST /api/documents/[id]/refine-fields - Run Gemini QC on extracted fields
 export async function POST(
@@ -68,7 +72,65 @@ export async function POST(
       }, { status: 500 });
     }
 
-    console.log("[AutoForm] Starting field refinement:", {
+    // Branch based on extraction mode
+    if (USE_QUADRANT_EXTRACTION) {
+      // NEW: Quadrant-based extraction (replaces Azure + cluster QC)
+      // Processes ALL pages in parallel with progressive field reveal
+      console.log("[AutoForm] Starting QUADRANT extraction (feature flag enabled):", {
+        documentId,
+        pageCount: validPageImages.length,
+      });
+
+      let pagesCompleted = 0;
+
+      const extractionResult = await extractAllPagesWithQuadrants({
+        documentId,
+        pageImages: validPageImages,
+        // Progressive reveal: save fields as each page completes
+        onPageComplete: async (pageResult) => {
+          pagesCompleted++;
+          console.log("[AutoForm] Page extraction complete, saving fields:", {
+            documentId,
+            pageNumber: pageResult.pageNumber,
+            fieldsFound: pageResult.fields.length,
+            pagesCompleted,
+            totalPages: validPageImages.length,
+          });
+
+          // Save this page's fields to database immediately
+          if (pageResult.fields.length > 0) {
+            await setDocumentFields(documentId, pageResult.fields);
+          }
+        },
+      });
+
+      // Mark QC complete and document ready (all pages done)
+      await updateDocument(documentId, {
+        fields_qc_complete: true,
+        status: "ready",
+      });
+
+      console.log("[AutoForm] Quadrant extraction complete:", {
+        documentId,
+        totalFields: extractionResult.allFields.length,
+        totalDurationMs: extractionResult.totalDurationMs,
+      });
+
+      return NextResponse.json({
+        success: true,
+        mode: "quadrant_extraction",
+        fieldsExtracted: extractionResult.allFields.length,
+        pageResults: extractionResult.pageResults.map((p) => ({
+          pageNumber: p.pageNumber,
+          fieldsFound: p.fields.length,
+          durationMs: p.totalDurationMs,
+          context: p.context,
+        })),
+      });
+    }
+
+    // EXISTING: Cluster-based refinement (Azure fields + Gemini QC)
+    console.log("[AutoForm] Starting field refinement (cluster QC):", {
       documentId,
       pageCount: validPageImages.length,
     });
@@ -89,6 +151,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
+      mode: "cluster_qc",
       fieldsAdjusted: result.fieldsAdjusted,
       fieldsAdded: result.fieldsAdded,
       fieldsRemoved: result.fieldsRemoved,

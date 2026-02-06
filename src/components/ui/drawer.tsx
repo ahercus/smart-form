@@ -45,6 +45,23 @@ function DrawerOverlay({
   )
 }
 
+// Transparent overlay variant for mobile drawers that shouldn't darken background
+function DrawerOverlayTransparent({
+  className,
+  ...props
+}: React.ComponentProps<typeof DrawerPrimitive.Overlay>) {
+  return (
+    <DrawerPrimitive.Overlay
+      data-slot="drawer-overlay"
+      className={cn(
+        "fixed inset-0 z-50",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
 function DrawerContent({
   className,
   children,
@@ -66,6 +83,31 @@ function DrawerContent({
         {...props}
       >
         <div className="bg-muted mx-auto mt-4 hidden h-2 w-[100px] shrink-0 rounded-full group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
+        {children}
+      </DrawerPrimitive.Content>
+    </DrawerPortal>
+  )
+}
+
+// Drawer content variant without dark overlay - for mobile wizard panels
+function DrawerContentTransparent({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof DrawerPrimitive.Content>) {
+  return (
+    <DrawerPortal data-slot="drawer-portal">
+      <DrawerOverlayTransparent />
+      <DrawerPrimitive.Content
+        data-slot="drawer-content"
+        className={cn(
+          "group/drawer-content bg-background fixed z-50 flex h-auto flex-col shadow-lg",
+          "data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:bottom-0 data-[vaul-drawer-direction=bottom]:max-h-[50vh] data-[vaul-drawer-direction=bottom]:rounded-t-xl data-[vaul-drawer-direction=bottom]:border-t",
+          className
+        )}
+        {...props}
+      >
+        <div className="bg-muted mx-auto mt-3 h-1.5 w-[60px] shrink-0 rounded-full group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
         {children}
       </DrawerPrimitive.Content>
     </DrawerPortal>
@@ -128,6 +170,7 @@ export {
   DrawerTrigger,
   DrawerClose,
   DrawerContent,
+  DrawerContentTransparent,
   DrawerHeader,
   DrawerFooter,
   DrawerTitle,
