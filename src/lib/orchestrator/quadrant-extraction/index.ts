@@ -28,6 +28,7 @@ import {
   extractQuadrantFields,
   type RawExtractedField,
 } from "../../gemini/vision/quadrant-extract";
+import { processExtractedFields } from "./field-processors";
 import { quickContextScan, type ContextScanResult } from "../../gemini/vision/context-scan";
 import type { ExtractedField, NormalizedCoordinates, ChoiceOption } from "../../types";
 
@@ -89,6 +90,7 @@ function toExtractedField(
     manually_adjusted: false,
     deleted_at: null,
     choice_options: choiceOptions,
+    segments: raw.segments || null, // For linkedText fields
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -233,12 +235,15 @@ export async function extractFieldsWithQuadrants(
   });
 
   // Step 3: Merge all fields (simple concat - boundary rules prevent duplicates)
-  const allRawFields: RawExtractedField[] = [
+  const mergedRawFields: RawExtractedField[] = [
     ...q1Result.fields,
     ...q2Result.fields,
     ...q3Result.fields,
     ...q4Result.fields,
   ];
+
+  // Step 3.5: Process special field types (expand tables, handle linkedText)
+  const allRawFields = processExtractedFields(mergedRawFields);
 
   // Sort fields by vertical position (top to bottom), then by horizontal position
   allRawFields.sort((a, b) => {

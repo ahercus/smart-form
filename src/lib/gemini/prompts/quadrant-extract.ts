@@ -17,41 +17,55 @@ export function buildQuadrantExtractionPrompt(
 
   const range = quadrantRanges[quadrant];
 
-  // Boundary ownership rules (simplified)
-  const upperBoundaryRule =
-    quadrant === 1 ? "" : `If a field crosses your TOP boundary (${range.top}%), skip it.`;
-
-  const lowerBoundaryRule =
-    quadrant === 4 ? "" : `If a field crosses your BOTTOM boundary (${range.bottom}%), include it fully.`;
+  // Boundary rules - only relevant for middle quadrants
+  const boundaryRules =
+    quadrant === 1
+      ? `If a field crosses the BOTTOM of the purple box (${range.bottom}%), include it fully.`
+      : quadrant === 4
+        ? `If a field crosses the TOP of the purple box (${range.top}%), skip it.`
+        : `If a field crosses the TOP of the purple box (${range.top}%), skip it. If it crosses the BOTTOM (${range.bottom}%), include it fully.`;
 
   return `Extract fillable input fields within the PURPLE HIGHLIGHTED REGION (${range.top}%-${range.bottom}% vertically).
 
-COORDINATES ARE PERCENTAGES (0-100) - use the blue 5% grid to measure.
+GUIDING PRINCIPLE: Imagine someone filling this form digitally. Place input boxes where they'd intuitively expect to write. Use common sense.
+
+COORDINATES ARE PERCENTAGES (0-100) - use the ruler in the margins.
 
 RULES:
 1. EXCLUDE LABELS: Box = ONLY the empty input area, NOT the label text
-2. FULL WIDTH: Underlines that span the page should have width ≈ 85-90%
-3. MULTI-LINE TEXTAREAS: Multiple consecutive lines for one answer = ONE textarea field spanning all lines
-4. TABLE CELLS: Each empty cell is a separate text field
-5. CHECKBOXES: Small square only (width/height ≈ 2-3%)
+2. FULL WIDTH: Underlines spanning the page should have width ≈ 85-90%
+3. CHECKBOXES: Small square only (width/height ≈ 2-3%)
 
-UNDERLINE FIELDS:
-- If underline starts after a label: left = where underline starts
-- If underline spans full page (no label on that line): left ≈ 5-8%
+SPECIAL TOOLS:
 
-${upperBoundaryRule}
-${lowerBoundaryRule}
-
-Field types: text, textarea, date, checkbox, radio, signature, initials, circle_choice
-
-Return JSON:
+TABLE: For uniform grids with column headers, use this shorthand:
 {
-  "fields": [
-    { "label": "Name", "fieldType": "text", "coordinates": { "left": 20, "top": 30, "width": 35, "height": 2 } },
-    { "label": "Comments", "fieldType": "textarea", "coordinates": { "left": 5, "top": 40, "width": 90, "height": 10 } }
-  ],
-  "noFieldsInRegion": false
-}`;
+  "fieldType": "table",
+  "tableConfig": {
+    "columnHeaders": ["Col 1", "Col 2"],
+    "coordinates": { "left": 5, "top": 30, "width": 90, "height": 15 },
+    "dataRows": 4,
+    "columnPositions": [0, 50, 100]
+  }
+}
+- columnPositions: optional, defaults to uniform. Array of % within table (0=left edge, 100=right edge)
+- dataRows: number of fillable rows (exclude header row)
+
+LINKED TEXT: For multi-line text that flows between lines (like "Details: ___" with continuation lines):
+{
+  "fieldType": "linkedText",
+  "label": "Details",
+  "segments": [
+    { "left": 15, "top": 30, "width": 80, "height": 2 },
+    { "left": 5, "top": 33, "width": 90, "height": 2 }
+  ]
+}
+
+${boundaryRules}
+
+Field types: text, date, checkbox, radio, signature, initials, circle_choice, table, linkedText
+
+Return JSON with fields array and noFieldsInRegion boolean.`;
 }
 
 /**
@@ -77,6 +91,8 @@ export const quadrantExtractionSchema = {
               "signature",
               "initials",
               "circle_choice",
+              "table",
+              "linkedText",
             ],
             description: "Field type",
           },
@@ -109,8 +125,58 @@ export const quadrantExtractionSchema = {
             },
             description: "Choice options for circle_choice fields",
           },
+          tableConfig: {
+            type: "object",
+            properties: {
+              columnHeaders: {
+                type: "array",
+                items: { type: "string" },
+                description: "Header labels for each column",
+              },
+              coordinates: {
+                type: "object",
+                properties: {
+                  left: { type: "number" },
+                  top: { type: "number" },
+                  width: { type: "number" },
+                  height: { type: "number" },
+                },
+                required: ["left", "top", "width", "height"],
+              },
+              dataRows: {
+                type: "number",
+                description: "Number of fillable data rows (excluding header)",
+              },
+              columnPositions: {
+                type: "array",
+                items: { type: "number" },
+                description: "Optional column boundary positions as % within table (0=left, 100=right). Defaults to uniform.",
+              },
+              rowHeights: {
+                type: "array",
+                items: { type: "number" },
+                description: "Optional row heights as % within table. Defaults to uniform.",
+              },
+            },
+            required: ["columnHeaders", "coordinates", "dataRows"],
+            description: "Configuration for table fields",
+          },
+          segments: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                left: { type: "number" },
+                top: { type: "number" },
+                width: { type: "number" },
+                height: { type: "number" },
+              },
+              required: ["left", "top", "width", "height"],
+            },
+            description: "Segments for linkedText fields - multiple rectangles that form a single flowing text input",
+          },
         },
-        required: ["label", "fieldType", "coordinates"],
+        required: ["label", "fieldType"],
       },
     },
     noFieldsInRegion: {

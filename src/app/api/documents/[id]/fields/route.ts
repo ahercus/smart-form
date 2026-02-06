@@ -151,6 +151,7 @@ export async function POST(
         confidence_score: null,
         manually_adjusted: true,
         choice_options: null,
+        segments: null,
       });
 
       console.log("[AutoForm] Field created:", {
@@ -202,6 +203,7 @@ export async function POST(
       confidence_score: null,
       manually_adjusted: true,
       choice_options: sourceField.choice_options,
+      segments: sourceField.segments, // Copy segments for linkedText fields
     });
 
     console.log("[AutoForm] Field copied:", {

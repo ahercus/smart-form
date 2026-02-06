@@ -223,6 +223,7 @@ export interface ExtractedField {
   manually_adjusted: boolean;
   deleted_at: string | null;
   choice_options: ChoiceOption[] | null; // For circle_choice fields
+  segments: NormalizedCoordinates[] | null; // For linkedText fields - multiple segments that form a single flowing text input
   created_at: string;
   updated_at: string;
 }

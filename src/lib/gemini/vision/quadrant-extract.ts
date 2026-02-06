@@ -11,6 +11,10 @@ import { generateWithVisionFast } from "../client";
 /**
  * Flat response schema to force correct output structure
  * Uses lowercase type strings for JSON Schema compatibility
+ *
+ * Includes table and linkedText as special field types:
+ * - table: compact definition that expands to N×M text fields
+ * - linkedText: multi-segment text area stored as single field
  */
 const fieldExtractionSchema = {
   type: "object",
@@ -23,7 +27,18 @@ const fieldExtractionSchema = {
           label: { type: "string" },
           fieldType: {
             type: "string",
-            enum: ["text", "textarea", "date", "checkbox", "radio", "signature", "initials", "circle_choice"]
+            enum: [
+              "text",
+              "textarea",
+              "date",
+              "checkbox",
+              "radio",
+              "signature",
+              "initials",
+              "circle_choice",
+              "table",
+              "linkedText",
+            ],
           },
           coordinates: {
             type: "object",
@@ -33,19 +48,74 @@ const fieldExtractionSchema = {
               width: { type: "number", description: "Percentage 0-100" },
               height: { type: "number", description: "Percentage 0-100" },
             },
-            required: ["left", "top", "width", "height"]
+            required: ["left", "top", "width", "height"],
+          },
+          // For table fields
+          tableConfig: {
+            type: "object",
+            properties: {
+              columnHeaders: {
+                type: "array",
+                items: { type: "string" },
+              },
+              coordinates: {
+                type: "object",
+                properties: {
+                  left: { type: "number" },
+                  top: { type: "number" },
+                  width: { type: "number" },
+                  height: { type: "number" },
+                },
+                required: ["left", "top", "width", "height"],
+              },
+              dataRows: { type: "number" },
+              columnPositions: {
+                type: "array",
+                items: { type: "number" },
+              },
+              rowHeights: {
+                type: "array",
+                items: { type: "number" },
+              },
+            },
+            required: ["columnHeaders", "coordinates", "dataRows"],
+          },
+          // For linkedText fields
+          segments: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                left: { type: "number" },
+                top: { type: "number" },
+                width: { type: "number" },
+                height: { type: "number" },
+              },
+              required: ["left", "top", "width", "height"],
+            },
           },
         },
-        required: ["label", "fieldType", "coordinates"]
-      }
+        required: ["label", "fieldType"],
+      },
     },
-    noFieldsInRegion: { type: "boolean" }
+    noFieldsInRegion: { type: "boolean" },
   },
-  required: ["fields", "noFieldsInRegion"]
+  required: ["fields", "noFieldsInRegion"],
 };
 import { buildQuadrantExtractionPrompt } from "../prompts/quadrant-extract";
 import type { QuadrantNumber } from "../../image-compositor";
 import type { NormalizedCoordinates } from "../../types";
+
+/**
+ * Table configuration for compact table definitions
+ */
+export interface TableConfig {
+  columnHeaders: string[];
+  coordinates: NormalizedCoordinates;
+  dataRows: number;
+  columnPositions?: number[]; // Optional - defaults to uniform
+  rowHeights?: number[]; // Optional - defaults to uniform
+}
 
 /**
  * Raw field extracted from a quadrant (before ID generation)
@@ -58,6 +128,10 @@ export interface RawExtractedField {
     label: string;
     coordinates?: NormalizedCoordinates;
   }>;
+  // For table fields - compact definition that expands to N×M text fields
+  tableConfig?: TableConfig;
+  // For linkedText fields - multiple segments that form a single flowing text input
+  segments?: NormalizedCoordinates[];
 }
 
 /**
@@ -169,7 +243,8 @@ function parseQuadrantExtractionResponse(
         continue;
       }
 
-      validFields.push({
+      // Build the raw field with all properties
+      const rawField: RawExtractedField = {
         label: field.label || "Unknown",
         fieldType: field.fieldType || "text",
         coordinates: {
@@ -179,7 +254,27 @@ function parseQuadrantExtractionResponse(
           height: coords.height || 4,
         },
         choiceOptions: field.choiceOptions,
-      });
+      };
+
+      // For table fields, include the tableConfig
+      if (field.fieldType === "table" && field.tableConfig) {
+        rawField.tableConfig = {
+          columnHeaders: field.tableConfig.columnHeaders || [],
+          coordinates: normalizeCoordinates(field.tableConfig.coordinates || coords),
+          dataRows: field.tableConfig.dataRows || 1,
+          columnPositions: field.tableConfig.columnPositions,
+          rowHeights: field.tableConfig.rowHeights,
+        };
+      }
+
+      // For linkedText fields, include the segments
+      if (field.fieldType === "linkedText" && field.segments) {
+        rawField.segments = field.segments.map((seg: NormalizedCoordinates) =>
+          normalizeCoordinates(seg)
+        );
+      }
+
+      validFields.push(rawField);
     }
 
     return {

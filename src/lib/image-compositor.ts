@@ -258,9 +258,9 @@ export function getQuadrantBounds(quadrant: QuadrantNumber): QuadrantBounds {
 }
 
 /**
- * Creates an SVG overlay with dense grid and highlighted quadrant region
- * Used for quadrant-based field extraction where Gemini sees the full page
- * but focuses on the highlighted purple region
+ * Creates an SVG overlay with ruler-style margins and highlighted quadrant region
+ * Rulers have notches and percentage labels on all 4 sides
+ * No grid lines crossing the page - just clean margin rulers
  */
 function createQuadrantOverlaySvg(
   width: number,
@@ -271,76 +271,90 @@ function createQuadrantOverlaySvg(
   overlayOpacity: number
 ): string {
   const bounds = getQuadrantBounds(quadrant);
+  const rulerWidth = 28; // Width of ruler margin in pixels
+  const notchSpacing = 2; // Notch every 2%
+  const labelSpacing = 10; // Label every 10%
 
   let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
 
-  // Draw the purple quadrant highlight FIRST (so grid appears on top)
+  // Draw the purple quadrant highlight
   const qx = (bounds.left / 100) * width;
   const qy = (bounds.top / 100) * height;
   const qw = ((bounds.right - bounds.left) / 100) * width;
   const qh = ((bounds.bottom - bounds.top) / 100) * height;
   svg += `<rect x="${qx}" y="${qy}" width="${qw}" height="${qh}" fill="${overlayColor}" opacity="${overlayOpacity}" />`;
-
-  // Draw quadrant boundary with a more visible stroke
   svg += `<rect x="${qx}" y="${qy}" width="${qw}" height="${qh}" fill="none" stroke="${overlayColor}" stroke-width="3" opacity="0.8" />`;
 
-  // Draw dense grid lines across ENTIRE page (not just quadrant)
-  // Grid color: blue for visibility against purple overlay and page content
-  const gridColor = "#3b82f6";
+  // Ruler color
+  const rulerColor = "#1e40af"; // Dark blue
 
-  // Minor grid lines (every gridSpacing %)
-  svg += `<g stroke="${gridColor}" stroke-width="0.5" opacity="0.5">`;
-  for (let x = 0; x <= 100; x += gridSpacing) {
-    if (x % 25 !== 0) { // Skip major lines
-      const px = (x / 100) * width;
-      svg += `<line x1="${px}" y1="0" x2="${px}" y2="${height}" />`;
+  // === LEFT RULER (Y axis - vertical %) ===
+  svg += `<rect x="0" y="0" width="${rulerWidth}" height="${height}" fill="white" opacity="0.95"/>`;
+  svg += `<line x1="${rulerWidth}" y1="0" x2="${rulerWidth}" y2="${height}" stroke="${rulerColor}" stroke-width="1"/>`;
+
+  for (let y = 0; y <= 100; y += notchSpacing) {
+    const py = (y / 100) * height;
+    const isMajor = y % 10 === 0;
+    const notchLength = isMajor ? 10 : 5;
+    svg += `<line x1="${rulerWidth - notchLength}" y1="${py}" x2="${rulerWidth}" y2="${py}" stroke="${rulerColor}" stroke-width="${isMajor ? 1.5 : 0.5}"/>`;
+
+    if (y % labelSpacing === 0) {
+      const fontSize = y % 25 === 0 ? 11 : 9;
+      const fontWeight = y % 25 === 0 ? "bold" : "normal";
+      svg += `<text x="2" y="${py + 4}" font-size="${fontSize}" font-weight="${fontWeight}" font-family="Arial" fill="${rulerColor}">${y}</text>`;
     }
   }
-  for (let y = 0; y <= 100; y += gridSpacing) {
-    if (y % 25 !== 0) { // Skip major lines
-      const py = (y / 100) * height;
-      svg += `<line x1="0" y1="${py}" x2="${width}" y2="${py}" />`;
+
+  // === RIGHT RULER (Y axis - vertical %) ===
+  svg += `<rect x="${width - rulerWidth}" y="0" width="${rulerWidth}" height="${height}" fill="white" opacity="0.95"/>`;
+  svg += `<line x1="${width - rulerWidth}" y1="0" x2="${width - rulerWidth}" y2="${height}" stroke="${rulerColor}" stroke-width="1"/>`;
+
+  for (let y = 0; y <= 100; y += notchSpacing) {
+    const py = (y / 100) * height;
+    const isMajor = y % 10 === 0;
+    const notchLength = isMajor ? 10 : 5;
+    svg += `<line x1="${width - rulerWidth}" y1="${py}" x2="${width - rulerWidth + notchLength}" y2="${py}" stroke="${rulerColor}" stroke-width="${isMajor ? 1.5 : 0.5}"/>`;
+
+    if (y % labelSpacing === 0) {
+      const fontSize = y % 25 === 0 ? 11 : 9;
+      const fontWeight = y % 25 === 0 ? "bold" : "normal";
+      svg += `<text x="${width - rulerWidth + 12}" y="${py + 4}" font-size="${fontSize}" font-weight="${fontWeight}" font-family="Arial" fill="${rulerColor}">${y}</text>`;
     }
   }
-  svg += `</g>`;
 
-  // Major grid lines (every 25%) - these mark quadrant boundaries
-  svg += `<g stroke="${gridColor}" stroke-width="1.5" opacity="0.7">`;
-  for (let x = 0; x <= 100; x += 25) {
+  // === TOP RULER (X axis - horizontal %) ===
+  svg += `<rect x="0" y="0" width="${width}" height="${rulerWidth}" fill="white" opacity="0.95"/>`;
+  svg += `<line x1="0" y1="${rulerWidth}" x2="${width}" y2="${rulerWidth}" stroke="${rulerColor}" stroke-width="1"/>`;
+
+  for (let x = 0; x <= 100; x += notchSpacing) {
     const px = (x / 100) * width;
-    svg += `<line x1="${px}" y1="0" x2="${px}" y2="${height}" />`;
-  }
-  for (let y = 0; y <= 100; y += 25) {
-    const py = (y / 100) * height;
-    svg += `<line x1="0" y1="${py}" x2="${width}" y2="${py}" />`;
-  }
-  svg += `</g>`;
+    const isMajor = x % 10 === 0;
+    const notchLength = isMajor ? 10 : 5;
+    svg += `<line x1="${px}" y1="${rulerWidth - notchLength}" x2="${px}" y2="${rulerWidth}" stroke="${rulerColor}" stroke-width="${isMajor ? 1.5 : 0.5}"/>`;
 
-  // Percentage labels on edges - every gridSpacing% for precision
-  svg += `<g font-family="Arial, sans-serif" fill="#000000">`;
-
-  // Left edge ruler (Y axis) - every gridSpacing%
-  for (let y = 0; y <= 100; y += gridSpacing) {
-    const py = (y / 100) * height;
-    const isMajor = y % 25 === 0;
-    const fontSize = isMajor ? 16 : 12;
-    const fontWeight = isMajor ? "bold" : "normal";
-    // White background for readability
-    svg += `<rect x="0" y="${py - 2}" width="30" height="18" fill="white" opacity="0.9"/>`;
-    svg += `<text x="2" y="${py + 12}" font-size="${fontSize}" font-weight="${fontWeight}">${y}</text>`;
+    if (x % labelSpacing === 0 && x > 0) {
+      const fontSize = x % 25 === 0 ? 11 : 9;
+      const fontWeight = x % 25 === 0 ? "bold" : "normal";
+      svg += `<text x="${px - 6}" y="12" font-size="${fontSize}" font-weight="${fontWeight}" font-family="Arial" fill="${rulerColor}">${x}</text>`;
+    }
   }
 
-  // Top edge ruler (X axis) - every 10% to keep it readable
-  for (let x = 10; x <= 100; x += 10) {
+  // === BOTTOM RULER (X axis - horizontal %) ===
+  svg += `<rect x="0" y="${height - rulerWidth}" width="${width}" height="${rulerWidth}" fill="white" opacity="0.95"/>`;
+  svg += `<line x1="0" y1="${height - rulerWidth}" x2="${width}" y2="${height - rulerWidth}" stroke="${rulerColor}" stroke-width="1"/>`;
+
+  for (let x = 0; x <= 100; x += notchSpacing) {
     const px = (x / 100) * width;
-    const isMajor = x % 25 === 0;
-    const fontSize = isMajor ? 16 : 12;
-    const fontWeight = isMajor ? "bold" : "normal";
-    // White background for readability
-    svg += `<rect x="${px - 16}" y="0" width="32" height="18" fill="white" opacity="0.9"/>`;
-    svg += `<text x="${px - 14}" y="14" font-size="${fontSize}" font-weight="${fontWeight}">${x}</text>`;
+    const isMajor = x % 10 === 0;
+    const notchLength = isMajor ? 10 : 5;
+    svg += `<line x1="${px}" y1="${height - rulerWidth}" x2="${px}" y2="${height - rulerWidth + notchLength}" stroke="${rulerColor}" stroke-width="${isMajor ? 1.5 : 0.5}"/>`;
+
+    if (x % labelSpacing === 0 && x > 0) {
+      const fontSize = x % 25 === 0 ? 11 : 9;
+      const fontWeight = x % 25 === 0 ? "bold" : "normal";
+      svg += `<text x="${px - 6}" y="${height - 6}" font-size="${fontSize}" font-weight="${fontWeight}" font-family="Arial" fill="${rulerColor}">${x}</text>`;
+    }
   }
-  svg += `</g>`;
 
   svg += `</svg>`;
   return svg;
