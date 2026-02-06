@@ -192,6 +192,7 @@ export function QuestionsPanel({
         ) : (
           /* Shimmer skeleton cards while loading */
           <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Loading questions...</p>
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div
                 key={i}
