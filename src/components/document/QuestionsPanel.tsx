@@ -99,16 +99,18 @@ export function QuestionsPanel({
     <div className="flex flex-col h-full bg-card overflow-hidden">
       {/* Header */}
       <div className="px-4 py-2 border-b flex-shrink-0">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="font-semibold">Assistant</h2>
-        </div>
-        <div className="flex items-center justify-between text-sm mb-1.5">
-          <span className="text-muted-foreground">
-            {answeredQuestions.length} of {totalQuestions} answered
-          </span>
-          <span className="font-medium">{Math.round(progressPercentage)}%</span>
-        </div>
-        <Progress value={progressPercentage} className="h-1.5" />
+        <h2 className="font-semibold">Assistant</h2>
+        {totalQuestions > 0 && (
+          <>
+            <div className="flex items-center justify-between text-sm mb-1.5 mt-2">
+              <span className="text-muted-foreground">
+                {answeredQuestions.length} of {totalQuestions} answered
+              </span>
+              <span className="font-medium">{Math.round(progressPercentage)}%</span>
+            </div>
+            <Progress value={progressPercentage} className="h-1.5" />
+          </>
+        )}
       </div>
 
       {/* Content - Scrollable (independent from PDF) */}
