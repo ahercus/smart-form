@@ -211,10 +211,13 @@ Rules:
 
 Return ONLY the exact category name, nothing else. Example: "Family"`;
 
+    const startTime = Date.now();
     const response = await client.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-3-flash-preview",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
     });
+    const duration = Date.now() - startTime;
+    console.log(`[AutoForm] Gemini Flash (memory categorize) API call completed in ${duration}ms`);
 
     const categoryName = response.text?.trim();
 
@@ -286,10 +289,13 @@ Return ONLY the cleaned text, nothing else.`
 
 Return ONLY the cleaned text, nothing else.`;
 
+    const startTime = Date.now();
     const response = await client.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-3-flash-preview",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
     });
+    const duration = Date.now() - startTime;
+    console.log(`[AutoForm] Gemini Flash (memory prepare) API call completed in ${duration}ms`);
 
     const cleanedContent = response.text?.trim();
 

@@ -15,7 +15,7 @@
 import { reevaluatePendingQuestions, generateQuestionsForPage } from "../gemini/vision";
 import { saveQuestion, updateQuestion, batchUpdateFieldValues, getConversationHistory } from "./state";
 import { createAdminClient } from "../supabase/admin";
-import { getMemoryContext } from "../memory";
+import { getEntityMemoryContext } from "../memory/context";
 import type { ExtractedField, QuestionGroup } from "../types";
 
 interface FinalizeParams {
@@ -156,7 +156,7 @@ export async function finalizeQuestions(
 
       // Get conversation history and memory context
       const conversationHistory = await getConversationHistory(documentId);
-      const memoryContext = useMemory ? await getMemoryContext(userId) : "";
+      const memoryContext = useMemory ? await getEntityMemoryContext(userId) : "";
 
       // Generate questions for each page
       for (const [pageNumber, pageFields] of fieldsByPage.entries()) {

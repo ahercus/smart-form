@@ -10,6 +10,16 @@ import { parseAnswerForFields, reevaluatePendingQuestions } from "@/lib/gemini/v
 import { getDocumentFields } from "@/lib/storage";
 import type { ExtractedField, QuestionGroup } from "@/lib/types";
 
+// Base URL for internal API calls
+const getBaseUrl = () => {
+  // In production, use the deployment URL
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  // In development, use localhost
+  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+};
+
 // GET /api/documents/[id]/questions - Get all questions for a document
 export async function GET(
   request: NextRequest,
@@ -135,6 +145,7 @@ export async function PATCH(
         fieldsUpdated: fieldUpdates.length,
       });
 
+      // Memory choice selections don't need extraction - they came FROM memory
       return NextResponse.json({ success: true });
     }
 
@@ -265,6 +276,14 @@ export async function PATCH(
           questions,
           allFields
         );
+
+        // Trigger memory extraction in background (if enabled)
+        triggerMemoryExtraction(
+          documentId,
+          question.question,
+          answer,
+          document.use_memory ?? true
+        );
       }
     } else {
       // No linked fields - just mark as answered
@@ -286,6 +305,14 @@ export async function PATCH(
         { question: question.question, answer },
         questions,
         allFields
+      );
+
+      // Trigger memory extraction in background (if enabled)
+      triggerMemoryExtraction(
+        documentId,
+        question.question,
+        answer,
+        document.use_memory ?? true
       );
     }
 
@@ -390,4 +417,50 @@ function triggerCrossQuestionAutoFill(
       });
     }
   })();
+}
+
+/**
+ * Fire-and-forget: Extract entities from a new answer for memory storage
+ * Only runs if use_memory is enabled for the document
+ */
+function triggerMemoryExtraction(
+  documentId: string,
+  question: string,
+  answer: string,
+  useMemory: boolean
+) {
+  // Skip if memory is disabled for this document
+  if (!useMemory) {
+    console.log("[AutoForm] Memory extraction skipped - use_memory is false");
+    return;
+  }
+
+  // Skip short/boolean answers
+  const lowerAnswer = answer.toLowerCase().trim();
+  if (
+    answer.trim().length < 3 ||
+    ["yes", "no", "true", "false", "n/a", "na", "none"].includes(lowerAnswer)
+  ) {
+    console.log("[AutoForm] Memory extraction skipped - non-informative answer");
+    return;
+  }
+
+  console.log("[AutoForm] Triggering background memory extraction:", {
+    documentId,
+    questionPreview: question.slice(0, 50),
+    answerPreview: answer.slice(0, 50),
+  });
+
+  // Fire-and-forget API call to extract endpoint
+  fetch(`${getBaseUrl()}/api/memories/extract`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question,
+      answer,
+      documentId,
+    }),
+  }).catch((error) => {
+    console.error("[AutoForm] Memory extraction request failed:", error);
+  });
 }

@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -24,151 +25,198 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout";
-import { useMemories, type MemoryBundle, type Memory } from "@/hooks/useMemories";
-import { ChevronDown, Plus, Pencil, Trash2, Brain } from "lucide-react";
+import { useEntities, type Entity, type EntityFact } from "@/hooks/useEntities";
+import { ChevronDown, Pencil, Trash2, Brain, User, MapPin, Building2, Plus, AlertTriangle } from "lucide-react";
 
-function getMemoryPlaceholder(categoryName?: string): string {
-  switch (categoryName?.toLowerCase()) {
-    case "family":
-      return "E.g., My son Jack, born March 15, 2017, male";
-    case "work":
-    case "employment":
-      return "E.g., Software engineer at Acme Corp since 2020";
-    case "medical":
-      return "E.g., Allergic to penicillin, takes daily multivitamin";
-    case "education":
-      return "E.g., Jack attends Lincoln Elementary, 3rd grade";
-    case "address":
-      return "E.g., Work address: 123 Business Ave, Suite 400";
-    case "personal":
-      return "E.g., Prefer to be contacted by email";
+// Entity type icons
+function getEntityIcon(type: string) {
+  switch (type) {
+    case "person":
+      return <User className="h-4 w-4" />;
+    case "place":
+      return <MapPin className="h-4 w-4" />;
+    case "organization":
+      return <Building2 className="h-4 w-4" />;
     default:
-      return "E.g., Information to remember for auto-fill...";
+      return <Brain className="h-4 w-4" />;
   }
 }
 
-export default function MemoryPage() {
-  const { bundles, loading, addMemory, updateMemory, deleteMemory, totalMemories } = useMemories();
+// Format fact type for display
+function formatFactType(factType: string): string {
+  return factType
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
-  // Memory dialog state
-  const [memoryDialogOpen, setMemoryDialogOpen] = useState(false);
-  const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
-  const [memoryContent, setMemoryContent] = useState("");
-  const [memoryBundleId, setMemoryBundleId] = useState("");
-  const [memorySubmitting, setMemorySubmitting] = useState(false);
+// Format entity type for display
+function formatEntityType(entityType: string): string {
+  return entityType.charAt(0).toUpperCase() + entityType.slice(1) + "s";
+}
+
+export default function MemoryPage() {
+  const {
+    entitiesByType,
+    loading,
+    totalEntities,
+    totalFacts,
+    deleteEntity,
+    updateFact,
+    deleteFact,
+    addFact,
+  } = useEntities();
+
+  // Edit fact dialog state
+  const [editFactDialogOpen, setEditFactDialogOpen] = useState(false);
+  const [editingFact, setEditingFact] = useState<EntityFact | null>(null);
+  const [editingEntity, setEditingEntity] = useState<Entity | null>(null);
+  const [factValue, setFactValue] = useState("");
+  const [factSubmitting, setFactSubmitting] = useState(false);
+
+  // Add fact dialog state
+  const [addFactDialogOpen, setAddFactDialogOpen] = useState(false);
+  const [addFactEntityId, setAddFactEntityId] = useState("");
+  const [newFactType, setNewFactType] = useState("");
+  const [newFactValue, setNewFactValue] = useState("");
 
   // Delete confirmation state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [memoryToDelete, setMemoryToDelete] = useState<Memory | null>(null);
+  const [entityToDelete, setEntityToDelete] = useState<Entity | null>(null);
+  const [factToDelete, setFactToDelete] = useState<EntityFact | null>(null);
 
-  function openAddMemoryDialog(bundleId?: string) {
-    setEditingMemory(null);
-    setMemoryContent("");
-    setMemoryBundleId(bundleId || bundles[0]?.id || "");
-    setMemoryDialogOpen(true);
+  function openEditFactDialog(entity: Entity, fact: EntityFact) {
+    setEditingEntity(entity);
+    setEditingFact(fact);
+    setFactValue(fact.fact_value);
+    setEditFactDialogOpen(true);
   }
 
-  function openEditMemoryDialog(memory: Memory) {
-    setEditingMemory(memory);
-    setMemoryContent(memory.content);
-    setMemoryBundleId(memory.bundle_id);
-    setMemoryDialogOpen(true);
+  function openAddFactDialog(entityId: string) {
+    setAddFactEntityId(entityId);
+    setNewFactType("");
+    setNewFactValue("");
+    setAddFactDialogOpen(true);
   }
 
-  async function handleMemorySubmit() {
-    if (!memoryContent.trim() || !memoryBundleId) return;
+  async function handleUpdateFact() {
+    if (!editingFact || !factValue.trim()) return;
 
-    setMemorySubmitting(true);
+    setFactSubmitting(true);
     try {
-      if (editingMemory) {
-        await updateMemory(editingMemory.id, {
-          content: memoryContent.trim(),
-          bundleId: memoryBundleId !== editingMemory.bundle_id ? memoryBundleId : undefined,
-        });
-        toast.success("Memory updated");
-      } else {
-        await addMemory(memoryBundleId, memoryContent.trim());
-        toast.success("Memory added");
-      }
-      setMemoryDialogOpen(false);
+      await updateFact(editingFact.id, { fact_value: factValue.trim() });
+      toast.success("Fact updated");
+      setEditFactDialogOpen(false);
     } catch {
-      toast.error(editingMemory ? "Failed to update memory" : "Failed to add memory");
+      toast.error("Failed to update fact");
     } finally {
-      setMemorySubmitting(false);
+      setFactSubmitting(false);
     }
   }
 
-  function confirmDeleteMemory(memory: Memory) {
-    setMemoryToDelete(memory);
+  async function handleAddFact() {
+    if (!addFactEntityId || !newFactType.trim() || !newFactValue.trim()) return;
+
+    setFactSubmitting(true);
+    try {
+      // Convert fact type to snake_case
+      const factType = newFactType.trim().toLowerCase().replace(/\s+/g, "_");
+      await addFact(addFactEntityId, factType, newFactValue.trim());
+      toast.success("Fact added");
+      setAddFactDialogOpen(false);
+    } catch {
+      toast.error("Failed to add fact");
+    } finally {
+      setFactSubmitting(false);
+    }
+  }
+
+  function confirmDeleteEntity(entity: Entity) {
+    setEntityToDelete(entity);
+    setFactToDelete(null);
     setDeleteConfirmOpen(true);
   }
 
-  async function handleDeleteMemory() {
-    if (!memoryToDelete) return;
+  function confirmDeleteFact(fact: EntityFact) {
+    setFactToDelete(fact);
+    setEntityToDelete(null);
+    setDeleteConfirmOpen(true);
+  }
 
+  async function handleDelete() {
     try {
-      await deleteMemory(memoryToDelete.id);
-      toast.success("Memory deleted");
+      if (entityToDelete) {
+        await deleteEntity(entityToDelete.id);
+        toast.success("Entity deleted");
+      } else if (factToDelete) {
+        await deleteFact(factToDelete.id);
+        toast.success("Fact deleted");
+      }
       setDeleteConfirmOpen(false);
-      setMemoryToDelete(null);
+      setEntityToDelete(null);
+      setFactToDelete(null);
     } catch {
-      toast.error("Failed to delete memory");
+      toast.error("Failed to delete");
     }
   }
+
+  const entityTypes = Object.keys(entitiesByType).sort((a, b) => {
+    // Sort people first, then places, then others
+    const order: Record<string, number> = { person: 0, place: 1, organization: 2 };
+    return (order[a] ?? 99) - (order[b] ?? 99);
+  });
 
   return (
     <>
       <AppHeader>
         <div className="flex flex-1 items-center justify-between">
           <h1 className="text-lg font-semibold">Memory</h1>
-          <Button onClick={() => openAddMemoryDialog()} disabled={loading}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Memory
-          </Button>
         </div>
       </AppHeader>
 
       <div className="flex-1 overflow-auto p-4">
         <div className="max-w-2xl space-y-6">
           <p className="text-muted-foreground">
-            Save information for auto-fill across all your documents
+            Information learned from your form completions, organized by entities
           </p>
 
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Brain className="h-5 w-5 text-muted-foreground" />
-                <CardTitle>Saved Memories</CardTitle>
+                <CardTitle>Known Entities</CardTitle>
               </div>
               <CardDescription>
-                {totalMemories} {totalMemories === 1 ? "item" : "items"} saved for auto-fill
+                {totalEntities} {totalEntities === 1 ? "entity" : "entities"} with {totalFacts} {totalFacts === 1 ? "fact" : "facts"}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-4">
               {loading ? (
                 <div className="space-y-2">
                   <Skeleton className="h-12 w-full" />
                   <Skeleton className="h-12 w-full" />
                   <Skeleton className="h-12 w-full" />
                 </div>
+              ) : entityTypes.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Brain className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="font-medium">No entities yet</p>
+                  <p className="text-sm mt-1">
+                    Entities will be learned automatically as you fill out forms
+                  </p>
+                </div>
               ) : (
-                bundles.map((bundle) => (
-                  <MemoryBundleSection
-                    key={bundle.id}
-                    bundle={bundle}
-                    onAdd={() => openAddMemoryDialog(bundle.id)}
-                    onEdit={openEditMemoryDialog}
-                    onDelete={confirmDeleteMemory}
+                entityTypes.map((type) => (
+                  <EntityTypeSection
+                    key={type}
+                    type={type}
+                    entities={entitiesByType[type]}
+                    onEditFact={openEditFactDialog}
+                    onDeleteFact={confirmDeleteFact}
+                    onDeleteEntity={confirmDeleteEntity}
+                    onAddFact={openAddFactDialog}
                   />
                 ))
               )}
@@ -177,53 +225,79 @@ export default function MemoryPage() {
         </div>
       </div>
 
-      {/* Add/Edit Memory Dialog */}
-      <Dialog open={memoryDialogOpen} onOpenChange={setMemoryDialogOpen}>
+      {/* Edit Fact Dialog */}
+      <Dialog open={editFactDialogOpen} onOpenChange={setEditFactDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingMemory ? "Edit Memory" : "Add Memory"}</DialogTitle>
+            <DialogTitle>Edit Fact</DialogTitle>
             <DialogDescription>
-              {editingMemory
-                ? "Update this memory snippet"
-                : "Add information that will help auto-fill forms"}
+              Update the value for {editingFact && formatFactType(editingFact.fact_type)}
+              {editingEntity && ` (${editingEntity.canonical_name})`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="bundle">Category</Label>
-              <Select value={memoryBundleId} onValueChange={setMemoryBundleId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {bundles.map((bundle) => (
-                    <SelectItem key={bundle.id} value={bundle.id}>
-                      {bundle.icon} {bundle.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="content">Memory</Label>
-              <Textarea
-                id="content"
-                placeholder={getMemoryPlaceholder(bundles.find(b => b.id === memoryBundleId)?.name)}
-                value={memoryContent}
-                onChange={(e) => setMemoryContent(e.target.value)}
-                rows={3}
+              <Label htmlFor="factValue">Value</Label>
+              <Input
+                id="factValue"
+                value={factValue}
+                onChange={(e) => setFactValue(e.target.value)}
+                placeholder="Enter value..."
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMemoryDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setEditFactDialogOpen(false)}>
               Cancel
             </Button>
             <Button
-              onClick={handleMemorySubmit}
-              disabled={!memoryContent.trim() || !memoryBundleId || memorySubmitting}
+              onClick={handleUpdateFact}
+              disabled={!factValue.trim() || factSubmitting}
             >
-              {memorySubmitting ? "Saving..." : editingMemory ? "Update" : "Add"}
+              {factSubmitting ? "Saving..." : "Update"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Fact Dialog */}
+      <Dialog open={addFactDialogOpen} onOpenChange={setAddFactDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Fact</DialogTitle>
+            <DialogDescription>
+              Add a new fact to this entity
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="factType">Fact Type</Label>
+              <Input
+                id="factType"
+                value={newFactType}
+                onChange={(e) => setNewFactType(e.target.value)}
+                placeholder="e.g., Phone, Email, Birthdate..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newFactValue">Value</Label>
+              <Input
+                id="newFactValue"
+                value={newFactValue}
+                onChange={(e) => setNewFactValue(e.target.value)}
+                placeholder="Enter value..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddFactDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddFact}
+              disabled={!newFactType.trim() || !newFactValue.trim() || factSubmitting}
+            >
+              {factSubmitting ? "Adding..." : "Add Fact"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -233,23 +307,38 @@ export default function MemoryPage() {
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Memory</DialogTitle>
+            <DialogTitle>
+              {entityToDelete ? "Delete Entity" : "Delete Fact"}
+            </DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this memory? This action cannot be undone.
+              {entityToDelete
+                ? "This will delete the entity and all its facts. This action cannot be undone."
+                : "Are you sure you want to delete this fact? This action cannot be undone."}
             </DialogDescription>
           </DialogHeader>
-          {memoryToDelete && (
-            <div className="py-4">
-              <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
-                {memoryToDelete.content}
-              </p>
-            </div>
-          )}
+          <div className="py-4">
+            {entityToDelete && (
+              <div className="bg-muted p-3 rounded-md">
+                <p className="font-medium">{entityToDelete.canonical_name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {entityToDelete.facts.length} facts will be deleted
+                </p>
+              </div>
+            )}
+            {factToDelete && (
+              <div className="bg-muted p-3 rounded-md">
+                <p className="text-sm">
+                  <span className="font-medium">{formatFactType(factToDelete.fact_type)}:</span>{" "}
+                  {factToDelete.fact_value}
+                </p>
+              </div>
+            )}
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteMemory}>
+            <Button variant="destructive" onClick={handleDelete}>
               Delete
             </Button>
           </DialogFooter>
@@ -259,32 +348,33 @@ export default function MemoryPage() {
   );
 }
 
-function MemoryBundleSection({
-  bundle,
-  onAdd,
-  onEdit,
-  onDelete,
+function EntityTypeSection({
+  type,
+  entities,
+  onEditFact,
+  onDeleteFact,
+  onDeleteEntity,
+  onAddFact,
 }: {
-  bundle: MemoryBundle;
-  onAdd: () => void;
-  onEdit: (memory: Memory) => void;
-  onDelete: (memory: Memory) => void;
+  type: string;
+  entities: Entity[];
+  onEditFact: (entity: Entity, fact: EntityFact) => void;
+  onDeleteFact: (fact: EntityFact) => void;
+  onDeleteEntity: (entity: Entity) => void;
+  onAddFact: (entityId: string) => void;
 }) {
-  const [isOpen, setIsOpen] = useState(bundle.memories.length > 0);
-  const hasMemories = bundle.memories.length > 0;
+  const [isOpen, setIsOpen] = useState(true);
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger asChild>
         <button className="flex w-full items-center justify-between rounded-lg border p-3 text-left hover:bg-muted/50 transition-colors">
           <div className="flex items-center gap-2">
-            <span>{bundle.icon}</span>
-            <span className="font-medium">{bundle.name}</span>
-            {hasMemories && (
-              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                {bundle.memories.length}
-              </span>
-            )}
+            {getEntityIcon(type)}
+            <span className="font-medium">{formatEntityType(type)}</span>
+            <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+              {entities.length}
+            </span>
           </div>
           <ChevronDown
             className={`h-4 w-4 text-muted-foreground transition-transform ${
@@ -293,30 +383,110 @@ function MemoryBundleSection({
           />
         </button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="pt-2 pb-1 px-1">
-        <div className="space-y-1">
-          {bundle.memories.map((memory) => (
+      <CollapsibleContent className="pt-2 space-y-2">
+        {entities.map((entity) => (
+          <EntityCard
+            key={entity.id}
+            entity={entity}
+            onEditFact={onEditFact}
+            onDeleteFact={onDeleteFact}
+            onDeleteEntity={onDeleteEntity}
+            onAddFact={onAddFact}
+          />
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function EntityCard({
+  entity,
+  onEditFact,
+  onDeleteFact,
+  onDeleteEntity,
+  onAddFact,
+}: {
+  entity: Entity;
+  onEditFact: (entity: Entity, fact: EntityFact) => void;
+  onDeleteFact: (fact: EntityFact) => void;
+  onDeleteEntity: (entity: Entity) => void;
+  onAddFact: (entityId: string) => void;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const hasConflicts = entity.facts.some((f) => f.has_conflict);
+
+  return (
+    <div className="border rounded-lg p-3 ml-6">
+      <div className="flex items-start justify-between gap-2">
+        <button
+          className="flex-1 text-left"
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{entity.canonical_name}</span>
+            {entity.relationship_to_user && (
+              <Badge variant="secondary" className="text-xs">
+                {entity.relationship_to_user}
+              </Badge>
+            )}
+            {hasConflicts && (
+              <Badge variant="destructive" className="text-xs">
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                Conflicts
+              </Badge>
+            )}
+          </div>
+          {!isExpanded && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {entity.facts.slice(0, 3).map((f) => f.fact_value).join(" • ")}
+              {entity.facts.length > 3 && ` +${entity.facts.length - 3} more`}
+            </p>
+          )}
+        </button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-destructive hover:text-destructive"
+            onClick={() => onDeleteEntity(entity)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      {isExpanded && (
+        <div className="mt-3 space-y-1">
+          {entity.facts.map((fact) => (
             <div
-              key={memory.id}
-              className="group flex items-start justify-between gap-2 rounded-md p-2 hover:bg-muted/50"
+              key={fact.id}
+              className="group flex items-center justify-between gap-2 rounded-md p-2 hover:bg-muted/50"
             >
-              <p className="text-sm flex-1 break-words">{memory.content}</p>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm text-muted-foreground">
+                  {formatFactType(fact.fact_type)}:
+                </span>{" "}
+                <span className="text-sm font-medium">{fact.fact_value}</span>
+                {fact.has_conflict && (
+                  <AlertTriangle className="inline h-3.5 w-3.5 text-destructive ml-1" />
+                )}
+              </div>
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
-                  onClick={() => onEdit(memory)}
+                  className="h-6 w-6"
+                  onClick={() => onEditFact(entity, fact)}
                 >
-                  <Pencil className="h-3.5 w-3.5" />
+                  <Pencil className="h-3 w-3" />
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 text-destructive hover:text-destructive"
-                  onClick={() => onDelete(memory)}
+                  className="h-6 w-6 text-destructive hover:text-destructive"
+                  onClick={() => onDeleteFact(fact)}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="h-3 w-3" />
                 </Button>
               </div>
             </div>
@@ -324,14 +494,14 @@ function MemoryBundleSection({
           <Button
             variant="ghost"
             size="sm"
-            className="w-full justify-start text-muted-foreground"
-            onClick={onAdd}
+            className="w-full justify-start text-muted-foreground mt-2"
+            onClick={() => onAddFact(entity.id)}
           >
             <Plus className="h-3.5 w-3.5 mr-1" />
-            Add to {bundle.name}
+            Add fact
           </Button>
         </div>
-      </CollapsibleContent>
-    </Collapsible>
+      )}
+    </div>
   );
 }

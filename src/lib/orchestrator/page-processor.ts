@@ -16,7 +16,7 @@ import {
 } from "./state";
 import { createAdminClient } from "../supabase/admin";
 import { StepTimer, formatDuration } from "../timing";
-import { getMemoryContext } from "../memory";
+import { getEntityMemoryContext } from "../memory/context";
 import type { ExtractedField } from "../types";
 
 interface ProcessPageParams {
@@ -55,7 +55,7 @@ export async function processPage(
   const contextNotes = doc?.context_notes || undefined;
 
   // Fetch user's saved memory context only if useMemory is enabled
-  const memoryContext = useMemory ? await getMemoryContext(userId) : "";
+  const memoryContext = useMemory ? await getEntityMemoryContext(userId) : "";
 
   console.log(`[AutoForm] Processing page ${pageNumber}:`, {
     documentId,

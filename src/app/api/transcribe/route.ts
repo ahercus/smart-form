@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getGeminiClient } from "@/lib/gemini/client";
-import { getMemoryContext } from "@/lib/memory";
+import { getEntityMemoryContext } from "@/lib/memory/context";
 import type { Profile, Document } from "@/lib/types";
 
 // Build context string from profile and document data
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch memory context for the user
-    const memoryContext = await getMemoryContext(user.id);
+    const memoryContext = await getEntityMemoryContext(user.id);
 
     const contextString = buildContextString(profile, document);
     const hasContext = contextString.length > 0 || memoryContext.length > 0 || questionText || fieldLabels.length > 0;
@@ -145,8 +145,9 @@ If the audio is unclear or empty, return an empty string.`
 If the audio is unclear or empty, return an empty string.`;
 
     // Use Gemini Flash for fast transcription
+    const startTime = Date.now();
     const response = await client.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-3-flash-preview",
       contents: [
         {
           role: "user",
@@ -164,6 +165,8 @@ If the audio is unclear or empty, return an empty string.`;
         },
       ],
     });
+    const duration = Date.now() - startTime;
+    console.log(`[AutoForm] Gemini Flash (transcribe) API call completed in ${duration}ms`);
 
     const transcribedText = response.text?.trim() || "";
 
