@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+// Base URL for internal API calls
+const getBaseUrl = () => {
+  // In production, use the deployment URL
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  // In development, use localhost
+  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+};
+
 export interface ProfileCoreData {
   firstName?: string;
   middleInitial?: string;
@@ -101,6 +111,10 @@ export async function PATCH(request: NextRequest) {
       hasLastName: !!coreData.lastName,
     });
 
+    // Trigger memory reconciliation in the background (fire-and-forget)
+    // This re-evaluates existing memories against the new profile data
+    triggerMemoryReconciliation(coreData);
+
     return NextResponse.json({ success: true, coreData: profile.core_data });
   } catch (error) {
     console.error("[AutoForm] Update profile error:", error);
@@ -109,4 +123,20 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Trigger memory reconciliation in the background
+ * This calls the reconcile endpoint without waiting for it to complete
+ */
+function triggerMemoryReconciliation(coreData: ProfileCoreData) {
+  // Fire-and-forget - don't await
+  fetch(`${getBaseUrl()}/api/memories/reconcile`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ coreData }),
+  }).catch((error) => {
+    // Log but don't throw - reconciliation failure shouldn't affect profile update
+    console.error("[AutoForm] Failed to trigger memory reconciliation:", error);
+  });
 }

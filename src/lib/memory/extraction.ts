@@ -1,5 +1,6 @@
 // Entity extraction from form answers using Gemini 3 Pro
 // Extracts people, places, organizations and their attributes/relationships
+// NOTE: Sensitive data (SSN, credit cards, etc.) is explicitly excluded
 
 import { ThinkingLevel } from "@google/genai";
 import { generateWithVision } from "@/lib/gemini/client";
@@ -15,6 +16,61 @@ import {
   CONFIDENCE_ADJUSTMENTS,
   MATCHING_THRESHOLDS,
 } from "./types";
+
+// Sensitive fact types that should NEVER be stored in memory
+// These are filtered out after extraction to prevent accidental storage
+const SENSITIVE_FACT_TYPES = new Set([
+  "ssn",
+  "social_security",
+  "social_security_number",
+  "credit_card",
+  "credit_card_number",
+  "card_number",
+  "cvv",
+  "cvc",
+  "security_code",
+  "pin",
+  "password",
+  "bank_account",
+  "bank_account_number",
+  "routing_number",
+  "drivers_license",
+  "drivers_license_number",
+  "passport",
+  "passport_number",
+  "tax_id",
+  "ein",
+  "itin",
+]);
+
+// Patterns that indicate sensitive data in fact values
+const SENSITIVE_VALUE_PATTERNS = [
+  /^\d{3}-\d{2}-\d{4}$/, // SSN format
+  /^\d{9}$/, // SSN without dashes
+  /^\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}$/, // Credit card
+  /^\d{15,16}$/, // Credit card without spaces
+];
+
+/**
+ * Check if a fact contains sensitive information
+ */
+function isSensitiveFact(fact: ExtractedFact): boolean {
+  const factTypeLower = fact.factType.toLowerCase().replace(/[\s_-]/g, "_");
+
+  // Check fact type
+  if (SENSITIVE_FACT_TYPES.has(factTypeLower)) {
+    return true;
+  }
+
+  // Check for sensitive patterns in value
+  for (const pattern of SENSITIVE_VALUE_PATTERNS) {
+    if (pattern.test(fact.factValue)) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 // JSON Schema for structured extraction output
 const extractionSchema = {
@@ -109,9 +165,10 @@ Extract:
    - Use existing entities when the answer refers to someone already known
 
 2. FACTS: Specific attributes about entities
-   - factType should be specific: full_name, first_name, last_name, birthdate, gender, ssn, phone, email, street_address, city, state, zip, pronouns, race, ethnicity, occupation, school, grade, etc.
+   - factType should be specific: full_name, first_name, last_name, birthdate, gender, phone, email, street_address, city, state, zip, pronouns, race, ethnicity, occupation, school, grade, etc.
    - Normalize dates to YYYY-MM-DD format
    - If the user provides info about themselves without naming, use "user" as the entityName
+   - NEVER extract sensitive data: SSN, credit card numbers, bank accounts, passwords, PINs, driver's license numbers, passport numbers
 
 3. RELATIONSHIPS: Explicit relationships between entities
    - Only include if the relationship is clearly stated or implied
@@ -138,11 +195,24 @@ Rules:
     const result = JSON.parse(response) as ExtractionResult;
 
     // Validate and clean the result
+    const validFacts = (result.facts || []).filter(
+      (f) => f.entityName && f.factType && f.factValue
+    );
+
+    // Filter out sensitive facts
+    const safeFacts = validFacts.filter((f) => {
+      if (isSensitiveFact(f)) {
+        console.log("[AutoForm] Filtered sensitive fact:", { factType: f.factType });
+        return false;
+      }
+      return true;
+    });
+
     return {
       entities: (result.entities || []).filter(
         (e) => e.name && e.type && ["person", "place", "organization"].includes(e.type)
       ),
-      facts: (result.facts || []).filter((f) => f.entityName && f.factType && f.factValue),
+      facts: safeFacts,
       relationships: (result.relationships || []).filter(
         (r) => r.subjectName && r.predicate && r.objectName
       ),
