@@ -79,7 +79,7 @@ async function syncProfileToSelfEntity(
   let selfEntityId = selfEntity?.id;
 
   // Create self entity if it doesn't exist and we have profile data
-  if (!selfEntityId) {
+  if (!selfEntity) {
     const name = [profile.firstName, profile.lastName].filter(Boolean).join(" ") || "Me";
     const embedding = await generateEmbedding(name);
 

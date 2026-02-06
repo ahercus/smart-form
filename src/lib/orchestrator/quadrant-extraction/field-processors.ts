@@ -30,8 +30,14 @@ export function expandTableToFields(
 ): RawExtractedField[] {
   const config = tableField.tableConfig;
   if (!config) {
-    console.warn("[AutoForm] Table field missing tableConfig, skipping expansion:", tableField.label);
-    return [];
+    console.warn("[AutoForm] Table field missing tableConfig, creating placeholder:", tableField.label);
+    // Fallback: Create a single text field covering the table region
+    // This allows users to at least see and interact with the table area
+    return [{
+      label: tableField.label || "Table",
+      fieldType: "textarea",
+      coordinates: tableField.coordinates,
+    }];
   }
 
   const { columnHeaders, coordinates, dataRows, columnPositions, rowHeights } = config;

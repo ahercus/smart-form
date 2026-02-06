@@ -36,20 +36,22 @@ RULES:
 2. FULL WIDTH: Underlines spanning the page should have width ≈ 85-90%
 3. CHECKBOXES: Small square only (width/height ≈ 2-3%)
 
-SPECIAL TOOLS:
+SPECIAL TOOLS (use these instead of extracting individual cells):
 
-TABLE: For uniform grids with column headers, use this shorthand:
+TABLE: For uniform grids with column headers, you MUST include tableConfig:
 {
   "fieldType": "table",
+  "label": "Table Name",
   "tableConfig": {
     "columnHeaders": ["Col 1", "Col 2"],
     "coordinates": { "left": 5, "top": 30, "width": 90, "height": 15 },
-    "dataRows": 4,
-    "columnPositions": [0, 50, 100]
+    "dataRows": 4
   }
 }
-- columnPositions: optional, defaults to uniform. Array of % within table (0=left edge, 100=right edge)
-- dataRows: number of fillable rows (exclude header row)
+- tableConfig is REQUIRED when fieldType is "table"
+- columnHeaders: array of header text from left to right
+- dataRows: number of fillable rows (exclude the header row)
+- Do NOT extract individual table cells - just use this shorthand
 
 LINKED TEXT: For multi-line text that flows between lines (like "Details: ___" with continuation lines):
 {
@@ -60,6 +62,7 @@ LINKED TEXT: For multi-line text that flows between lines (like "Details: ___" w
     { "left": 5, "top": 33, "width": 90, "height": 2 }
   ]
 }
+- segments is REQUIRED when fieldType is "linkedText"
 
 ${boundaryRules}
 

@@ -12,9 +12,8 @@ import { generateWithVisionFast } from "../client";
  * Flat response schema to force correct output structure
  * Uses lowercase type strings for JSON Schema compatibility
  *
- * Includes table and linkedText as special field types:
- * - table: compact definition that expands to N×M text fields
- * - linkedText: multi-segment text area stored as single field
+ * NOTE: tableConfig and segments are NOT in the schema due to Gemini's nesting depth limit.
+ * They will be parsed from the response in parseQuadrantExtractionResponse.
  */
 const fieldExtractionSchema = {
   type: "object",
@@ -49,50 +48,6 @@ const fieldExtractionSchema = {
               height: { type: "number", description: "Percentage 0-100" },
             },
             required: ["left", "top", "width", "height"],
-          },
-          // For table fields
-          tableConfig: {
-            type: "object",
-            properties: {
-              columnHeaders: {
-                type: "array",
-                items: { type: "string" },
-              },
-              coordinates: {
-                type: "object",
-                properties: {
-                  left: { type: "number" },
-                  top: { type: "number" },
-                  width: { type: "number" },
-                  height: { type: "number" },
-                },
-                required: ["left", "top", "width", "height"],
-              },
-              dataRows: { type: "number" },
-              columnPositions: {
-                type: "array",
-                items: { type: "number" },
-              },
-              rowHeights: {
-                type: "array",
-                items: { type: "number" },
-              },
-            },
-            required: ["columnHeaders", "coordinates", "dataRows"],
-          },
-          // For linkedText fields
-          segments: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                left: { type: "number" },
-                top: { type: "number" },
-                width: { type: "number" },
-                height: { type: "number" },
-              },
-              required: ["left", "top", "width", "height"],
-            },
           },
         },
         required: ["label", "fieldType"],

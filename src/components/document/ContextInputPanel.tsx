@@ -26,8 +26,11 @@ export function ContextInputPanel({
   const [context, setContext] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [tailoredQuestion, setTailoredQuestion] = useState<string | null>(null);
-  const [loadingQuestion, setLoadingQuestion] = useState(true);
   const [useMemory, setUseMemory] = useState(true); // Memory ON by default
+
+  // Generate a general prompt based on filename
+  const formName = document?.original_filename?.replace(/\.pdf$/i, "").replace(/[-_]/g, " ") || "form";
+  const generalPrompt = `This is a ${formName}. Share any relevant details that might help fill it out — names, dates, addresses, or other information you'll need to provide.`;
 
   // Voice recording - passes documentId and tailored question for context-aware transcription
   const { state: voiceState, toggleRecording } = useVoiceRecording({
@@ -43,7 +46,7 @@ export function ContextInputPanel({
     questionText: tailoredQuestion || undefined,
   });
 
-  // Fetch tailored context question - retry if page images not ready
+  // Fetch tailored context question in background - doesn't block input
   useEffect(() => {
     let cancelled = false;
     let retryCount = 0;
@@ -64,13 +67,9 @@ export function ContextInputPanel({
           }
 
           setTailoredQuestion(data.question);
-          setLoadingQuestion(false);
         }
       } catch (error) {
         console.error("[AutoForm] Failed to fetch tailored question:", error);
-        if (!cancelled) {
-          setLoadingQuestion(false);
-        }
       }
     };
 
@@ -154,15 +153,11 @@ export function ContextInputPanel({
             />
             <div className="relative p-4 rounded-[10px] bg-white dark:bg-gray-900">
               <p className="font-bold text-gray-900 dark:text-gray-100 mb-2">
-                While the document is being analyzed, please share some details about the document
+                Share some context while the document is analyzed to give us a head start
               </p>
-              {!loadingQuestion && tailoredQuestion && (
-                <div className="text-sm">
-                  <p className="text-gray-600 dark:text-gray-300">
-                    {tailoredQuestion}
-                  </p>
-                </div>
-              )}
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                {tailoredQuestion || generalPrompt}
+              </p>
             </div>
           </div>
 
@@ -170,17 +165,17 @@ export function ContextInputPanel({
             <Textarea
               value={context}
               onChange={(e) => setContext(e.target.value)}
-              placeholder={loadingQuestion ? "Loading..." : "Type or speak your answer..."}
+              placeholder="Type or speak your answer..."
               rows={6}
               className="resize-none pr-14"
-              disabled={submitting || loadingQuestion}
+              disabled={submitting}
             />
             <div className="absolute bottom-2 right-2">
               <MicrophoneButton
                 state={voiceState}
                 onClick={toggleRecording}
                 size="lg"
-                disabled={submitting || loadingQuestion}
+                disabled={submitting}
               />
             </div>
           </div>
