@@ -2,7 +2,8 @@
 
 import { useRef, useEffect, useMemo } from "react";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CheckCircle, X } from "lucide-react";
 import { QuestionCard } from "./QuestionCard";
 import type { QuestionGroup, ProcessingProgress, Document, SignatureType, MemoryChoice } from "@/lib/types";
 
@@ -99,7 +100,20 @@ export function QuestionsPanel({
     <div className="flex flex-col h-full bg-card overflow-hidden">
       {/* Header */}
       <div className="px-4 py-2 border-b flex-shrink-0">
-        <h2 className="font-semibold">Assistant</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold">Assistant</h2>
+          {onClose && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 -mr-1"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </Button>
+          )}
+        </div>
         {totalQuestions > 0 && (
           <>
             <div className="flex items-center justify-between text-sm mb-1.5 mt-2">
