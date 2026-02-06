@@ -2,11 +2,8 @@
 
 import { useRef, useEffect, useMemo } from "react";
 import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
-import { Sparkles, Loader2, X, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { CheckCircle } from "lucide-react";
 import { QuestionCard } from "./QuestionCard";
-import { ProcessingOverlay } from "./ProcessingOverlay";
 import type { QuestionGroup, ProcessingProgress, Document, SignatureType, MemoryChoice } from "@/lib/types";
 
 export interface QuestionsPanelRef {
@@ -98,50 +95,12 @@ export function QuestionsPanel({
     }
   }, [currentPage]);
 
-  const isProcessing =
-    progress &&
-    progress.phase !== "ready" &&
-    progress.phase !== "idle" &&
-    progress.phase !== "failed";
-
   return (
     <div className="flex flex-col h-full bg-card overflow-hidden">
       {/* Header */}
       <div className="px-4 py-2 border-b flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-primary" />
-            <h2 className="font-semibold">Smart Assist</h2>
-          </div>
-          <div className="flex items-center gap-1">
-            {onToggleExpand && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={onToggleExpand}
-                title={expanded ? "Collapse panel" : "Expand panel"}
-              >
-                {expanded ? (
-                  <PanelLeftClose className="h-4 w-4" />
-                ) : (
-                  <PanelLeftOpen className="h-4 w-4" />
-                )}
-                <span className="sr-only">{expanded ? "Collapse" : "Expand"}</span>
-              </Button>
-            )}
-            {onClose && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={onClose}
-              >
-                <X className="h-4 w-4" />
-                <span className="sr-only">Close</span>
-              </Button>
-            )}
-          </div>
+          <h2 className="font-semibold">Assistant</h2>
         </div>
         <div className="flex items-center justify-between text-sm mb-1.5">
           <span className="text-muted-foreground">
@@ -154,9 +113,7 @@ export function QuestionsPanel({
 
       {/* Content - Scrollable (independent from PDF) */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4">
-        {isProcessing ? (
-          <ProcessingOverlay progress={progress} />
-        ) : questionsByPage.length > 0 ? (
+        {questionsByPage.length > 0 ? (
           <div className="space-y-3">
             {questionsByPage.map(([pageNumber, pageQuestions], pageIndex) => (
               <div
@@ -209,31 +166,31 @@ export function QuestionsPanel({
         ) : totalQuestions > 0 ? (
           <div className="text-center py-8">
             <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mx-auto mb-3">
-              <Sparkles className="w-6 h-6 text-green-600 dark:text-green-400" />
+              <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
             </div>
             <p className="font-medium">All questions answered!</p>
             <p className="text-sm text-muted-foreground mt-1">
               You can still edit fields directly on the PDF
             </p>
           </div>
-        ) : loading ? (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Loading questions...</span>
-            </div>
-            <div className="space-y-3">
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-3/4" />
-            </div>
-          </div>
         ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>No questions yet</p>
-            <p className="text-sm mt-1">
-              Questions will appear as the document is processed
-            </p>
+          /* Shimmer skeleton cards while loading */
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="relative h-20 rounded-lg bg-muted/50 overflow-hidden"
+              >
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background: "linear-gradient(90deg, transparent, rgba(255,107,107,0.1), rgba(254,202,87,0.1), rgba(72,219,251,0.1), rgba(255,159,243,0.1), rgba(84,160,255,0.1), transparent)",
+                    backgroundSize: "200% 100%",
+                    animation: "shimmer 2s linear infinite",
+                  }}
+                />
+              </div>
+            ))}
           </div>
         )}
       </div>

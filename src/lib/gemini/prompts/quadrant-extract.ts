@@ -25,35 +25,44 @@ export function buildQuadrantExtractionPrompt(
         ? `If a field crosses the TOP of the purple box (${range.top}%), skip it.`
         : `If a field crosses the TOP of the purple box (${range.top}%), skip it. If it crosses the BOTTOM (${range.bottom}%), include it fully.`;
 
-  return `Extract fillable input fields within the PURPLE HIGHLIGHTED REGION (${range.top}%-${range.bottom}% vertically).
+  return `Extract ALL fillable input fields within the PURPLE HIGHLIGHTED REGION (${range.top}%-${range.bottom}% vertically).
 
 GUIDING PRINCIPLE: Imagine someone filling this form digitally. Place input boxes where they'd intuitively expect to write. Use common sense.
 
 COORDINATES ARE PERCENTAGES (0-100) - use the ruler in the margins.
 
+EVERY FIELD MUST HAVE coordinates - NO EXCEPTIONS!
+{
+  "label": "Child's Name",
+  "fieldType": "text",
+  "coordinates": { "left": 20, "top": 8, "width": 30, "height": 2.5 }  ← REQUIRED!
+}
+
 RULES:
-1. EXCLUDE LABELS: Box = ONLY the empty input area, NOT the label text
-2. FULL WIDTH: Underlines spanning the page should have width ≈ 85-90%
-3. CHECKBOXES: Small square only (width/height ≈ 2-3%)
+1. COORDINATES REQUIRED: Every field MUST have left, top, width, height as percentages (0-100)
+2. EXCLUDE LABELS: Box = ONLY the empty input area, NOT the label text
+3. FULL WIDTH: Underlines spanning the page should have width ≈ 85-90%
+4. CHECKBOXES: Small square only (width/height ≈ 2-3%)
+5. EXTRACT EVERYTHING: Include text fields, dates, checkboxes, signatures - not just tables!
 
-SPECIAL TOOLS (use these instead of extracting individual cells):
-
-TABLE: For uniform grids with column headers, you MUST include tableConfig:
+SPECIAL TOOL - TABLE (for grids with columns):
 {
   "fieldType": "table",
-  "label": "Table Name",
+  "label": "Siblings",
   "tableConfig": {
-    "columnHeaders": ["Col 1", "Col 2"],
+    "columnHeaders": ["Name", "Age", "Teacher", "Comments"],
     "coordinates": { "left": 5, "top": 30, "width": 90, "height": 15 },
-    "dataRows": 4
+    "dataRows": 4,
+    "columnPositions": [0, 20, 35, 60, 100]
   }
 }
-- tableConfig is REQUIRED when fieldType is "table"
-- columnHeaders: array of header text from left to right
-- dataRows: number of fillable rows (exclude the header row)
-- Do NOT extract individual table cells - just use this shorthand
+- tableConfig is REQUIRED for tables
+- dataRows = number of BLANK rows to fill (NOT counting the header row with column labels)
+- columnPositions = boundaries as % of table width (0=left edge, 100=right edge). Look at actual column widths!
+  Example: 4 columns where first is 20%, second is 15%, third is 25%, fourth is 40% → [0, 20, 35, 60, 100]
+  If columns look roughly equal, omit columnPositions for uniform distribution
 
-LINKED TEXT: For multi-line text that flows between lines (like "Details: ___" with continuation lines):
+SPECIAL TOOL - LINKED TEXT (for multi-line flowing text):
 {
   "fieldType": "linkedText",
   "label": "Details",
@@ -62,13 +71,19 @@ LINKED TEXT: For multi-line text that flows between lines (like "Details: ___" w
     { "left": 5, "top": 33, "width": 90, "height": 2 }
   ]
 }
-- segments is REQUIRED when fieldType is "linkedText"
+- segments is REQUIRED for linkedText
 
 ${boundaryRules}
 
 Field types: text, date, checkbox, radio, signature, initials, circle_choice, table, linkedText
 
-Return JSON with fields array and noFieldsInRegion boolean.`;
+Return JSON - EVERY field needs coordinates:
+{
+  "fields": [
+    { "label": "...", "fieldType": "text", "coordinates": { "left": X, "top": Y, "width": W, "height": H } }
+  ],
+  "noFieldsInRegion": false
+}`;
 }
 
 /**

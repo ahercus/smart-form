@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MicrophoneButton } from "@/components/ui/microphone-button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Sparkles, Loader2, ChevronRight, Brain } from "lucide-react";
+import { Loader2, Brain } from "lucide-react";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import type { Document } from "@/lib/types";
 
@@ -127,10 +127,7 @@ export function ContextInputPanel({
     <div className="flex flex-col h-full bg-card">
       {/* Header */}
       <div className="px-4 py-3 border-b">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-primary" />
-          <h2 className="font-semibold">Smart Assist</h2>
-        </div>
+        <h2 className="font-semibold">Assistant</h2>
       </div>
 
       {/* Context Input */}
@@ -198,12 +195,8 @@ export function ContextInputPanel({
               className={`w-full ${fieldsReady ? "bg-green-600 hover:bg-green-700" : ""}`}
               size="lg"
             >
-              {submitting ? (
+              {submitting && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : fieldsReady ? (
-                <Sparkles className="mr-2 h-4 w-4" />
-              ) : (
-                <ChevronRight className="mr-2 h-4 w-4" />
               )}
               {submitting ? "Generating questions..." : "Continue"}
             </Button>

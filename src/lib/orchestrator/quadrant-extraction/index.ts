@@ -33,6 +33,29 @@ import { quickContextScan, type ContextScanResult } from "../../gemini/vision/co
 import type { ExtractedField, NormalizedCoordinates, ChoiceOption } from "../../types";
 
 /**
+ * Deduplicate fields that appear in multiple quadrants due to boundary overlap
+ * Fields are considered duplicates if they have the same label and similar coordinates
+ */
+function deduplicateFields(fields: RawExtractedField[]): RawExtractedField[] {
+  const seen = new Map<string, RawExtractedField>();
+  const COORD_TOLERANCE = 3; // 3% tolerance for coordinate matching
+
+  for (const field of fields) {
+    // Create a key based on label and approximate position
+    const approxTop = Math.round(field.coordinates.top / COORD_TOLERANCE) * COORD_TOLERANCE;
+    const approxLeft = Math.round(field.coordinates.left / COORD_TOLERANCE) * COORD_TOLERANCE;
+    const key = `${field.label}|${field.fieldType}|${approxTop}|${approxLeft}`;
+
+    if (!seen.has(key)) {
+      seen.set(key, field);
+    }
+    // If duplicate, keep the first one (from earlier quadrant)
+  }
+
+  return Array.from(seen.values());
+}
+
+/**
  * Result from extracting fields from a single page using quadrant approach
  */
 export interface PageExtractionResult {
@@ -234,7 +257,7 @@ export async function extractFieldsWithQuadrants(
       : null,
   });
 
-  // Step 3: Merge all fields (simple concat - boundary rules prevent duplicates)
+  // Step 3: Merge all fields from quadrants
   const mergedRawFields: RawExtractedField[] = [
     ...q1Result.fields,
     ...q2Result.fields,
@@ -242,8 +265,19 @@ export async function extractFieldsWithQuadrants(
     ...q4Result.fields,
   ];
 
-  // Step 3.5: Process special field types (expand tables, handle linkedText)
-  const allRawFields = processExtractedFields(mergedRawFields);
+  // Step 3.5: Deduplicate fields that appear in multiple quadrants (boundary overlap)
+  const deduplicatedFields = deduplicateFields(mergedRawFields);
+
+  if (mergedRawFields.length !== deduplicatedFields.length) {
+    console.log("[AutoForm] Deduplicated boundary fields:", {
+      before: mergedRawFields.length,
+      after: deduplicatedFields.length,
+      removed: mergedRawFields.length - deduplicatedFields.length,
+    });
+  }
+
+  // Step 3.6: Process special field types (expand tables, handle linkedText)
+  const allRawFields = processExtractedFields(deduplicatedFields);
 
   // Sort fields by vertical position (top to bottom), then by horizontal position
   allRawFields.sort((a, b) => {

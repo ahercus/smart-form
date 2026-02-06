@@ -16,7 +16,7 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from "@/components/ui/drawer";
-import { Download, Loader2, Sparkles, FolderOpen, MessageSquare, Cloud, Brain, Check } from "lucide-react";
+import { Download, Loader2, FolderOpen, MessageSquare, Cloud, Brain, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { PDFWithKonva } from "./PDFWithKonva";
 import { QuestionsPanel } from "./QuestionsPanel";
@@ -656,8 +656,12 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
                 size="default"
                 onClick={() => setPanelOpen(!panelOpen)}
               >
-                <Sparkles className="mr-2 h-4 w-4" />
                 Assistant
+                {panelOpen ? (
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                ) : (
+                  <ChevronLeft className="ml-2 h-4 w-4" />
+                )}
               </Button>
             )}
           </div>
@@ -704,9 +708,8 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
                   <div className="relative space-y-4 p-6 rounded-xl bg-card border shadow-lg max-w-sm w-full mx-4 my-auto">
                     {/* Loading indicator */}
                     <div className="text-center">
-                      <div className="flex items-center justify-center gap-3 mb-2">
-                        <Sparkles className="h-6 w-6 text-primary animate-pulse" />
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      <div className="flex items-center justify-center mb-2">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
                       </div>
                       <h3 className="text-base font-semibold">{getProcessingLabel()}</h3>
                       <p className="text-sm text-muted-foreground mt-1">
@@ -777,10 +780,8 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
                             className="flex-1"
                             size="default"
                           >
-                            {contextSubmitting ? (
+                            {contextSubmitting && (
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                              <Sparkles className="mr-2 h-4 w-4" />
                             )}
                             Continue
                           </Button>
@@ -896,9 +897,8 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
                 <div className="relative space-y-6 p-8 rounded-xl bg-card border shadow-lg max-w-lg w-full mx-4">
                   {/* Loading indicator */}
                   <div className="text-center">
-                    <div className="flex items-center justify-center gap-3 mb-2">
-                      <Sparkles className="h-8 w-8 text-primary animate-pulse" />
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    <div className="flex items-center justify-center mb-2">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
                     <h3 className="text-lg font-semibold">{getProcessingLabel()}</h3>
                     <p className="text-sm text-muted-foreground mt-1">
@@ -969,10 +969,8 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
                           className="flex-1"
                           size="lg"
                         >
-                          {contextSubmitting ? (
+                          {contextSubmitting && (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Sparkles className="mr-2 h-4 w-4" />
                           )}
                           Continue
                         </Button>

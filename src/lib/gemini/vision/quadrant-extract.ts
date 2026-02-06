@@ -100,6 +100,57 @@ export interface QuadrantExtractionResult {
 }
 
 /**
+ * Validate that a field has proper coordinates
+ * - Regular fields: must have coordinates (nested or flat)
+ * - Table fields: must have tableConfig.coordinates
+ * - LinkedText fields: must have segments with coordinates
+ *
+ * Model sometimes returns flat coords (field.top) instead of nested (field.coordinates.top)
+ */
+function validateFieldCoordinates(field: {
+  label?: string;
+  fieldType?: string;
+  left?: number;
+  top?: number;
+  width?: number;
+  height?: number;
+  coordinates?: { left?: number; top?: number; width?: number; height?: number };
+  tableConfig?: { coordinates?: { left?: number; top?: number; width?: number; height?: number } };
+  segments?: Array<{ left?: number; top?: number; width?: number; height?: number }>;
+}): { valid: boolean; reason?: string } {
+  const { fieldType, coordinates, tableConfig, segments } = field;
+
+  if (fieldType === "table") {
+    // Tables need tableConfig.coordinates
+    if (!tableConfig?.coordinates || typeof tableConfig.coordinates.top !== "number") {
+      return { valid: false, reason: "table missing tableConfig.coordinates" };
+    }
+    return { valid: true };
+  }
+
+  if (fieldType === "linkedText") {
+    // LinkedText needs segments with coordinates
+    if (!segments || segments.length === 0) {
+      return { valid: false, reason: "linkedText missing segments" };
+    }
+    if (typeof segments[0].top !== "number") {
+      return { valid: false, reason: "linkedText segment missing coordinates" };
+    }
+    return { valid: true };
+  }
+
+  // Regular fields need coordinates - check nested OR flat
+  const hasNestedCoords = coordinates && typeof coordinates.top === "number";
+  const hasFlatCoords = typeof field.top === "number";
+
+  if (!hasNestedCoords && !hasFlatCoords) {
+    return { valid: false, reason: "missing coordinates" };
+  }
+
+  return { valid: true };
+}
+
+/**
  * Detect if coordinates are in pixels and convert to percentages
  * Handles mixed coordinate systems (model sometimes mixes pixels and percentages)
  * Images are resized to max 1600px width, with ~2000px height for letter aspect ratio
@@ -129,16 +180,24 @@ function normalizeCoordinates(
     height = (height / estimatedHeight) * 100;
   }
 
+  // Clamp values to valid percentage range (0-100)
+  // Also ensure field doesn't extend beyond page boundaries
+  left = Math.max(0, Math.min(100, left));
+  top = Math.max(0, Math.min(100, top));
+  width = Math.max(0.5, Math.min(100 - left, width)); // At least 0.5% wide, max to page edge
+  height = Math.max(0.5, Math.min(100 - top, height)); // At least 0.5% tall, max to page edge
+
   return { left, top, width, height };
 }
 
 /**
  * Parse the Gemini response for quadrant extraction
+ * Returns fields, noFieldsInRegion flag, and count of invalid fields (for retry logic)
  */
 function parseQuadrantExtractionResponse(
   text: string,
   quadrant: QuadrantNumber
-): { fields: RawExtractedField[]; noFieldsInRegion: boolean } {
+): { fields: RawExtractedField[]; noFieldsInRegion: boolean; invalidCount: number } {
   // Clean up markdown code blocks if present
   let cleaned = text.trim();
   if (cleaned.startsWith("```json")) {
@@ -164,13 +223,50 @@ function parseQuadrantExtractionResponse(
     const range = quadrantRanges[quadrant];
 
     const validFields: RawExtractedField[] = [];
+    let invalidCount = 0;
+
     for (const field of parsed.fields || []) {
-      const rawCoords = field.coordinates;
-      if (!rawCoords || typeof rawCoords.top !== "number") {
-        console.warn("[AutoForm] Quadrant extraction: Field missing coordinates, skipping", {
+      // Validate field has proper coordinates based on type
+      const validation = validateFieldCoordinates(field);
+      if (!validation.valid) {
+        console.warn("[AutoForm] Quadrant extraction: Invalid field, skipping", {
+          quadrant,
+          label: field.label,
+          fieldType: field.fieldType,
+          reason: validation.reason,
+        });
+        invalidCount++;
+        continue;
+      }
+
+      // For table fields, coordinates are inside tableConfig
+      // For linkedText fields, use first segment
+      // For regular fields, check nested coordinates OR flat coordinates at field level
+      let rawCoords: { left: number; top: number; width: number; height: number } | undefined;
+
+      if (field.fieldType === "table" && field.tableConfig?.coordinates) {
+        rawCoords = field.tableConfig.coordinates;
+      } else if (field.fieldType === "linkedText" && field.segments?.length > 0) {
+        rawCoords = field.segments[0]; // Use first segment for bounds checking
+      } else if (field.coordinates && typeof field.coordinates.top === "number") {
+        rawCoords = field.coordinates; // Nested coordinates
+      } else if (typeof field.left === "number" && typeof field.top === "number") {
+        // Flat coordinates at field level - convert to nested structure
+        rawCoords = {
+          left: field.left,
+          top: field.top,
+          width: field.width || 10,
+          height: field.height || 3,
+        };
+      }
+
+      // Safety check - validation should have caught this but guard anyway
+      if (!rawCoords) {
+        console.warn("[AutoForm] Quadrant extraction: No coordinates found after validation", {
           quadrant,
           label: field.label,
         });
+        invalidCount++;
         continue;
       }
 
@@ -235,6 +331,7 @@ function parseQuadrantExtractionResponse(
     return {
       fields: validFields,
       noFieldsInRegion: parsed.noFieldsInRegion || validFields.length === 0,
+      invalidCount,
     };
   } catch (error) {
     console.error("[AutoForm] Failed to parse quadrant extraction response:", {
@@ -245,6 +342,7 @@ function parseQuadrantExtractionResponse(
     return {
       fields: [],
       noFieldsInRegion: true,
+      invalidCount: 0,
     };
   }
 }
@@ -280,58 +378,81 @@ export async function extractQuadrantFields(options: {
     },
   };
 
-  try {
-    // Call Gemini Flash Vision with responseSchema to force correct structure
-    const responseText = await generateWithVisionFast({
-      prompt,
-      imageParts: [imagePart],
-      jsonOutput: true,
-      responseSchema: fieldExtractionSchema,
-    });
+  const MAX_RETRIES = 1;
+  let bestResult: { fields: RawExtractedField[]; noFieldsInRegion: boolean; invalidCount: number } | null = null;
 
-    const durationMs = Date.now() - startTime;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      // Call Gemini Flash Vision WITH responseSchema to enforce basic structure
+      // tableConfig/segments are NOT in schema (nesting depth limit) but model returns them from prompt
+      const responseText = await generateWithVisionFast({
+        prompt,
+        imageParts: [imagePart],
+        jsonOutput: true,
+        responseSchema: fieldExtractionSchema,
+      });
 
-    // Debug: Log raw response
-    console.log("[AutoForm] Quadrant raw response:", {
-      quadrant,
-      responseLength: responseText.length,
-      responsePreview: responseText.slice(0, 500),
-    });
+      // Debug: Log raw response
+      console.log("[AutoForm] Quadrant raw response:", {
+        quadrant,
+        attempt,
+        responseLength: responseText.length,
+        responsePreview: responseText.slice(0, 500),
+      });
 
-    // Parse response
-    const { fields, noFieldsInRegion } = parseQuadrantExtractionResponse(
-      responseText,
-      quadrant
-    );
+      // Parse and validate response
+      const result = parseQuadrantExtractionResponse(responseText, quadrant);
 
-    console.log("[AutoForm] Quadrant extraction complete:", {
-      pageNumber,
-      quadrant,
-      fieldsFound: fields.length,
-      noFieldsInRegion,
-      durationMs,
-    });
+      console.log("[AutoForm] Quadrant parse result:", {
+        pageNumber,
+        quadrant,
+        attempt,
+        fieldsFound: result.fields.length,
+        invalidCount: result.invalidCount,
+      });
 
-    return {
-      quadrant,
-      fields,
-      noFieldsInRegion,
-      durationMs,
-    };
-  } catch (error) {
-    const durationMs = Date.now() - startTime;
-    console.error("[AutoForm] Quadrant extraction failed:", {
-      pageNumber,
-      quadrant,
-      error,
-      durationMs,
-    });
+      // Keep best result (most valid fields)
+      if (!bestResult || result.fields.length > bestResult.fields.length) {
+        bestResult = result;
+      }
 
-    return {
-      quadrant,
-      fields: [],
-      noFieldsInRegion: true,
-      durationMs,
-    };
+      // If no invalid fields or this is our last attempt, use this result
+      if (result.invalidCount === 0 || attempt === MAX_RETRIES) {
+        break;
+      }
+
+      // Too many invalid fields - retry
+      console.log("[AutoForm] Retrying quadrant extraction due to invalid fields:", {
+        quadrant,
+        invalidCount: result.invalidCount,
+        validCount: result.fields.length,
+      });
+    } catch (error) {
+      console.error("[AutoForm] Quadrant extraction attempt failed:", {
+        pageNumber,
+        quadrant,
+        attempt,
+        error,
+      });
+      // Continue to next attempt or fall through to return empty
+    }
   }
+
+  const durationMs = Date.now() - startTime;
+  const { fields, noFieldsInRegion } = bestResult || { fields: [], noFieldsInRegion: true };
+
+  console.log("[AutoForm] Quadrant extraction complete:", {
+    pageNumber,
+    quadrant,
+    fieldsFound: fields.length,
+    noFieldsInRegion,
+    durationMs,
+  });
+
+  return {
+    quadrant,
+    fields,
+    noFieldsInRegion,
+    durationMs,
+  };
 }

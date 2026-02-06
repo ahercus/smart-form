@@ -2,7 +2,7 @@
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { ProcessingProgress } from "@/lib/types";
 
 interface ProcessingOverlayProps {
@@ -32,9 +32,8 @@ export function ProcessingOverlay({ progress }: ProcessingOverlayProps) {
   if (progress.phase === "enhancing") {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
-        <Sparkles className="h-4 w-4 animate-pulse text-amber-500" />
+        <Loader2 className="h-4 w-4 animate-spin text-primary" />
         <span>Enhancing fields...</span>
-        <Loader2 className="h-3 w-3 animate-spin" />
       </div>
     );
   }
@@ -80,8 +79,8 @@ export function ProcessingOverlay({ progress }: ProcessingOverlayProps) {
  */
 export function EnhancingIndicator() {
   return (
-    <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-      <Sparkles className="h-3 w-3 animate-pulse" />
+    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <Loader2 className="h-3 w-3 animate-spin" />
       <span>Enhancing</span>
     </div>
   );
