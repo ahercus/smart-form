@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Sparkles, Loader2, X, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { QuestionCard } from "./QuestionCard";
 import { ProcessingOverlay } from "./ProcessingOverlay";
-import { ContextInputPanel } from "./ContextInputPanel";
 import type { QuestionGroup, ProcessingProgress, Document, SignatureType, MemoryChoice } from "@/lib/types";
 
 export interface QuestionsPanelRef {
@@ -104,25 +103,6 @@ export function QuestionsPanel({
     progress.phase !== "ready" &&
     progress.phase !== "idle" &&
     progress.phase !== "failed";
-
-  // Show context input if:
-  // 1. Document exists AND
-  // 2. Context hasn't been submitted yet AND
-  // 3. Either still processing OR no questions yet
-  const showContextInput =
-    document &&
-    !document.context_submitted &&
-    (isProcessing || totalQuestions === 0);
-
-  // If showing context input, render the full-height ContextInputPanel
-  if (showContextInput) {
-    return (
-      <ContextInputPanel
-        documentId={documentId}
-        document={document}
-      />
-    );
-  }
 
   return (
     <div className="flex flex-col h-full bg-card overflow-hidden">

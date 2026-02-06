@@ -7,7 +7,6 @@ import { MicrophoneButton } from "@/components/ui/microphone-button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Sparkles, Loader2, ChevronRight, Brain } from "lucide-react";
-import { toast } from "sonner";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import type { Document } from "@/lib/types";
 
@@ -40,7 +39,7 @@ export function ContextInputPanel({
       }
     },
     onError: (error) => {
-      toast.error(error);
+      console.error("[AutoForm] Voice recording error:", error);
     },
     documentId,
     questionText: tailoredQuestion || undefined,
@@ -94,11 +93,9 @@ export function ContextInputPanel({
         throw new Error("Failed to submit context");
       }
 
-      toast.success("Context submitted! Generating questions...");
       onContextSubmitted?.();
     } catch (error) {
       console.error("[AutoForm] Failed to submit context:", error);
-      toast.error("Failed to submit context");
     } finally {
       setSubmitting(false);
     }
@@ -118,11 +115,9 @@ export function ContextInputPanel({
         throw new Error("Failed to skip context");
       }
 
-      toast.success("Generating questions...");
       onContextSubmitted?.();
     } catch (error) {
       console.error("[AutoForm] Failed to skip context:", error);
-      toast.error("Failed to continue");
     } finally {
       setSubmitting(false);
     }
