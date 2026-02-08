@@ -11,12 +11,14 @@
  * - ChoiceFieldShape for circle_choice
  */
 
-import { Group } from "react-konva";
-import type Konva from "konva";
+import { useRef, useEffect } from "react";
+import { Group, Rect } from "react-konva";
+import Konva from "konva";
 import { TextFieldShape } from "./TextFieldShape";
 import { CheckboxFieldShape } from "./CheckboxFieldShape";
 import { SignatureFieldShape } from "./SignatureFieldShape";
 import { ChoiceFieldShape } from "./ChoiceFieldShape";
+import { LinkedDateFieldShape } from "./LinkedDateFieldShape";
 import type { ExtractedField } from "@/lib/types";
 
 interface FieldShapeProps {
@@ -25,8 +27,12 @@ interface FieldShapeProps {
   /** Page dimensions for coordinate conversion */
   pageWidth: number;
   pageHeight: number;
+  /** Consistent font size for all text fields on this page (based on smallest field) */
+  pageFontSize?: number | null;
   isActive: boolean;
   isEditing: boolean;
+  /** Whether this is a newly created field (shows pulse animation) */
+  isNew?: boolean;
   /** Whether in layout mode (draggable/resizable) */
   draggable?: boolean;
   hideFieldColors?: boolean;
@@ -44,8 +50,10 @@ export function FieldShape({
   value,
   pageWidth,
   pageHeight,
+  pageFontSize,
   isActive,
   isEditing,
+  isNew = false,
   draggable = false,
   hideFieldColors,
   onClick,
@@ -55,11 +63,36 @@ export function FieldShape({
   onChoiceClick,
   shapeRef,
 }: FieldShapeProps) {
+  const pulseRef = useRef<Konva.Rect>(null);
+
   // Convert percentage coordinates to pixels
   const x = (field.coordinates.left / 100) * pageWidth;
   const y = (field.coordinates.top / 100) * pageHeight;
   const width = (field.coordinates.width / 100) * pageWidth;
   const height = (field.coordinates.height / 100) * pageHeight;
+
+  // Pulse animation for new fields
+  useEffect(() => {
+    if (!isNew || !pulseRef.current) return;
+
+    const node = pulseRef.current;
+    const layer = node.getLayer();
+    if (!layer) return;
+
+    const anim = new Konva.Animation((frame: { time: number } | undefined) => {
+      if (!frame) return;
+      // Pulse opacity between 0.3 and 0.8 over 800ms
+      const period = 800;
+      const opacity = 0.3 + 0.5 * Math.abs(Math.sin((frame.time * Math.PI) / period));
+      node.opacity(opacity);
+    }, layer);
+
+    anim.start();
+
+    return () => {
+      anim.stop();
+    };
+  }, [isNew]);
 
   // Handle drag end
   const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
@@ -123,9 +156,42 @@ export function FieldShape({
           />
         );
 
+      case "date":
+        // Check if this is a segmented date (has date_segments)
+        console.log("[FieldShape] date field:", field.label, "date_segments:", field.date_segments);
+        if (field.date_segments && field.date_segments.length > 0) {
+          return (
+            <LinkedDateFieldShape
+              field={field}
+              value={value}
+              pageWidth={pageWidth}
+              pageHeight={pageHeight}
+              pageFontSize={pageFontSize}
+              isActive={isActive}
+              hideFieldColors={hideFieldColors}
+              onClick={onClick}
+            />
+          );
+        }
+        // Fall through to default text rendering for simple date fields
+        return (
+          <TextFieldShape
+            field={field}
+            value={value}
+            x={0}
+            y={0}
+            width={width}
+            height={height}
+            pageFontSize={pageFontSize}
+            isActive={isActive}
+            isEditing={isEditing}
+            hideFieldColors={hideFieldColors}
+            onClick={onClick}
+          />
+        );
+
       case "text":
       case "textarea":
-      case "date":
       default:
         return (
           <TextFieldShape
@@ -135,6 +201,7 @@ export function FieldShape({
             y={0}
             width={width}
             height={height}
+            pageFontSize={pageFontSize}
             isActive={isActive}
             isEditing={isEditing}
             hideFieldColors={hideFieldColors}
@@ -144,8 +211,9 @@ export function FieldShape({
     }
   };
 
-  // For circle_choice, don't wrap in positioned Group (it handles its own positioning)
-  if (field.field_type === "circle_choice") {
+  // For circle_choice and segmented dates, don't wrap in positioned Group (they handle their own positioning)
+  const isSegmentedDate = field.field_type === "date" && field.date_segments && field.date_segments.length > 0;
+  if (field.field_type === "circle_choice" || isSegmentedDate) {
     return renderContent();
   }
 
@@ -163,6 +231,21 @@ export function FieldShape({
       onDblClick={onDblClick}
       onDblTap={onDblClick}
     >
+      {/* Pulse overlay for new fields */}
+      {isNew && (
+        <Rect
+          ref={pulseRef}
+          x={-2}
+          y={-2}
+          width={width + 4}
+          height={height + 4}
+          fill="transparent"
+          stroke="#3b82f6"
+          strokeWidth={2}
+          cornerRadius={3}
+          opacity={0.5}
+        />
+      )}
       {renderContent()}
     </Group>
   );

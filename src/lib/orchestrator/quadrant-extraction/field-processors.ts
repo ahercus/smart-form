@@ -7,7 +7,14 @@
  */
 
 import type { RawExtractedField, TableConfig } from "../../gemini/vision/quadrant-extract";
-import type { NormalizedCoordinates } from "../../types";
+import type { NormalizedCoordinates, DateSegment } from "../../types";
+
+/**
+ * Standard page aspect ratio (height / width)
+ * Most forms are Letter (11/8.5 = 1.29) or A4 (297/210 = 1.414)
+ * Using A4 ratio as it's close to common PDF renders
+ */
+const PAGE_ASPECT_RATIO = 1.414;
 
 /**
  * Expand a table field into individual cell fields
@@ -141,6 +148,56 @@ export function processLinkedTextField(field: RawExtractedField): RawExtractedFi
 }
 
 /**
+ * Process linkedDate field to ensure dateSegments are properly set
+ * LinkedDate fields are stored as `date` type with `dateSegments` array
+ * (database constraint only allows: text, textarea, checkbox, radio, date, signature, initials, circle_choice, unknown)
+ */
+export function processLinkedDateField(field: RawExtractedField): RawExtractedField {
+  if (!field.dateSegments || field.dateSegments.length === 0) {
+    console.warn("[AutoForm] LinkedDate field missing dateSegments, converting to regular date:", field.label);
+    return {
+      ...field,
+      fieldType: "date", // Convert to regular date
+    };
+  }
+
+  // Use the bounding box of all date segments as the main coordinates
+  const boundingBox = calculateBoundingBox(field.dateSegments);
+
+  return {
+    ...field,
+    fieldType: "date", // Store as date type - dateSegments make it a segmented date
+    coordinates: boundingBox,
+    dateSegments: field.dateSegments,
+  };
+}
+
+/**
+ * Process checkbox field to ensure it renders as a visual square
+ *
+ * Since coordinates are percentages on a non-square page:
+ * - 1% width ≠ 1% height visually
+ * - To get a visual square: height% = width% / PAGE_ASPECT_RATIO
+ *
+ * We trust the width measurement (LLM reads horizontal ruler) and adjust height accordingly.
+ */
+export function processCheckboxField(field: RawExtractedField): RawExtractedField {
+  const { coordinates } = field;
+
+  // Calculate the height percentage that will render as visually square
+  // If width is 2.2%, on A4 (ratio 1.414), height should be 2.2 / 1.414 ≈ 1.56%
+  const adjustedHeight = coordinates.width / PAGE_ASPECT_RATIO;
+
+  return {
+    ...field,
+    coordinates: {
+      ...coordinates,
+      height: adjustedHeight,
+    },
+  };
+}
+
+/**
  * Calculate bounding box for an array of segments
  */
 function calculateBoundingBox(segments: NormalizedCoordinates[]): NormalizedCoordinates {
@@ -189,6 +246,17 @@ export function processExtractedFields(fields: RawExtractedField[]): RawExtracte
         processed.push(processLinkedTextField(field));
         break;
 
+      case "linkedDate":
+        // Process linkedDate to preserve dateSegments
+        processed.push(processLinkedDateField(field));
+        break;
+
+      case "checkbox":
+      case "radio":
+        // Adjust height for visual square rendering on non-square pages
+        processed.push(processCheckboxField(field));
+        break;
+
       default:
         // Pass through other field types unchanged
         processed.push(field);
@@ -201,6 +269,7 @@ export function processExtractedFields(fields: RawExtractedField[]): RawExtracte
     outputCount: processed.length,
     tablesExpanded: fields.filter((f) => f.fieldType === "table").length,
     linkedTextProcessed: fields.filter((f) => f.fieldType === "linkedText").length,
+    linkedDateProcessed: fields.filter((f) => f.fieldType === "linkedDate").length,
   });
 
   return processed;
