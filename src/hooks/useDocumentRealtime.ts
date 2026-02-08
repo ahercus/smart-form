@@ -142,11 +142,17 @@ export function useDocumentRealtime(documentId: string) {
         (payload) => {
           console.log("[AutoForm] Document changed:", payload);
           if (payload.eventType === "UPDATE") {
+            const newDoc = payload.new as Document & { processing_progress?: ProcessingProgress };
             setState((prev) => ({
               ...prev,
-              document: payload.new as Document,
-              progress: payload.new.processing_progress as ProcessingProgress,
+              document: newDoc,
+              progress: newDoc.processing_progress ?? prev.progress,
             }));
+            // Refetch all data when document becomes ready (batch inserts may not trigger all realtime events)
+            if (newDoc.status === "ready") {
+              console.log("[AutoForm] Document ready, refetching all data");
+              fetchData();
+            }
           }
         }
       )
