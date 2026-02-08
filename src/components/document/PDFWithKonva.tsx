@@ -503,7 +503,7 @@ export function PDFWithKonva({
         ref={containerRef}
         id="pdf-konva-container"
         data-scroll-container
-        className="flex-1 overflow-auto p-4 bg-muted/30 flex justify-center touch-pan-x touch-pan-y"
+        className="flex-1 overflow-auto p-2 md:p-4 bg-muted/30 flex justify-center items-start touch-pan-x touch-pan-y"
       >
         {!isPdfJsReady ? (
           <Skeleton className="h-[600px] w-[450px]" />
