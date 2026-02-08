@@ -250,7 +250,7 @@ export function SetupCard({
   // Context Input State
   if (state === "context") {
     return (
-      <div className="w-full max-w-md space-y-4">
+      <div className="w-full max-w-md p-6 rounded-xl bg-card border shadow-lg space-y-4">
         {/* Rainbow shimmer border box */}
         <div className="relative p-[2px] rounded-xl overflow-hidden">
           <div
