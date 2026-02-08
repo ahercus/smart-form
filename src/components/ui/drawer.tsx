@@ -46,6 +46,7 @@ function DrawerOverlay({
 }
 
 // Transparent overlay variant for mobile drawers that shouldn't darken background
+// Uses pointer-events-none to allow interaction with content behind the drawer
 function DrawerOverlayTransparent({
   className,
   ...props
@@ -54,7 +55,7 @@ function DrawerOverlayTransparent({
     <DrawerPrimitive.Overlay
       data-slot="drawer-overlay"
       className={cn(
-        "fixed inset-0 z-50",
+        "fixed inset-0 z-50 pointer-events-none",
         className
       )}
       {...props}
@@ -90,6 +91,7 @@ function DrawerContent({
 }
 
 // Drawer content variant without dark overlay - for mobile wizard panels
+// The drawer content has pointer-events-auto to be interactive while overlay passes through
 function DrawerContentTransparent({
   className,
   children,
@@ -101,7 +103,7 @@ function DrawerContentTransparent({
       <DrawerPrimitive.Content
         data-slot="drawer-content"
         className={cn(
-          "group/drawer-content glass fixed z-50 flex h-auto flex-col",
+          "group/drawer-content glass fixed z-50 flex h-auto flex-col pointer-events-auto",
           "data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:bottom-0 data-[vaul-drawer-direction=bottom]:max-h-[50vh] data-[vaul-drawer-direction=bottom]:rounded-t-xl",
           className
         )}

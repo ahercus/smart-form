@@ -95,16 +95,17 @@ export function DocumentCard({ document, onDelete, onToggleMemory, onRename }: D
 
   return (
     <Card>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3 flex-1 min-w-0">
-            <div className="p-2 rounded-lg bg-muted">
-              <FileText className="h-6 w-6 text-muted-foreground" />
+      <CardContent className="p-3">
+        <div className="flex items-center justify-between gap-2">
+          {/* Left: Icon + Content */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="p-1.5 rounded-md bg-muted shrink-0">
+              <FileText className="h-4 w-4 text-muted-foreground" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <p className="font-medium truncate">{document.original_filename}</p>
-                <Badge variant={config.variant}>
+              <p className="font-medium text-sm truncate">{document.original_filename}</p>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Badge variant={config.variant} className="h-5 text-xs px-1.5">
                   {isProcessing && (
                     <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                   )}
@@ -116,37 +117,38 @@ export function DocumentCard({ document, onDelete, onToggleMemory, onRename }: D
                   )}
                   {config.label}
                 </Badge>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {formatDate(document.created_at)}
-                {document.page_count && ` • ${document.page_count} page${document.page_count > 1 ? "s" : ""}`}
+                <span className="hidden sm:inline">
+                  {formatDate(document.created_at)}
+                  {document.page_count && ` • ${document.page_count}p`}
+                </span>
                 {document.status === "ready" && document.total_fields !== undefined && document.total_fields > 0 && (
-                  <span>
-                    {" • "}
-                    {document.filled_fields || 0} of {document.total_fields} fields
+                  <span className="hidden sm:inline">
+                    • {document.filled_fields || 0}/{document.total_fields}
                   </span>
                 )}
-              </p>
+              </div>
               {document.error_message && (
-                <p className="text-sm text-destructive mt-1">
+                <p className="text-xs text-destructive mt-0.5 truncate">
                   {document.error_message}
                 </p>
               )}
               {isProcessing && (
-                <Progress value={config.progress} className="h-1 mt-2" />
+                <Progress value={config.progress} className="h-1 mt-1.5" />
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          {/* Right: Actions */}
+          <div className="flex items-center gap-1 shrink-0">
             {document.status !== "failed" && (
-              <Button asChild size="sm" variant={isProcessing ? "outline" : "default"}>
+              <Button asChild size="sm" variant={isProcessing ? "outline" : "default"} className="h-8 px-3">
                 <Link href={`/document/${document.id}`}>Open</Link>
               </Button>
             )}
             {(onDelete || onToggleMemory || onRename) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>

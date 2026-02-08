@@ -111,8 +111,8 @@ export default function ProfilePage() {
         <h1 className="text-lg font-semibold">Profile</h1>
       </AppHeader>
 
-      <div className="flex-1 overflow-auto p-4">
-        <div className="max-w-xl space-y-6">
+      <div className="flex-1 overflow-auto p-4 md:p-6">
+        <div className="md:max-w-xl md:mx-auto space-y-6">
           <p className="text-muted-foreground">
             Your information for auto-fill
           </p>

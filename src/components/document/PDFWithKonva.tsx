@@ -109,14 +109,23 @@ export function PDFWithKonva({
   const [pageDimensions, setPageDimensions] = useState<Map<number, { width: number; height: number }>>(new Map());
   const [localCoords, setLocalCoords] = useState<Record<string, NormalizedCoordinates>>({});
 
-  // Calculate scaled dimensions from actual page dimensions
-  const scaledWidth = containerWidth * scale;
+  // Base dimensions from actual page dimensions
+  const baseWidth = containerWidth;
   const currentPageDims = pageDimensions.get(currentPage);
   // Default to letter aspect ratio until we get actual dimensions
   const pageAspectRatio = currentPageDims
     ? currentPageDims.height / currentPageDims.width
     : 792 / 612;
-  const scaledHeight = scaledWidth * pageAspectRatio;
+  const baseHeight = baseWidth * pageAspectRatio;
+  const scaledWidth = baseWidth * scale;
+  const scaledHeight = baseHeight * scale;
+
+  // Pinch zoom state
+  const lastTouchDistance = useRef<number | null>(null);
+  const pinchStartScale = useRef<number>(1);
+  const rafScaleRef = useRef<number | null>(null);
+  const rafIdRef = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Configure PDF.js worker
   useEffect(() => {
@@ -125,6 +134,82 @@ export function PDFWithKonva({
       setIsPdfJsReady(true);
     });
   }, []);
+
+  // Pinch zoom for mobile + trackpad
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const applyScale = (nextScale: number) => {
+      const clamped = Math.max(0.5, Math.min(3, nextScale));
+      rafScaleRef.current = clamped;
+
+      if (rafIdRef.current !== null) return;
+
+      rafIdRef.current = window.requestAnimationFrame(() => {
+        if (rafScaleRef.current !== null) {
+          setScale(rafScaleRef.current);
+        }
+        rafIdRef.current = null;
+      });
+    };
+
+    // Trackpad pinch (wheel with ctrlKey)
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = -e.deltaY * 0.01;
+        applyScale(scale + delta);
+      }
+    };
+
+    // Mobile touch pinch
+    const getTouchDistance = (touches: TouchList) => {
+      if (touches.length < 2) return null;
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        lastTouchDistance.current = getTouchDistance(e.touches);
+        pinchStartScale.current = scale;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && lastTouchDistance.current !== null) {
+        e.preventDefault();
+        const currentDistance = getTouchDistance(e.touches);
+        if (currentDistance !== null) {
+          const scaleFactor = currentDistance / lastTouchDistance.current;
+          const nextScale = pinchStartScale.current * scaleFactor;
+          applyScale(nextScale);
+        }
+      }
+    };
+
+    const handleTouchEnd = () => {
+      lastTouchDistance.current = null;
+    };
+
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    container.addEventListener("touchstart", handleTouchStart, { passive: false });
+    container.addEventListener("touchmove", handleTouchMove, { passive: false });
+    container.addEventListener("touchend", handleTouchEnd);
+
+    return () => {
+      container.removeEventListener("wheel", handleWheel);
+      container.removeEventListener("touchstart", handleTouchStart);
+      container.removeEventListener("touchmove", handleTouchMove);
+      container.removeEventListener("touchend", handleTouchEnd);
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+    };
+  }, [scale]);
 
   // Update container width
   useEffect(() => {
@@ -415,9 +500,10 @@ export function PDFWithKonva({
 
       {/* PDF Display with Konva Canvas */}
       <div
+        ref={containerRef}
         id="pdf-konva-container"
         data-scroll-container
-        className="flex-1 overflow-auto p-4 bg-muted/30 flex justify-center"
+        className="flex-1 overflow-auto p-4 bg-muted/30 flex justify-center touch-pan-x touch-pan-y"
       >
         {!isPdfJsReady ? (
           <Skeleton className="h-[600px] w-[450px]" />
@@ -436,7 +522,7 @@ export function PDFWithKonva({
                     <HiddenPageRenderer
                       key={pageNum}
                       pageNumber={pageNum}
-                      width={scaledWidth}
+                      width={baseWidth}
                       onRenderSuccess={handlePageRenderSuccess}
                     />
                   ))}
@@ -448,9 +534,9 @@ export function PDFWithKonva({
               <div className="shadow-lg">
                 <KonvaFieldCanvas
                   pageImage={currentPageImage}
-                  pageWidth={scaledWidth}
-                  pageHeight={scaledHeight}
-                  scale={1} // Scale already applied to dimensions
+                  pageWidth={baseWidth}
+                  pageHeight={baseHeight}
+                  scale={scale}
                   fields={mergedPageFields}
                   fieldValues={fieldValues}
                   activeFieldId={activeFieldId || null}

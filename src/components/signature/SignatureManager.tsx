@@ -4,16 +4,9 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
+import { Drawer, DrawerContent } from "@/components/ui/drawer";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -313,118 +306,31 @@ export function SignatureManager({
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="h-[50vh] max-h-[50vh]">
-          <DrawerHeader className="border-b px-4 py-3">
-            <DrawerTitle>Manage Signatures & Initials</DrawerTitle>
-          </DrawerHeader>
+        <DrawerContent className="h-[85vh] max-h-[85vh] md:h-[50vh] md:max-h-[50vh]">
+          {/* Tabs at top */}
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => setActiveTab(v as SignatureType)}
+            className="w-full shrink-0"
+          >
+            <TabsList className="w-full rounded-none border-b h-11 bg-transparent">
+              <TabsTrigger value="signature" className="flex-1">
+                <PenLine className="h-4 w-4 mr-1.5" />
+                Signatures
+              </TabsTrigger>
+              <TabsTrigger value="initials" className="flex-1">
+                Initials
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-          <div className="flex flex-1 min-h-0 overflow-hidden">
-            {/* Left sidebar - saved signatures */}
-            <div className="w-48 md:w-56 border-r flex flex-col bg-muted/30">
-              <Tabs
-                value={activeTab}
-                onValueChange={(v) => setActiveTab(v as SignatureType)}
-                className="w-full"
-              >
-                <TabsList className="w-full rounded-none border-b h-10 bg-transparent">
-                  <TabsTrigger value="signature" className="flex-1 text-xs">
-                    <PenLine className="h-3 w-3 mr-1" />
-                    Signatures
-                  </TabsTrigger>
-                  <TabsTrigger value="initials" className="flex-1 text-xs">
-                    Initials
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-
-              <ScrollArea className="flex-1">
-                <div className="p-2 space-y-2">
-                  {isLoading ? (
-                    <>
-                      <Skeleton className="h-16 w-full" />
-                      <Skeleton className="h-16 w-full" />
-                    </>
-                  ) : currentSignatures.length === 0 ? (
-                    <div className="text-center py-6 text-muted-foreground text-xs px-2">
-                      No {activeTab === "signature" ? "signatures" : "initials"} saved yet.
-                      Draw one to save it.
-                    </div>
-                  ) : (
-                    currentSignatures.map((sig) => (
-                      <div
-                        key={sig.id}
-                        className={`relative group rounded-lg border p-1.5 cursor-pointer transition-all ${
-                          selectedSignature?.id === sig.id
-                            ? "ring-2 ring-primary border-primary"
-                            : "hover:border-primary/50"
-                        }`}
-                        onClick={() => setSelectedSignature(sig)}
-                      >
-                        <div className="h-12 bg-white rounded flex items-center justify-center overflow-hidden px-1.5">
-                          {sig.preview_data_url ? (
-                            <Image
-                              src={sig.preview_data_url}
-                              alt={sig.name}
-                              width={200}
-                              height={48}
-                              className="object-contain w-full h-full"
-                            />
-                          ) : (
-                            <span className="text-muted-foreground text-xs">
-                              No preview
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-xs font-medium truncate flex-1">
-                            {sig.name}
-                          </span>
-                          {sig.is_default && (
-                            <Star className="h-3 w-3 text-yellow-500 fill-yellow-500 ml-1" />
-                          )}
-                        </div>
-                        {/* Hover actions */}
-                        <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                          {!sig.is_default && (
-                            <Button
-                              variant="secondary"
-                              size="icon"
-                              className="h-5 w-5"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSetDefault(sig);
-                              }}
-                              title="Set as default"
-                            >
-                              <Star className="h-2.5 w-2.5" />
-                            </Button>
-                          )}
-                          <Button
-                            variant="secondary"
-                            size="icon"
-                            className="h-5 w-5 text-destructive hover:text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteConfirmId(sig.id);
-                            }}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-2.5 w-2.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
-            </div>
-
-            {/* Right canvas area */}
-            <div className="flex-1 flex flex-col p-4 overflow-hidden">
+          <div className="flex-1 overflow-auto flex flex-col">
+            {/* Drawing/viewing area */}
+            <div className="p-4 space-y-3 shrink-0">
               {selectedSignature ? (
                 // Viewing selected signature
-                <div className="flex-1 flex flex-col min-h-0">
-                  <div className="flex items-center justify-between mb-3">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
                     <div>
                       <h3 className="font-medium text-sm">{selectedSignature.name}</h3>
                       <p className="text-xs text-muted-foreground">
@@ -448,7 +354,7 @@ export function SignatureManager({
                       )}
                     </div>
                   </div>
-                  <div className="border-2 border-dashed rounded-lg bg-white h-24 md:h-28 flex items-center justify-center">
+                  <div className="border-2 border-dashed rounded-lg bg-white aspect-[3/1] flex items-center justify-center">
                     {selectedSignature.preview_data_url && (
                       <Image
                         src={selectedSignature.preview_data_url}
@@ -462,29 +368,27 @@ export function SignatureManager({
                 </div>
               ) : (
                 // Drawing canvas
-                <div className="flex-1 flex flex-col min-h-0">
-                  <div className="flex items-center justify-between mb-3">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
                     <h3 className="font-medium text-sm">
                       Draw {activeTab === "signature" ? "Signature" : "Initials"}
                     </h3>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
                         onClick={handleUndo}
                         disabled={history.length <= 1}
                       >
-                        <Undo2 className="h-3 w-3 mr-1" />
-                        Undo
+                        <Undo2 className="h-4 w-4" />
                       </Button>
-                      <Button variant="outline" size="sm" onClick={handleClear}>
-                        <Eraser className="h-3 w-3 mr-1" />
-                        Clear
+                      <Button variant="ghost" size="sm" onClick={handleClear}>
+                        <Eraser className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
 
-                  <div className="relative border-2 border-dashed border-muted-foreground/30 rounded-lg bg-white h-24 md:h-28 flex-shrink-0">
+                  <div className="relative border-2 border-dashed border-muted-foreground/30 rounded-lg bg-white aspect-[3/1]">
                     <canvas
                       ref={canvasRef}
                       className="absolute inset-0 w-full h-full touch-none cursor-crosshair"
@@ -500,47 +404,125 @@ export function SignatureManager({
                     {!hasDrawn && (
                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <p className="text-muted-foreground text-sm">
-                          Draw your {activeTab === "signature" ? "signature" : "initials"} here
+                          Draw here
                         </p>
                       </div>
                     )}
                   </div>
 
-                  <div className="mt-3 flex items-end gap-3">
-                    <div className="flex-1">
-                      <Label htmlFor="sig-name" className="text-xs">
-                        Name
-                      </Label>
-                      <Input
-                        id="sig-name"
-                        value={signatureName}
-                        onChange={(e) => setSignatureName(e.target.value)}
-                        placeholder={activeTab === "signature" ? "My Signature" : "My Initials"}
-                        className="mt-1 h-8 text-sm"
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      {onInsert && (
-                        <Button
-                          size="sm"
-                          onClick={handleInsertDrawn}
-                          disabled={!hasDrawn}
-                        >
-                          Insert
-                        </Button>
-                      )}
+                  <div className="flex gap-2">
+                    <Input
+                      value={signatureName}
+                      onChange={(e) => setSignatureName(e.target.value)}
+                      placeholder="Name"
+                      className="flex-1 h-9"
+                    />
+                    {onInsert && (
                       <Button
-                        variant="outline"
                         size="sm"
-                        onClick={handleSave}
-                        disabled={!hasDrawn || isSaving}
+                        className="h-9"
+                        onClick={handleInsertDrawn}
+                        disabled={!hasDrawn}
                       >
-                        {isSaving ? "Saving..." : "Save"}
+                        Insert
                       </Button>
-                    </div>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9"
+                      onClick={handleSave}
+                      disabled={!hasDrawn || isSaving}
+                    >
+                      {isSaving ? "..." : "Save"}
+                    </Button>
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Saved signatures list */}
+            <div className="flex-1 border-t bg-muted/30">
+              <div className="p-4">
+                <h3 className="text-sm font-medium text-muted-foreground mb-3">
+                  Saved {activeTab === "signature" ? "Signatures" : "Initials"}
+                </h3>
+                {isLoading ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Skeleton className="h-16" />
+                    <Skeleton className="h-16" />
+                  </div>
+                ) : currentSignatures.length === 0 ? (
+                  <p className="text-center py-4 text-muted-foreground text-sm">
+                    No {activeTab === "signature" ? "signatures" : "initials"} saved yet.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {currentSignatures.map((sig) => (
+                      <div
+                        key={sig.id}
+                        className={`relative group rounded-lg border bg-card p-2 cursor-pointer transition-all ${
+                          selectedSignature?.id === sig.id
+                            ? "ring-2 ring-primary border-primary"
+                            : "hover:border-primary/50 active:bg-muted"
+                        }`}
+                        onClick={() => setSelectedSignature(sig)}
+                      >
+                        <div className="h-12 bg-white rounded flex items-center justify-center overflow-hidden px-1.5">
+                          {sig.preview_data_url ? (
+                            <Image
+                              src={sig.preview_data_url}
+                              alt={sig.name}
+                              width={150}
+                              height={40}
+                              className="object-contain w-full h-full"
+                            />
+                          ) : (
+                            <span className="text-muted-foreground text-xs">
+                              No preview
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-xs font-medium truncate flex-1">
+                            {sig.name}
+                          </span>
+                          {sig.is_default && (
+                            <Star className="h-3 w-3 text-yellow-500 fill-yellow-500 ml-1" />
+                          )}
+                        </div>
+                        {/* Action buttons */}
+                        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100">
+                          {!sig.is_default && (
+                            <Button
+                              variant="secondary"
+                              size="icon"
+                              className="h-5 w-5"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSetDefault(sig);
+                              }}
+                            >
+                              <Star className="h-2.5 w-2.5" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="secondary"
+                            size="icon"
+                            className="h-5 w-5 text-destructive hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteConfirmId(sig.id);
+                            }}
+                          >
+                            <Trash2 className="h-2.5 w-2.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </DrawerContent>

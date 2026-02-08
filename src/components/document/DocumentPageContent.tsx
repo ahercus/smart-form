@@ -11,7 +11,7 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from "@/components/ui/drawer";
-import { Download, Loader2, FolderOpen, MessageSquare, ChevronLeft, ChevronRight, Pencil, Check, X } from "lucide-react";
+import { Download, Loader2, FolderOpen, ChevronUp, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { PDFWithKonva } from "./PDFWithKonva";
@@ -659,16 +659,17 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
                     </div>
                   )}
                   <Button
-                    size={isMobile ? "sm" : "default"}
+                    size={isMobile ? "icon" : "default"}
+                    className={isMobile ? "h-9 w-9" : ""}
                     onClick={handleExport}
                     disabled={exporting}
                   >
                     {exporting ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className={isMobile ? "h-4 w-4 animate-spin" : "mr-2 h-4 w-4 animate-spin"} />
                     ) : (
-                      <Download className="mr-2 h-4 w-4" />
+                      <Download className={isMobile ? "h-4 w-4" : "mr-2 h-4 w-4"} />
                     )}
-                    {exporting ? "Exporting..." : "Export PDF"}
+                    {!isMobile && (exporting ? "Exporting..." : "Export PDF")}
                   </Button>
                   {!isMobile && (
                     <Button
@@ -757,13 +758,11 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
             <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
               <DrawerTrigger asChild>
                 <Button
-                  className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 shadow-lg gap-2 px-6"
-                  size="lg"
+                  className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 shadow-lg gap-2 px-5"
+                  size="default"
                 >
-                  <MessageSquare className="h-5 w-5" />
-                  <span>
-                    {completionStats.filled} / {completionStats.total} answered
-                  </span>
+                  <span>Assistant</span>
+                  <ChevronUp className="h-4 w-4" />
                 </Button>
               </DrawerTrigger>
               <DrawerContentTransparent>
@@ -788,6 +787,7 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
                   scrollToQuestionId={scrollToQuestionId}
                   onOpenSignatureManager={handleOpenSignatureManager}
                   loading={loading}
+                  compact
                 />
               </DrawerContentTransparent>
             </Drawer>

@@ -28,6 +28,7 @@ interface QuestionsPanelProps {
   onClose?: () => void;
   expanded?: boolean;
   onToggleExpand?: () => void;
+  compact?: boolean; // Hide header (title + progress) for mobile drawer
 }
 
 export function QuestionsPanel({
@@ -47,6 +48,7 @@ export function QuestionsPanel({
   onClose,
   expanded,
   onToggleExpand,
+  compact,
 }: QuestionsPanelProps) {
   const questionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -98,34 +100,36 @@ export function QuestionsPanel({
 
   return (
     <div className="flex flex-col h-full bg-card overflow-hidden">
-      {/* Header */}
-      <div className="px-4 py-2 border-b flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Assistant</h2>
-          {onClose && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 -mr-1"
-              onClick={onClose}
-            >
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
-            </Button>
+      {/* Header - hidden in compact mode */}
+      {!compact && (
+        <div className="px-4 py-2 border-b flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">Assistant</h2>
+            {onClose && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 -mr-1"
+                onClick={onClose}
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Close</span>
+              </Button>
+            )}
+          </div>
+          {totalQuestions > 0 && (
+            <>
+              <div className="flex items-center justify-between text-sm mb-1.5 mt-2">
+                <span className="text-muted-foreground">
+                  {answeredQuestions.length} of {totalQuestions} answered
+                </span>
+                <span className="font-medium">{Math.round(progressPercentage)}%</span>
+              </div>
+              <Progress value={progressPercentage} className="h-1.5" />
+            </>
           )}
         </div>
-        {totalQuestions > 0 && (
-          <>
-            <div className="flex items-center justify-between text-sm mb-1.5 mt-2">
-              <span className="text-muted-foreground">
-                {answeredQuestions.length} of {totalQuestions} answered
-              </span>
-              <span className="font-medium">{Math.round(progressPercentage)}%</span>
-            </div>
-            <Progress value={progressPercentage} className="h-1.5" />
-          </>
-        )}
-      </div>
+      )}
 
       {/* Content - Scrollable (independent from PDF) */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4">

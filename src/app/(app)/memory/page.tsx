@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +30,7 @@ import { toast } from "sonner";
 import { AppHeader } from "@/components/layout";
 import { useEntities, type Entity, type EntityFact } from "@/hooks/useEntities";
 import { getFactPriority, shouldHideFact } from "@/lib/memory/relationships";
-import { ChevronDown, Pencil, Trash2, Brain, User, MapPin, Building2, Plus, AlertTriangle, Loader2 } from "lucide-react";
+import { ChevronDown, Trash2, Brain, User, MapPin, Building2, Plus, AlertTriangle, Loader2, X, Check } from "lucide-react";
 
 // Entity type icons
 function getEntityIcon(type: string) {
@@ -73,35 +73,15 @@ export default function MemoryPage() {
     recentlyUpdatedIds,
   } = useEntities();
 
-  // Edit fact dialog state
-  const [editFactDialogOpen, setEditFactDialogOpen] = useState(false);
-  const [editingFact, setEditingFact] = useState<EntityFact | null>(null);
-  const [editingEntity, setEditingEntity] = useState<Entity | null>(null);
-  const [factValue, setFactValue] = useState("");
-  const [factSubmitting, setFactSubmitting] = useState(false);
-
   // Edit relationship dialog state
   const [editRelationshipDialogOpen, setEditRelationshipDialogOpen] = useState(false);
   const [relationshipEntity, setRelationshipEntity] = useState<Entity | null>(null);
   const [relationshipValue, setRelationshipValue] = useState("");
-
-  // Add fact dialog state
-  const [addFactDialogOpen, setAddFactDialogOpen] = useState(false);
-  const [addFactEntityId, setAddFactEntityId] = useState("");
-  const [newFactType, setNewFactType] = useState("");
-  const [newFactValue, setNewFactValue] = useState("");
+  const [factSubmitting, setFactSubmitting] = useState(false);
 
   // Delete confirmation state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [entityToDelete, setEntityToDelete] = useState<Entity | null>(null);
-  const [factToDelete, setFactToDelete] = useState<EntityFact | null>(null);
-
-  function openEditFactDialog(entity: Entity, fact: EntityFact) {
-    setEditingEntity(entity);
-    setEditingFact(fact);
-    setFactValue(fact.fact_value);
-    setEditFactDialogOpen(true);
-  }
 
   function openEditRelationshipDialog(entity: Entity) {
     setRelationshipEntity(entity);
@@ -126,54 +106,8 @@ export default function MemoryPage() {
     }
   }
 
-  function openAddFactDialog(entityId: string) {
-    setAddFactEntityId(entityId);
-    setNewFactType("");
-    setNewFactValue("");
-    setAddFactDialogOpen(true);
-  }
-
-  async function handleUpdateFact() {
-    if (!editingFact || !factValue.trim()) return;
-
-    setFactSubmitting(true);
-    try {
-      await updateFact(editingFact.id, { fact_value: factValue.trim() });
-      toast.success("Fact updated");
-      setEditFactDialogOpen(false);
-    } catch {
-      toast.error("Failed to update fact");
-    } finally {
-      setFactSubmitting(false);
-    }
-  }
-
-  async function handleAddFact() {
-    if (!addFactEntityId || !newFactType.trim() || !newFactValue.trim()) return;
-
-    setFactSubmitting(true);
-    try {
-      // Convert fact type to snake_case
-      const factType = newFactType.trim().toLowerCase().replace(/\s+/g, "_");
-      await addFact(addFactEntityId, factType, newFactValue.trim());
-      toast.success("Fact added");
-      setAddFactDialogOpen(false);
-    } catch {
-      toast.error("Failed to add fact");
-    } finally {
-      setFactSubmitting(false);
-    }
-  }
-
   function confirmDeleteEntity(entity: Entity) {
     setEntityToDelete(entity);
-    setFactToDelete(null);
-    setDeleteConfirmOpen(true);
-  }
-
-  function confirmDeleteFact(fact: EntityFact) {
-    setFactToDelete(fact);
-    setEntityToDelete(null);
     setDeleteConfirmOpen(true);
   }
 
@@ -182,13 +116,9 @@ export default function MemoryPage() {
       if (entityToDelete) {
         await deleteEntity(entityToDelete.id);
         toast.success("Entity deleted");
-      } else if (factToDelete) {
-        await deleteFact(factToDelete.id);
-        toast.success("Fact deleted");
       }
       setDeleteConfirmOpen(false);
       setEntityToDelete(null);
-      setFactToDelete(null);
     } catch {
       toast.error("Failed to delete");
     }
@@ -214,8 +144,8 @@ export default function MemoryPage() {
         </div>
       </AppHeader>
 
-      <div className="flex-1 overflow-auto p-4">
-        <div className="max-w-2xl space-y-6">
+      <div className="flex-1 overflow-auto p-4 md:p-6">
+        <div className="md:max-w-2xl md:mx-auto space-y-6">
           <p className="text-muted-foreground">
             Information learned from your form completions, organized by entities
           </p>
@@ -252,11 +182,11 @@ export default function MemoryPage() {
                     type={type}
                     entities={entitiesByType[type]}
                     recentlyUpdatedIds={recentlyUpdatedIds}
-                    onEditFact={openEditFactDialog}
                     onEditRelationship={openEditRelationshipDialog}
-                    onDeleteFact={confirmDeleteFact}
                     onDeleteEntity={confirmDeleteEntity}
-                    onAddFact={openAddFactDialog}
+                    updateFact={updateFact}
+                    deleteFact={deleteFact}
+                    addFact={addFact}
                   />
                 ))
               )}
@@ -265,115 +195,25 @@ export default function MemoryPage() {
         </div>
       </div>
 
-      {/* Edit Fact Dialog */}
-      <Dialog open={editFactDialogOpen} onOpenChange={setEditFactDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Fact</DialogTitle>
-            <DialogDescription>
-              Update the value for {editingFact && formatFactType(editingFact.fact_type)}
-              {editingEntity && ` (${editingEntity.canonical_name})`}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="factValue">Value</Label>
-              <Input
-                id="factValue"
-                value={factValue}
-                onChange={(e) => setFactValue(e.target.value)}
-                placeholder="Enter value..."
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditFactDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpdateFact}
-              disabled={!factValue.trim() || factSubmitting}
-            >
-              {factSubmitting ? "Saving..." : "Update"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Fact Dialog */}
-      <Dialog open={addFactDialogOpen} onOpenChange={setAddFactDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Fact</DialogTitle>
-            <DialogDescription>
-              Add a new fact to this entity
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="factType">Fact Type</Label>
-              <Input
-                id="factType"
-                value={newFactType}
-                onChange={(e) => setNewFactType(e.target.value)}
-                placeholder="e.g., Phone, Email, Birthdate..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="newFactValue">Value</Label>
-              <Input
-                id="newFactValue"
-                value={newFactValue}
-                onChange={(e) => setNewFactValue(e.target.value)}
-                placeholder="Enter value..."
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddFactDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAddFact}
-              disabled={!newFactType.trim() || !newFactValue.trim() || factSubmitting}
-            >
-              {factSubmitting ? "Adding..." : "Add Fact"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Entity Confirmation Dialog */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {entityToDelete ? "Delete Entity" : "Delete Fact"}
-            </DialogTitle>
+            <DialogTitle>Delete Entity</DialogTitle>
             <DialogDescription>
-              {entityToDelete
-                ? "This will delete the entity and all its facts. This action cannot be undone."
-                : "Are you sure you want to delete this fact? This action cannot be undone."}
+              This will delete the entity and all its facts. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            {entityToDelete && (
+          {entityToDelete && (
+            <div className="py-4">
               <div className="bg-muted p-3 rounded-md">
                 <p className="font-medium">{entityToDelete.canonical_name}</p>
                 <p className="text-sm text-muted-foreground">
                   {entityToDelete.facts.length} facts will be deleted
                 </p>
               </div>
-            )}
-            {factToDelete && (
-              <div className="bg-muted p-3 rounded-md">
-                <p className="text-sm">
-                  <span className="font-medium">{formatFactType(factToDelete.fact_type)}:</span>{" "}
-                  {factToDelete.fact_value}
-                </p>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
               Cancel
@@ -429,20 +269,20 @@ function EntityTypeSection({
   type,
   entities,
   recentlyUpdatedIds,
-  onEditFact,
   onEditRelationship,
-  onDeleteFact,
   onDeleteEntity,
-  onAddFact,
+  updateFact,
+  deleteFact,
+  addFact,
 }: {
   type: string;
   entities: Entity[];
   recentlyUpdatedIds: Set<string>;
-  onEditFact: (entity: Entity, fact: EntityFact) => void;
   onEditRelationship: (entity: Entity) => void;
-  onDeleteFact: (fact: EntityFact) => void;
   onDeleteEntity: (entity: Entity) => void;
-  onAddFact: (entityId: string) => void;
+  updateFact: (factId: string, updates: { fact_value: string }) => Promise<void>;
+  deleteFact: (factId: string) => Promise<void>;
+  addFact: (entityId: string, factType: string, factValue: string) => Promise<void>;
 }) {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -470,11 +310,11 @@ function EntityTypeSection({
             key={entity.id}
             entity={entity}
             isRecentlyUpdated={recentlyUpdatedIds.has(entity.id)}
-            onEditFact={onEditFact}
             onEditRelationship={onEditRelationship}
-            onDeleteFact={onDeleteFact}
             onDeleteEntity={onDeleteEntity}
-            onAddFact={onAddFact}
+            updateFact={updateFact}
+            deleteFact={deleteFact}
+            addFact={addFact}
           />
         ))}
       </CollapsibleContent>
@@ -490,24 +330,127 @@ function formatRelationship(relationship: string): string {
     .join(" ");
 }
 
+// Inline fact editor component
+function InlineFactEditor({
+  fact,
+  onSave,
+  onDelete,
+  onCancel,
+  isNew = false,
+}: {
+  fact?: EntityFact;
+  onSave: (factType: string, factValue: string) => Promise<void>;
+  onDelete?: () => void;
+  onCancel: () => void;
+  isNew?: boolean;
+}) {
+  const [factType, setFactType] = useState(fact?.fact_type ? formatFactType(fact.fact_type) : "");
+  const [factValue, setFactValue] = useState(fact?.fact_value || "");
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Focus input on mount and scroll into view
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+      // Scroll container into view, accounting for virtual keyboard
+      setTimeout(() => {
+        containerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+    }
+  }, []);
+
+  const handleSave = async () => {
+    if (!factType.trim() || !factValue.trim()) return;
+    setSaving(true);
+    try {
+      await onSave(factType.trim(), factValue.trim());
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="bg-muted/50 rounded-lg p-3 space-y-3">
+      <div className="space-y-2">
+        <Input
+          ref={inputRef}
+          value={isNew ? factType : formatFactType(fact?.fact_type || "")}
+          onChange={(e) => setFactType(e.target.value)}
+          placeholder="Fact type (e.g., Phone, Email...)"
+          className="h-9 text-sm"
+          disabled={!isNew}
+        />
+        <Input
+          value={factValue}
+          onChange={(e) => setFactValue(e.target.value)}
+          placeholder="Value..."
+          className="h-9 text-sm"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !saving) handleSave();
+            if (e.key === "Escape") onCancel();
+          }}
+        />
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={onDelete}
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1" />
+              Delete
+            </Button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="h-8" onClick={onCancel}>
+            <X className="h-3.5 w-3.5 mr-1" />
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            className="h-8"
+            onClick={handleSave}
+            disabled={saving || !factValue.trim() || (isNew && !factType.trim())}
+          >
+            {saving ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+            ) : (
+              <Check className="h-3.5 w-3.5 mr-1" />
+            )}
+            Save
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EntityCard({
   entity,
   isRecentlyUpdated,
-  onEditFact,
   onEditRelationship,
-  onDeleteFact,
   onDeleteEntity,
-  onAddFact,
+  updateFact,
+  deleteFact,
+  addFact,
 }: {
   entity: Entity;
   isRecentlyUpdated?: boolean;
-  onEditFact: (entity: Entity, fact: EntityFact) => void;
   onEditRelationship: (entity: Entity) => void;
-  onDeleteFact: (fact: EntityFact) => void;
   onDeleteEntity: (entity: Entity) => void;
-  onAddFact: (entityId: string) => void;
+  updateFact: (factId: string, updates: { fact_value: string }) => Promise<void>;
+  deleteFact: (factId: string) => Promise<void>;
+  addFact: (entityId: string, factType: string, factValue: string) => Promise<void>;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [editingFactId, setEditingFactId] = useState<string | null>(null);
+  const [isAddingFact, setIsAddingFact] = useState(false);
   const hasConflicts = entity.facts.some((f) => f.has_conflict);
 
   // Check if entity has a full_name fact (to hide redundant name components)
@@ -523,6 +466,37 @@ function EntityCard({
   // For preview, show top priority visible facts
   const previewFacts = visibleFacts.slice(0, 3);
 
+  const handleSaveFact = async (factId: string, _factType: string, factValue: string) => {
+    try {
+      await updateFact(factId, { fact_value: factValue });
+      toast.success("Fact updated");
+      setEditingFactId(null);
+    } catch {
+      toast.error("Failed to update fact");
+    }
+  };
+
+  const handleDeleteFact = async (factId: string) => {
+    try {
+      await deleteFact(factId);
+      toast.success("Fact deleted");
+      setEditingFactId(null);
+    } catch {
+      toast.error("Failed to delete fact");
+    }
+  };
+
+  const handleAddFact = async (factType: string, factValue: string) => {
+    try {
+      const normalizedType = factType.toLowerCase().replace(/\s+/g, "_");
+      await addFact(entity.id, normalizedType, factValue);
+      toast.success("Fact added");
+      setIsAddingFact(false);
+    } catch {
+      toast.error("Failed to add fact");
+    }
+  };
+
   return (
     <div
       className={`border rounded-lg p-3 ml-6 transition-all ${
@@ -536,7 +510,7 @@ function EntityCard({
           className="flex-1 text-left"
           onClick={() => setIsExpanded(!isExpanded)}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium">{entity.canonical_name}</span>
             <Badge
               variant="secondary"
@@ -577,50 +551,56 @@ function EntityCard({
       </div>
 
       {isExpanded && (
-        <div className="mt-3 space-y-1">
+        <div className="mt-3 space-y-2">
           {visibleFacts.map((fact) => (
-            <div
-              key={fact.id}
-              className="group flex items-center justify-between gap-2 rounded-md p-2 hover:bg-muted/50"
-            >
-              <div className="flex-1 min-w-0">
-                <span className="text-sm text-muted-foreground">
-                  {formatFactType(fact.fact_type)}:
-                </span>{" "}
-                <span className="text-sm font-medium">{fact.fact_value}</span>
-                {fact.has_conflict && (
-                  <AlertTriangle className="inline h-3.5 w-3.5 text-destructive ml-1" />
-                )}
-              </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={() => onEditFact(entity, fact)}
+            <div key={fact.id}>
+              {editingFactId === fact.id ? (
+                <InlineFactEditor
+                  fact={fact}
+                  onSave={(_, value) => handleSaveFact(fact.id, fact.fact_type, value)}
+                  onDelete={() => handleDeleteFact(fact.id)}
+                  onCancel={() => setEditingFactId(null)}
+                />
+              ) : (
+                <button
+                  className="w-full text-left rounded-md p-2 hover:bg-muted/50 active:bg-muted transition-colors"
+                  onClick={() => {
+                    setEditingFactId(fact.id);
+                    setIsAddingFact(false);
+                  }}
                 >
-                  <Pencil className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-destructive hover:text-destructive"
-                  onClick={() => onDeleteFact(fact)}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
+                  <span className="text-sm text-muted-foreground">
+                    {formatFactType(fact.fact_type)}:
+                  </span>{" "}
+                  <span className="text-sm font-medium">{fact.fact_value}</span>
+                  {fact.has_conflict && (
+                    <AlertTriangle className="inline h-3.5 w-3.5 text-destructive ml-1" />
+                  )}
+                </button>
+              )}
             </div>
           ))}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start text-muted-foreground mt-2"
-            onClick={() => onAddFact(entity.id)}
-          >
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            Add fact
-          </Button>
+
+          {isAddingFact ? (
+            <InlineFactEditor
+              isNew
+              onSave={handleAddFact}
+              onCancel={() => setIsAddingFact(false)}
+            />
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-muted-foreground"
+              onClick={() => {
+                setIsAddingFact(true);
+                setEditingFactId(null);
+              }}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Add fact
+            </Button>
+          )}
         </div>
       )}
     </div>

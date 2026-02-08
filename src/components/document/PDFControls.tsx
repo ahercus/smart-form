@@ -49,26 +49,111 @@ export function PDFControls({
   onDeleteField,
   onOpenSignatureManager,
 }: PDFControlsProps) {
+  // Mobile: streamlined compact toolbar
+  if (isMobile) {
+    return (
+      <div className="flex items-center justify-between px-2 py-1.5 border-b bg-muted/50 flex-shrink-0">
+        {/* Left: Page navigation */}
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+            disabled={currentPage <= 1}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-xs min-w-[36px] text-center tabular-nums">
+            {currentPage}/{numPages || "-"}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => onPageChange(Math.min(numPages, currentPage + 1))}
+            disabled={currentPage >= numPages}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Center: Essential tools only */}
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant={layoutMode ? "secondary" : "ghost"}
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => onLayoutModeChange(!layoutMode)}
+          >
+            <VectorSquare className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onAddField}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+          {activeFieldId && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onDeleteField}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
+        {/* Right: View controls */}
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant={hideFieldColors ? "secondary" : "ghost"}
+            size="icon"
+            className="h-8 w-8"
+            onClick={onToggleFieldColors}
+          >
+            <Layers2 className="h-4 w-4" />
+          </Button>
+          {onOpenSignatureManager && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onOpenSignatureManager}
+            >
+              <PenTool className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop: full toolbar
   return (
     <div className="flex items-center justify-between p-2 border-b bg-muted/50 flex-shrink-0">
       {/* Left: Page navigation */}
-      <div className="flex items-center gap-1 sm:gap-2">
+      <div className="flex items-center gap-2">
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8 sm:h-9 sm:w-9"
+          className="h-9 w-9"
           onClick={() => onPageChange(Math.max(1, currentPage - 1))}
           disabled={currentPage <= 1}
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <span className="text-sm min-w-[50px] sm:min-w-[80px] text-center">
-          {isMobile ? `${currentPage}/${numPages || "..."}` : `Page ${currentPage} of ${numPages || "..."}`}
+        <span className="text-sm min-w-[80px] text-center">
+          Page {currentPage} of {numPages || "..."}
         </span>
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8 sm:h-9 sm:w-9"
+          className="h-9 w-9"
           onClick={() => onPageChange(Math.min(numPages, currentPage + 1))}
           disabled={currentPage >= numPages}
         >
@@ -133,7 +218,7 @@ export function PDFControls({
         )}
         <div className="w-px h-6 bg-border mx-1" />
         <Button
-          variant={hideFieldColors ? "secondary" : "ghost"}
+          variant={!hideFieldColors ? "secondary" : "ghost"}
           size="icon"
           className="h-8 w-8"
           onClick={onToggleFieldColors}
@@ -144,24 +229,22 @@ export function PDFControls({
       </div>
 
       {/* Right: Zoom controls */}
-      <div className="flex items-center gap-1 sm:gap-2">
+      <div className="flex items-center gap-2">
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8 sm:h-9 sm:w-9"
+          className="h-9 w-9"
           onClick={() => onScaleChange(Math.max(0.5, scale - 0.25))}
         >
           <ZoomOut className="h-4 w-4" />
         </Button>
-        {!isMobile && (
-          <span className="text-sm min-w-[60px] text-center">
-            {Math.round(scale * 100)}%
-          </span>
-        )}
+        <span className="text-sm min-w-[60px] text-center">
+          {Math.round(scale * 100)}%
+        </span>
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8 sm:h-9 sm:w-9"
+          className="h-9 w-9"
           onClick={() => onScaleChange(Math.min(2, scale + 0.25))}
         >
           <ZoomIn className="h-4 w-4" />

@@ -281,6 +281,23 @@ export function KonvaFieldCanvas({
     [startPan]
   );
 
+  const handleStageTouchStart = useCallback(
+    (e: Konva.KonvaEventObject<TouchEvent>) => {
+      if (e.evt.touches.length !== 1) return;
+
+      const layerName = e.target.getLayer?.()?.name?.();
+      const isBackgroundClick =
+        e.target === e.target.getStage() ||
+        (layerName && layerName !== "fields");
+
+      if (!isBackgroundClick) return;
+
+      const touch = e.evt.touches[0];
+      startPan(touch.clientX, touch.clientY);
+    },
+    [startPan]
+  );
+
   useEffect(() => {
     const handleMove = (e: MouseEvent) => {
       if (!isPanningRef.current) return;
@@ -309,6 +326,40 @@ export function KonvaFieldCanvas({
     return () => {
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("mouseup", handleUp);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isPanningRef.current || e.touches.length !== 1) return;
+      const scrollContainer = scrollContainerRef.current;
+      if (!scrollContainer) return;
+
+      const touch = e.touches[0];
+      const dx = touch.clientX - panStartRef.current.x;
+      const dy = touch.clientY - panStartRef.current.y;
+
+      if (!panMovedRef.current && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) {
+        panMovedRef.current = true;
+      }
+
+      scrollContainer.scrollLeft = panStartRef.current.scrollLeft - dx;
+      scrollContainer.scrollTop = panStartRef.current.scrollTop - dy;
+    };
+
+    const handleTouchEnd = () => {
+      if (!isPanningRef.current) return;
+      isPanningRef.current = false;
+      setIsPanning(false);
+    };
+
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", handleTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
+      window.removeEventListener("touchcancel", handleTouchEnd);
     };
   }, []);
 
@@ -457,6 +508,7 @@ export function KonvaFieldCanvas({
         height={scaledHeight}
         scale={{ x: scale, y: scale }}
         onMouseDown={handleStageMouseDown}
+        onTouchStart={handleStageTouchStart}
         onClick={handleStageClick}
         onTap={handleStageClick}
       >
