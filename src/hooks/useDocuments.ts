@@ -11,6 +11,7 @@ interface UseDocumentsReturn {
   uploadDocument: (file: File, contextNotes: string) => Promise<string>;
   deleteDocument: (id: string) => Promise<void>;
   updateDocumentMemory: (id: string, useMemory: boolean) => Promise<void>;
+  renameDocument: (id: string, newName: string) => Promise<void>;
 }
 
 const PROCESSING_STATUSES = ["uploading", "analyzing", "extracting", "refining"];
@@ -145,6 +146,34 @@ export function useDocuments(): UseDocumentsReturn {
     [documents]
   );
 
+  const renameDocument = useCallback(
+    async (id: string, newName: string): Promise<void> => {
+      const previousDocuments = documents;
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === id ? { ...d, original_filename: newName } : d
+        )
+      );
+
+      try {
+        const res = await fetch(`/api/documents/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ original_filename: newName }),
+        });
+
+        if (!res.ok) {
+          setDocuments(previousDocuments);
+          throw new Error("Failed to rename document");
+        }
+      } catch (err) {
+        setDocuments(previousDocuments);
+        throw err;
+      }
+    },
+    [documents]
+  );
+
   return {
     documents,
     loading,
@@ -153,5 +182,6 @@ export function useDocuments(): UseDocumentsReturn {
     uploadDocument,
     deleteDocument,
     updateDocumentMemory,
+    renameDocument,
   };
 }

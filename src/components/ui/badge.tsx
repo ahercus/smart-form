@@ -10,13 +10,13 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          "border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
+          "bg-[var(--glass-bg-light)] border-[var(--glass-border-light)] text-primary backdrop-blur-sm shadow-[inset_0_1px_0_var(--glass-highlight-light)] [a&]:hover:bg-[var(--glass-bg-button)]",
         secondary:
-          "border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
+          "bg-[var(--glass-bg-light)] border-[var(--glass-border-light)] text-muted-foreground backdrop-blur-sm shadow-[inset_0_1px_0_var(--glass-highlight-light)] [a&]:hover:bg-[var(--glass-bg-button)]",
         destructive:
-          "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          "bg-[oklch(0.577_0.245_27.325/12%)] border-[var(--glass-border-light)] text-destructive backdrop-blur-sm shadow-[inset_0_1px_0_var(--glass-highlight-light)] focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40",
         outline:
-          "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+          "text-foreground shadow-[inset_0_1px_0_var(--glass-highlight-light)] backdrop-blur-sm [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
       },
     },
     defaultVariants: {

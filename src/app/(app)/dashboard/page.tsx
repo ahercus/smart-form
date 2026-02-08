@@ -27,7 +27,7 @@ interface ProfileData {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { documents, loading, error, refresh, deleteDocument, updateDocumentMemory } = useDocuments();
+  const { documents, loading, error, refresh, deleteDocument, updateDocumentMemory, renameDocument } = useDocuments();
   const [profileComplete, setProfileComplete] = useState<boolean | null>(null);
 
   // Check if profile is complete
@@ -70,6 +70,15 @@ export default function DashboardPage() {
       toast.success(useMemory ? "Memory enabled" : "Memory disabled");
     } catch {
       toast.error("Failed to update memory setting");
+    }
+  };
+
+  const handleRename = async (id: string, newName: string) => {
+    try {
+      await renameDocument(id, newName);
+      toast.success("Document renamed");
+    } catch {
+      toast.error("Failed to rename document");
     }
   };
 
@@ -126,6 +135,7 @@ export default function DashboardPage() {
                   document={doc}
                   onDelete={handleDelete}
                   onToggleMemory={handleToggleMemory}
+                  onRename={handleRename}
                 />
               ))}
             </div>

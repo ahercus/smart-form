@@ -54,8 +54,8 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.55 0.2 290);
+  --primary-foreground: oklch(1 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -79,6 +79,34 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Glass material tokens */
+  --glass-bg: oklch(1 0 0 / 18%);
+  --glass-bg-light: oklch(1 0 0 / 25%);
+  --glass-bg-button: oklch(1 0 0 / 30%);
+  --glass-border: oklch(1 0 0 / 45%);
+  --glass-border-light: oklch(1 0 0 / 35%);
+  --glass-highlight: oklch(1 0 0 / 60%);
+  --glass-highlight-light: oklch(1 0 0 / 35%);
+
+  /* Status colors */
+  --success: oklch(0.6 0.15 155);
+  --success-foreground: oklch(0.4 0.1 155);
+  --warning: oklch(0.75 0.15 75);
+  --warning-foreground: oklch(0.5 0.1 75);
+
+  /* Glass shadow tokens */
+  --shadow-glass:
+    inset 0 1px 0 oklch(1 0 0 / 60%),
+    inset 0 -1px 0 oklch(0 0 0 / 4%),
+    0 8px 32px oklch(0 0 0 / 8%),
+    0 2px 8px oklch(0 0 0 / 4%);
+  --shadow-glass-light:
+    inset 0 1px 0 oklch(1 0 0 / 35%),
+    0 2px 10px oklch(0 0 0 / 6%);
+  --shadow-glass-glow:
+    inset 0 1px 0 oklch(1 0 0 / 30%),
+    0 4px 16px oklch(0.55 0.2 290 / 25%);
 }
 
 .dark {
@@ -113,6 +141,25 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* Glass material tokens (dark) */
+  --glass-bg: oklch(0.2 0.01 280 / 40%);
+  --glass-bg-light: oklch(0.25 0.01 280 / 30%);
+  --glass-bg-button: oklch(1 0 0 / 8%);
+  --glass-border: oklch(1 0 0 / 10%);
+  --glass-border-light: oklch(1 0 0 / 8%);
+  --glass-highlight: oklch(1 0 0 / 15%);
+  --glass-highlight-light: oklch(1 0 0 / 10%);
+
+  /* Glass shadow tokens (dark) */
+  --shadow-glass:
+    inset 0 1px 0 oklch(1 0 0 / 10%),
+    inset 0 -1px 0 oklch(0 0 0 / 20%),
+    0 8px 32px oklch(0 0 0 / 30%),
+    0 2px 8px oklch(0 0 0 / 15%);
+  --shadow-glass-light:
+    inset 0 1px 0 oklch(1 0 0 / 8%),
+    0 2px 10px oklch(0 0 0 / 15%);
 }
 
 @layer base {
@@ -122,6 +169,82 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Glass utility classes */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
+}
+
+.glass-light {
+  background: var(--glass-bg-light);
+  backdrop-filter: blur(6px) saturate(1.2);
+  -webkit-backdrop-filter: blur(6px) saturate(1.2);
+  border: 1px solid var(--glass-border-light);
+  box-shadow: var(--shadow-glass-light);
+}
+
+/* App background gradient */
+.app-bg {
+  background:
+    linear-gradient(
+      145deg,
+      oklch(0.88 0.06 300) 0%,
+      oklch(0.88 0.05 220) 25%,
+      oklch(0.90 0.05 145) 50%,
+      oklch(0.90 0.04 80) 75%,
+      oklch(0.89 0.05 350) 100%
+    );
+}
+
+.dark .app-bg {
+  background:
+    linear-gradient(
+      145deg,
+      oklch(0.15 0.03 300) 0%,
+      oklch(0.14 0.02 220) 25%,
+      oklch(0.13 0.02 145) 50%,
+      oklch(0.14 0.02 80) 75%,
+      oklch(0.15 0.02 350) 100%
+    );
+}
+
+/* Sonner toast glass treatment */
+[data-sonner-toast] {
+  background: var(--glass-bg-light) !important;
+  backdrop-filter: blur(6px) saturate(1.2);
+  -webkit-backdrop-filter: blur(6px) saturate(1.2);
+  border: 1px solid var(--glass-border-light) !important;
+  box-shadow: var(--shadow-glass-light) !important;
+}
+
+/* Accessibility: reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Accessibility: reduced transparency */
+@media (prefers-reduced-transparency: reduce) {
+  .glass, .glass-light {
+    background: oklch(1 0 0 / 85%);
+    backdrop-filter: blur(4px);
+  }
+}
+
+/* Sidebar glass treatment */
+[data-slot="sidebar-inner"] {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border-right: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
 }
 
 /* Magical shimmering gradient animation */

@@ -11,7 +11,8 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from "@/components/ui/drawer";
-import { Download, Loader2, FolderOpen, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
+import { Download, Loader2, FolderOpen, MessageSquare, ChevronLeft, ChevronRight, Pencil, Check, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { PDFWithKonva } from "./PDFWithKonva";
 import { QuestionsPanel } from "./QuestionsPanel";
@@ -24,6 +25,7 @@ import { useFieldSync } from "@/hooks/useFieldSync";
 import { usePageImageUpload } from "@/hooks/usePageImageUpload";
 import type { NormalizedCoordinates, SignatureType, MemoryChoice } from "@/lib/types";
 import { renderAllPageOverlaysKonva } from "@/lib/konva-export";
+import { getClientDateTimePayload } from "@/lib/client-time";
 
 interface DocumentPageContentProps {
   documentId: string;
@@ -46,6 +48,11 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
     type: SignatureType;
     questionId?: string;
   } | null>(null);
+
+  // Rename state
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   // Tailored question for context input
   const [tailoredQuestion, setTailoredQuestion] = useState<string | null>(null);
@@ -128,7 +135,11 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
       const response = await fetch(`/api/documents/${documentId}/context`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ context, useMemory }),
+        body: JSON.stringify({
+          context,
+          useMemory,
+          ...getClientDateTimePayload(),
+        }),
       });
       if (!response.ok) throw new Error("Failed to submit context");
     } catch (error) {
@@ -144,7 +155,12 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
       const response = await fetch(`/api/documents/${documentId}/context`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ context: "", skip: true, useMemory }),
+        body: JSON.stringify({
+          context: "",
+          skip: true,
+          useMemory,
+          ...getClientDateTimePayload(),
+        }),
       });
       if (!response.ok) throw new Error("Failed to skip context");
     } catch (error) {
@@ -428,6 +444,36 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
     };
   }, [hasUnsavedChanges, saveFieldUpdates]);
 
+  const startRename = useCallback(() => {
+    setRenameValue(document?.original_filename || "");
+    setIsRenaming(true);
+    setTimeout(() => renameInputRef.current?.select(), 0);
+  }, [document?.original_filename]);
+
+  const confirmRename = useCallback(async () => {
+    const trimmed = renameValue.trim();
+    if (!trimmed || trimmed === document?.original_filename) {
+      setIsRenaming(false);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/documents/${documentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ original_filename: trimmed }),
+      });
+      if (!res.ok) throw new Error("Failed to rename");
+      toast.success("Document renamed");
+    } catch {
+      toast.error("Failed to rename document");
+    }
+    setIsRenaming(false);
+  }, [renameValue, document?.original_filename, documentId]);
+
+  const cancelRename = useCallback(() => {
+    setIsRenaming(false);
+  }, []);
+
   const [exporting, setExporting] = useState(false);
   const handleExport = useCallback(async () => {
     setExporting(true);
@@ -509,18 +555,7 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
     ? { current: progress.pagesComplete, total: progress.pagesTotal }
     : undefined;
 
-  if (loading && !document) {
-    return (
-      <div className="flex flex-col h-full overflow-hidden">
-        <AppHeader>
-          <h1 className="font-semibold">New Document</h1>
-        </AppHeader>
-        <div className="flex-1 flex items-center justify-center">
-          <Skeleton className="h-[400px] w-full max-w-md" />
-        </div>
-      </div>
-    );
-  }
+  // No loading guard - fall through to main render so context card shows immediately
 
   if (error && !document) {
     return (
@@ -578,9 +613,41 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
         <AppHeader>
           <div className="flex flex-1 items-center justify-between min-w-0">
             <div className="min-w-0 mr-4">
-              <h1 className="font-semibold truncate">
-                {showSetupCard ? "New Document" : (document?.original_filename || "Document")}
-              </h1>
+              {isRenaming ? (
+                <form
+                  className="flex items-center gap-1.5"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    confirmRename();
+                  }}
+                >
+                  <Input
+                    ref={renameInputRef}
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") cancelRename();
+                    }}
+                    onBlur={confirmRename}
+                    className="h-8 text-sm font-semibold w-48"
+                    autoFocus
+                  />
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={!showSetupCard ? startRename : undefined}
+                  className="group flex items-center gap-1.5 min-w-0"
+                  disabled={showSetupCard}
+                >
+                  <h1 className="font-semibold truncate">
+                    {showSetupCard ? "New Document" : (document?.original_filename || "Document")}
+                  </h1>
+                  {!showSetupCard && (
+                    <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                  )}
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {/* Show controls only when document is ready */}
@@ -665,11 +732,11 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
                   isMobile={isMobile}
                 />
               </div>
-            ) : (
+            ) : !showSetupCard ? (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <Skeleton className="h-[600px] w-full max-w-[600px]" />
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Setup Card Overlay - z-20 to be above scan line (z-15) */}

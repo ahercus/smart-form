@@ -111,30 +111,44 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { use_memory } = body;
+    const { use_memory, original_filename } = body;
 
-    if (typeof use_memory !== "boolean") {
+    const updates: Record<string, unknown> = {};
+
+    if (typeof use_memory === "boolean") {
+      updates.use_memory = use_memory;
+    }
+
+    if (typeof original_filename === "string") {
+      const trimmed = original_filename.trim();
+      if (trimmed.length === 0 || trimmed.length > 255) {
+        return NextResponse.json(
+          { error: "Filename must be between 1 and 255 characters" },
+          { status: 400 }
+        );
+      }
+      updates.original_filename = trimmed;
+    }
+
+    if (Object.keys(updates).length === 0) {
       return NextResponse.json(
-        { error: "use_memory must be a boolean" },
+        { error: "No valid fields to update" },
         { status: 400 }
       );
     }
 
     const { error: updateError } = await supabase
       .from("documents")
-      .update({ use_memory })
+      .update(updates)
       .eq("id", id);
 
     if (updateError) {
       throw updateError;
     }
 
-    console.log(`[AutoForm] Document memory setting updated:`, {
-      id,
-      use_memory,
-    });
+    console.log(`[AutoForm] Document updated:`, { id, ...updates });
 
-    return NextResponse.json({ success: true, use_memory });
+    return NextResponse.json({ success: true, ...updates });
   } catch (error) {
     console.error(`[AutoForm] Update document error:`, error);
     return NextResponse.json(

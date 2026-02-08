@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { FileText, Trash2, Loader2, CheckCircle, XCircle, MoreVertical, Brain } from "lucide-react";
+import { FileText, Trash2, Loader2, CheckCircle, XCircle, MoreVertical, Brain, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -31,6 +40,7 @@ interface DocumentCardProps {
   document: Document;
   onDelete?: (id: string) => void;
   onToggleMemory?: (id: string, useMemory: boolean) => void;
+  onRename?: (id: string, newName: string) => void;
 }
 
 const STATUS_CONFIG: Record<
@@ -45,8 +55,10 @@ const STATUS_CONFIG: Record<
   failed: { label: "Failed", variant: "destructive", progress: 0 },
 };
 
-export function DocumentCard({ document, onDelete, onToggleMemory }: DocumentCardProps) {
+export function DocumentCard({ document, onDelete, onToggleMemory, onRename }: DocumentCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [renameValue, setRenameValue] = useState(document.original_filename);
   const config = STATUS_CONFIG[document.status];
   const isProcessing = !["ready", "failed"].includes(document.status);
 
@@ -57,6 +69,19 @@ export function DocumentCard({ document, onDelete, onToggleMemory }: DocumentCar
   const handleConfirmDelete = () => {
     setShowDeleteConfirm(false);
     onDelete?.(document.id);
+  };
+
+  const handleRenameClick = () => {
+    setRenameValue(document.original_filename);
+    setShowRenameDialog(true);
+  };
+
+  const handleConfirmRename = () => {
+    const trimmed = renameValue.trim();
+    if (trimmed && trimmed !== document.original_filename) {
+      onRename?.(document.id, trimmed);
+    }
+    setShowRenameDialog(false);
   };
 
   const formatDate = (dateString: string) => {
@@ -118,7 +143,7 @@ export function DocumentCard({ document, onDelete, onToggleMemory }: DocumentCar
                 <Link href={`/document/${document.id}`}>Open</Link>
               </Button>
             )}
-            {(onDelete || onToggleMemory) && (
+            {(onDelete || onToggleMemory || onRename) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon">
@@ -126,6 +151,12 @@ export function DocumentCard({ document, onDelete, onToggleMemory }: DocumentCar
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {onRename && (
+                    <DropdownMenuItem onClick={handleRenameClick}>
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Rename
+                    </DropdownMenuItem>
+                  )}
                   {onToggleMemory && (
                     <>
                       <DropdownMenuCheckboxItem
@@ -137,17 +168,19 @@ export function DocumentCard({ document, onDelete, onToggleMemory }: DocumentCar
                         <Brain className="h-4 w-4 mr-2" />
                         Use memories
                       </DropdownMenuCheckboxItem>
-                      {onDelete && <DropdownMenuSeparator />}
                     </>
                   )}
                   {onDelete && (
-                    <DropdownMenuItem
-                      onClick={handleDeleteClick}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={handleDeleteClick}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -176,6 +209,44 @@ export function DocumentCard({ document, onDelete, onToggleMemory }: DocumentCar
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename document</DialogTitle>
+            <DialogDescription>
+              Enter a new name for this document.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleConfirmRename();
+            }}
+          >
+            <Input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              autoFocus
+            />
+            <DialogFooter className="mt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowRenameDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={!renameValue.trim() || renameValue.trim() === document.original_filename}
+              >
+                Rename
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
