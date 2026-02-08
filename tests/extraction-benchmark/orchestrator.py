@@ -13,10 +13,12 @@ Test Matrix:
 Total: 2 models × 2 thinking × 3 architectures × 4 prompts = 48 configurations
 """
 
+import asyncio
 import json
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
@@ -32,6 +34,10 @@ from core import (
 from evaluation import score_extraction, ExtractionScore
 from tools.visualize_benchmark import render_fields_on_image
 from core.image_processor import pdf_page_to_image
+
+
+# Default parallelism - respects Gemini rate limits
+DEFAULT_PARALLEL_TESTS = 4
 
 
 # Test matrix configuration
@@ -292,7 +298,8 @@ def run_benchmark(
     output_dir: str,
     page_number: int = 0,
     visualize: bool = True,
-    max_tests: int | None = None
+    max_tests: int | None = None,
+    parallel: int = DEFAULT_PARALLEL_TESTS
 ):
     """
     Run the full benchmark test matrix.
@@ -304,6 +311,7 @@ def run_benchmark(
         page_number: Page to extract (0-indexed)
         visualize: Whether to generate visualization PNGs
         max_tests: Optional limit on number of tests (for debugging)
+        parallel: Number of tests to run in parallel (default 4)
     """
     print(f"Loading benchmark from: {benchmark_path}")
     benchmark = load_benchmark(benchmark_path)
@@ -318,28 +326,45 @@ def run_benchmark(
     if max_tests:
         test_configs = test_configs[:max_tests]
 
-    print(f"\nRunning {len(test_configs)} test configurations...")
+    print(f"\nRunning {len(test_configs)} test configurations with {parallel} parallel workers...")
 
-    for i, config in enumerate(test_configs, 1):
-        print(f"\n[{i}/{len(test_configs)}] Testing: {config.name}")
-
+    def run_test_wrapper(config: TestConfig) -> tuple[TestConfig, TestResult | None, str | None]:
+        """Wrapper for parallel execution."""
         try:
             result = run_single_test(config, pdf_path, benchmark, page_number)
-            results.append(result)
-
-            # Save result
-            save_result(result, output_path)
-
-            # Generate visualization
-            if visualize:
-                save_visualization(result, pdf_path, output_path, page_number)
-
-            print(f"  Score: {result.score.overall_score:.1f}% "
-                  f"(Detection: {result.score.detection_rate:.1f}%, "
-                  f"IoU: {result.score.avg_iou:.1f}%)")
-
+            return (config, result, None)
         except Exception as e:
-            print(f"  ERROR: {str(e)}")
+            return (config, None, str(e))
+
+    completed = 0
+    with ThreadPoolExecutor(max_workers=parallel) as executor:
+        # Submit all tests
+        future_to_config = {
+            executor.submit(run_test_wrapper, config): config
+            for config in test_configs
+        }
+
+        # Process as they complete
+        for future in as_completed(future_to_config):
+            completed += 1
+            config, result, error = future.result()
+
+            if error:
+                print(f"[{completed}/{len(test_configs)}] {config.name}: ERROR - {error}")
+            else:
+                results.append(result)
+
+                # Save result
+                save_result(result, output_path)
+
+                # Generate visualization
+                if visualize:
+                    save_visualization(result, pdf_path, output_path, page_number)
+
+                print(f"[{completed}/{len(test_configs)}] {config.name}: "
+                      f"{result.score.overall_score:.1f}% "
+                      f"(Det: {result.score.detection_rate:.0f}%, "
+                      f"IoU: {result.score.avg_iou:.0f}%)")
 
     # Generate report
     if results:
@@ -391,6 +416,8 @@ if __name__ == "__main__":
                         help="Skip generating visualization PNGs")
     parser.add_argument("--max-tests", type=int, default=None,
                         help="Limit number of tests (for debugging)")
+    parser.add_argument("--parallel", type=int, default=DEFAULT_PARALLEL_TESTS,
+                        help=f"Number of parallel workers (default {DEFAULT_PARALLEL_TESTS})")
 
     args = parser.parse_args()
 
@@ -405,5 +432,6 @@ if __name__ == "__main__":
         output_dir=args.output,
         page_number=args.page,
         visualize=not args.no_visualize,
-        max_tests=args.max_tests
+        max_tests=args.max_tests,
+        parallel=args.parallel
     )
