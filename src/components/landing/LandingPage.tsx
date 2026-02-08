@@ -183,19 +183,17 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
                   No login required. Pre-loaded with demo data.
                 </p>
               </div>
-              {!isAuthenticated && (
-                <Button
-                  size="lg"
-                  variant="outline"
-                  asChild
-                  className="w-full sm:w-auto"
-                >
-                  <Link href="/signup">
-                    Create Account
-                    <ArrowRight className="size-4" />
-                  </Link>
-                </Button>
-              )}
+              <Button
+                size="lg"
+                variant="outline"
+                asChild
+                className="w-full sm:w-auto"
+              >
+                <Link href="/signup">
+                  Create Account
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
             </div>
           </div>
         </section>
