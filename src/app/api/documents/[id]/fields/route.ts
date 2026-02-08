@@ -153,6 +153,8 @@ export async function POST(
         choice_options: null,
         segments: null,
         date_segments: null,
+        table_config: null,
+        rows: null,
         group_label: null,
       });
 
@@ -205,9 +207,11 @@ export async function POST(
       confidence_score: null,
       manually_adjusted: true,
       choice_options: sourceField.choice_options,
-      segments: sourceField.segments, // Copy segments for linkedText fields
-      date_segments: sourceField.date_segments, // Copy date segments for linkedDate fields
-      group_label: sourceField.group_label, // Copy group context
+      segments: sourceField.segments,
+      date_segments: sourceField.date_segments,
+      table_config: sourceField.table_config,
+      rows: sourceField.rows,
+      group_label: sourceField.group_label,
     });
 
     console.log("[AutoForm] Field copied:", {

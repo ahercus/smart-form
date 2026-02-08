@@ -1,8 +1,7 @@
-// Document processing using Azure Document Intelligence and Gemini
-// Fails with clear errors if APIs are not configured
+// Document processing - simplified pipeline
+// Azure removed: Now uses Gemini single-page extraction
 
 import type { ExtractedField } from "./types";
-import { extractFieldsFromPDF } from "./document-ai";
 
 export interface ProcessingResult {
   success: boolean;
@@ -11,69 +10,30 @@ export interface ProcessingResult {
   error?: string;
 }
 
-// TEST MODE: Skip Azure and let Gemini do full detection
-// Set SKIP_AZURE=true to test pure Gemini field detection
-const SKIP_AZURE = process.env.SKIP_AZURE === "true";
-
-// NEW: Quadrant-based extraction (completely replaces Azure + cluster QC)
-// When enabled, Azure is skipped and fields are extracted via 4 parallel Gemini agents
-const USE_QUADRANT_EXTRACTION = process.env.USE_QUADRANT_EXTRACTION === "true";
-
+/**
+ * Process a document for field extraction
+ *
+ * This is a lightweight handler that marks the document as ready for extraction.
+ * Actual field extraction happens in /api/documents/[id]/refine-fields via
+ * single-page Gemini extraction when page images are available.
+ */
 export async function processDocument(
   documentId: string,
-  fileData: ArrayBuffer,
+  _fileData: ArrayBuffer,
   onStatusChange: (status: string) => Promise<void>
 ): Promise<ProcessingResult> {
   try {
     await onStatusChange("analyzing");
 
-    // Quadrant extraction mode: Skip Azure entirely
-    // Fields will be extracted by quadrant agents when page images are available
-    if (USE_QUADRANT_EXTRACTION) {
-      console.log(`[AutoForm] QUADRANT MODE: Skipping Azure, fields will be extracted via quadrant agents:`, { documentId });
+    console.log(`[AutoForm] Document ready for extraction:`, { documentId });
 
-      // Mark as extracting - not ready yet, waiting for page images
-      await onStatusChange("extracting");
-
-      // Return empty fields - quadrant extraction will populate these
-      return {
-        success: true,
-        pageCount: 1, // Will be updated by page images
-        fields: [],
-      };
-    }
-
-    if (SKIP_AZURE) {
-      console.log(`[AutoForm] TEST MODE: Skipping Azure, will rely on Gemini full-page detection:`, { documentId });
-
-      // Mark as ready so QC can run
-      await onStatusChange("ready");
-
-      // Return empty fields - Gemini QC will detect everything from scratch
-      return {
-        success: true,
-        pageCount: 1, // Will be updated by page images
-        fields: [],
-      };
-    }
-
-    console.log(`[AutoForm] Starting Azure Document Intelligence analysis:`, { documentId });
-
-    // Call Azure Document Intelligence to extract form fields
-    const result = await extractFieldsFromPDF(documentId, fileData);
-
-    console.log(`[AutoForm] Azure extraction complete:`, {
-      documentId,
-      pageCount: result.pageCount,
-      fieldCount: result.fields.length,
-    });
-
-    await onStatusChange("ready");
+    // Mark as extracting - fields will be extracted via single-page extraction
+    await onStatusChange("extracting");
 
     return {
       success: true,
-      pageCount: result.pageCount,
-      fields: result.fields,
+      pageCount: 1, // Will be updated by page images
+      fields: [],
     };
   } catch (error) {
     console.error(`[AutoForm] Processing failed:`, error);

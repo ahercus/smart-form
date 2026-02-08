@@ -1,7 +1,22 @@
 // Supabase storage service for documents and fields
 
 import { createAdminClient } from "./supabase/admin";
-import type { Document, ExtractedField, DocumentStatus } from "./types";
+import type { Document, ExtractedField, DocumentStatus, FieldType, NormalizedCoordinates, DateSegment, TableConfig } from "./types";
+
+// Type for inserting new fields (without auto-generated fields)
+export type InsertableField = Omit<ExtractedField, "id" | "created_at" | "updated_at" | "deleted_at" | "field_index">;
+
+// Simplified field type for extraction results (converted to InsertableField on save)
+export interface ExtractionField {
+  label: string;
+  fieldType: FieldType;
+  coordinates: NormalizedCoordinates;
+  groupLabel?: string | null;
+  rows?: number | null;
+  tableConfig?: TableConfig | null;
+  dateSegments?: DateSegment[] | null;
+  segments?: NormalizedCoordinates[] | null;
+}
 
 const DOCUMENTS_BUCKET = "documents";
 
@@ -343,11 +358,13 @@ export async function setDocumentFields(
 /**
  * Set fields for a specific page only (used for progressive page-by-page saving)
  * Only deletes/replaces fields for the specified page, not the entire document
+ *
+ * Accepts ExtractionField[] from Gemini extraction and converts to DB format
  */
 export async function setPageFields(
   documentId: string,
   pageNumber: number,
-  fields: ExtractedField[]
+  fields: ExtractionField[]
 ): Promise<void> {
   const supabase = createAdminClient();
 
@@ -367,13 +384,30 @@ export async function setPageFields(
     return; // No fields to insert for this page
   }
 
+  // Convert ExtractionField to DB format
+  const dbFields = fields.map((f) => ({
+    document_id: documentId,
+    page_number: pageNumber,
+    label: f.label,
+    field_type: f.fieldType,
+    coordinates: f.coordinates,
+    value: null,
+    ai_suggested_value: null,
+    ai_confidence: null,
+    help_text: null,
+    detection_source: "gemini_vision" as const,
+    confidence_score: null,
+    manually_adjusted: false,
+    choice_options: null,
+    segments: f.segments ?? null,
+    date_segments: f.dateSegments ?? null,
+    table_config: f.tableConfig ?? null,
+    rows: f.rows ?? null,
+    group_label: f.groupLabel ?? null,
+  }));
+
   // Insert fields for this page
-  const { error } = await supabase.from("extracted_fields").insert(
-    fields.map((f) => ({
-      ...f,
-      document_id: documentId,
-    }))
-  );
+  const { error } = await supabase.from("extracted_fields").insert(dbFields);
 
   if (error) {
     throw new Error(`Failed to save page fields: ${error.message}`);

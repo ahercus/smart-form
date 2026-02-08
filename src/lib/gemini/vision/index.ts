@@ -1,5 +1,3 @@
-export { reviewFieldsWithVision, reviewQuadrantWithVision } from "./field-review";
-export { discoverMissedFields } from "./discovery";
 export { generateQuestionsForPage } from "./questions";
 export {
   parseAnswerForFields,
@@ -7,4 +5,5 @@ export {
   type ParseAnswerResult,
   type ParsedFieldValue,
 } from "./answers";
+export { extractFieldsFromPage, type RawExtractedField } from "./single-page-extract";
 export type { FieldReviewResult } from "./types";

@@ -1,0 +1,398 @@
+/**
+ * Single-page field extraction orchestrator
+ *
+ * Simplified extraction pipeline:
+ * 1. Resize image for Gemini (max 1600px width)
+ * 2. Single Gemini Flash call with full_rails_no_rulers prompt
+ * 3. Process special fields (expand tables, handle linkedDate)
+ * 4. Return fields ready for database insertion
+ *
+ * ~10 seconds per page, 1 API call per page
+ * (vs old quadrant system: ~40 seconds, 5 API calls)
+ */
+
+import { resizeForGemini } from "../../image-compositor";
+import { extractFieldsFromPage, type RawExtractedField } from "../../gemini/vision/single-page-extract";
+import type { NormalizedCoordinates, DateSegment, FieldType, TableConfig } from "../../types";
+
+// Standard page aspect ratio (height / width) for checkbox adjustment
+// Most forms are Letter (11/8.5 = 1.29) or A4 (297/210 = 1.414)
+const PAGE_ASPECT_RATIO = 1.414;
+
+export interface PageExtractionResult {
+  pageNumber: number;
+  fields: ProcessedField[];
+  durationMs: number;
+}
+
+export interface ProcessedField {
+  label: string;
+  fieldType: FieldType;
+  coordinates: NormalizedCoordinates;
+  groupLabel?: string | null;
+  rows?: number | null;
+  tableConfig?: TableConfig | null;
+  dateSegments?: DateSegment[] | null;
+  segments?: NormalizedCoordinates[] | null;
+}
+
+export interface ExtractionOptions {
+  documentId: string;
+  pageNumber: number;
+  imageBase64: string;
+  onProgress?: (message: string) => void;
+}
+
+export interface MultiPageExtractionOptions {
+  documentId: string;
+  pageImages: Array<{ pageNumber: number; imageBase64: string }>;
+  onPageComplete?: (result: PageExtractionResult) => void;
+  onProgress?: (message: string) => void;
+}
+
+/**
+ * Extract fields from a single page
+ */
+export async function extractFieldsFromSinglePage(
+  options: ExtractionOptions
+): Promise<PageExtractionResult> {
+  const { pageNumber, imageBase64, onProgress } = options;
+
+  onProgress?.(`Processing page ${pageNumber}...`);
+
+  // Step 1: Resize image for Gemini
+  const resized = await resizeForGemini(imageBase64, 1600);
+  onProgress?.(`Resized to ${resized.width}x${resized.height}`);
+
+  // Step 2: Extract fields with Gemini
+  const extraction = await extractFieldsFromPage(resized.imageBase64);
+  onProgress?.(`Extracted ${extraction.fields.length} raw fields`);
+
+  // Step 3: Process special fields (tables, linkedDate, checkboxes)
+  const processedFields = processExtractedFields(extraction.fields);
+  onProgress?.(`Processed to ${processedFields.length} fields`);
+
+  return {
+    pageNumber,
+    fields: processedFields,
+    durationMs: extraction.durationMs,
+  };
+}
+
+/**
+ * Extract fields from multiple pages in parallel
+ */
+export async function extractFieldsFromAllPages(
+  options: MultiPageExtractionOptions
+): Promise<PageExtractionResult[]> {
+  const { pageImages, onPageComplete, onProgress } = options;
+
+  onProgress?.(`Starting extraction for ${pageImages.length} pages...`);
+
+  // Process all pages in parallel
+  const results = await Promise.all(
+    pageImages.map(async ({ pageNumber, imageBase64 }) => {
+      const result = await extractFieldsFromSinglePage({
+        documentId: options.documentId,
+        pageNumber,
+        imageBase64,
+        onProgress: (msg) => onProgress?.(`[Page ${pageNumber}] ${msg}`),
+      });
+
+      onPageComplete?.(result);
+      return result;
+    })
+  );
+
+  // Sort by page number
+  results.sort((a, b) => a.pageNumber - b.pageNumber);
+
+  const totalFields = results.reduce((sum, r) => sum + r.fields.length, 0);
+  const totalDuration = results.reduce((sum, r) => sum + r.durationMs, 0);
+
+  onProgress?.(`Extraction complete: ${totalFields} fields across ${pageImages.length} pages in ${totalDuration}ms`);
+
+  return results;
+}
+
+/**
+ * Process all extracted fields, expanding tables and handling special types
+ */
+function processExtractedFields(fields: RawExtractedField[]): ProcessedField[] {
+  const processed: ProcessedField[] = [];
+
+  for (const field of fields) {
+    switch (field.fieldType) {
+      case "table":
+        // Expand table into individual cell fields
+        const expandedCells = expandTableToFields(field);
+        processed.push(...expandedCells);
+        break;
+
+      case "linkedText":
+        // Process linkedText to preserve segments
+        processed.push(processLinkedTextField(field));
+        break;
+
+      case "linkedDate":
+        // Process linkedDate to preserve dateSegments
+        processed.push(processLinkedDateField(field));
+        break;
+
+      case "checkbox":
+      case "radio":
+        // Adjust height for visual square rendering
+        processed.push(processCheckboxField(field));
+        break;
+
+      default:
+        // Pass through other field types
+        processed.push(normalizeField(field));
+        break;
+    }
+  }
+
+  console.log("[AutoForm] Field processing complete:", {
+    inputCount: fields.length,
+    outputCount: processed.length,
+    tablesExpanded: fields.filter((f) => f.fieldType === "table").length,
+  });
+
+  return processed;
+}
+
+/**
+ * Normalize a raw field to ProcessedField format
+ */
+function normalizeField(field: RawExtractedField): ProcessedField {
+  return {
+    label: field.label,
+    fieldType: normalizeFieldType(field.fieldType),
+    coordinates: field.coordinates,
+    groupLabel: field.groupLabel ?? null,
+    rows: field.rows ?? null,
+    tableConfig: null,
+    dateSegments: null,
+    segments: field.segments ?? null,
+  };
+}
+
+/**
+ * Normalize field type to valid FieldType
+ */
+function normalizeFieldType(type: string): FieldType {
+  const validTypes: FieldType[] = [
+    "text", "textarea", "checkbox", "radio", "date",
+    "signature", "initials", "memory_choice", "circle_choice",
+    "linkedDate", "unknown"
+  ];
+
+  // Handle linkedText -> text (stored as text with segments)
+  if (type === "linkedText") return "text";
+
+  // Handle linkedDate -> date (stored as date with dateSegments)
+  if (type === "linkedDate") return "date";
+
+  // Handle table -> text (tables are expanded to individual cells)
+  if (type === "table") return "text";
+
+  if (validTypes.includes(type as FieldType)) {
+    return type as FieldType;
+  }
+
+  console.warn(`[AutoForm] Unknown field type "${type}", defaulting to "text"`);
+  return "text";
+}
+
+/**
+ * Expand a table field into individual cell fields
+ */
+function expandTableToFields(tableField: RawExtractedField): ProcessedField[] {
+  const config = tableField.tableConfig;
+  if (!config) {
+    console.warn("[AutoForm] Table field missing tableConfig:", tableField.label);
+    return [];
+  }
+
+  const { columnHeaders, coordinates, dataRows, columnPositions, rowHeights } = config;
+  const numColumns = columnHeaders.length;
+
+  if (numColumns === 0 || dataRows === 0) {
+    console.warn("[AutoForm] Table has no columns or rows:", { columnHeaders, dataRows });
+    return [];
+  }
+
+  // Calculate column widths from positions (or use uniform)
+  const colPositions = columnPositions || generateUniformPositions(numColumns);
+  const colWidths = calculateWidthsFromPositions(colPositions);
+
+  // Calculate row heights (or use uniform)
+  const rowHeightValues = rowHeights || Array(dataRows).fill(100 / dataRows);
+
+  const expandedFields: ProcessedField[] = [];
+  let currentTop = coordinates.top;
+
+  for (let row = 0; row < dataRows; row++) {
+    const rowHeight = (rowHeightValues[row] / 100) * coordinates.height;
+
+    for (let col = 0; col < numColumns; col++) {
+      const colStart = colPositions[col];
+      const colWidth = colWidths[col];
+
+      const cellLeft = coordinates.left + (colStart / 100) * coordinates.width;
+      const cellWidth = (colWidth / 100) * coordinates.width;
+
+      expandedFields.push({
+        label: `${columnHeaders[col]} - Row ${row + 1}`,
+        fieldType: "text",
+        coordinates: {
+          left: cellLeft,
+          top: currentTop,
+          width: cellWidth,
+          height: rowHeight,
+        },
+        groupLabel: tableField.groupLabel ?? tableField.label,
+        rows: null,
+        tableConfig: null,
+        dateSegments: null,
+        segments: null,
+      });
+    }
+
+    currentTop += rowHeight;
+  }
+
+  console.log("[AutoForm] Expanded table:", {
+    label: tableField.label,
+    columns: numColumns,
+    rows: dataRows,
+    totalFields: expandedFields.length,
+  });
+
+  return expandedFields;
+}
+
+/**
+ * Generate uniform column positions for N columns
+ */
+function generateUniformPositions(numColumns: number): number[] {
+  const positions: number[] = [];
+  for (let i = 0; i <= numColumns; i++) {
+    positions.push((i / numColumns) * 100);
+  }
+  return positions;
+}
+
+/**
+ * Calculate column widths from position boundaries
+ */
+function calculateWidthsFromPositions(positions: number[]): number[] {
+  const widths: number[] = [];
+  for (let i = 0; i < positions.length - 1; i++) {
+    widths.push(positions[i + 1] - positions[i]);
+  }
+  return widths;
+}
+
+/**
+ * Process linkedText field to preserve segments
+ */
+function processLinkedTextField(field: RawExtractedField): ProcessedField {
+  if (!field.segments || field.segments.length === 0) {
+    console.warn("[AutoForm] LinkedText field missing segments:", field.label);
+    return normalizeField(field);
+  }
+
+  // Use bounding box of all segments as main coordinates
+  const boundingBox = calculateBoundingBox(field.segments);
+
+  return {
+    label: field.label,
+    fieldType: "text", // Store as text with segments
+    coordinates: boundingBox,
+    groupLabel: field.groupLabel ?? null,
+    rows: null,
+    tableConfig: null,
+    dateSegments: null,
+    segments: field.segments,
+  };
+}
+
+/**
+ * Process linkedDate field to preserve dateSegments
+ */
+function processLinkedDateField(field: RawExtractedField): ProcessedField {
+  if (!field.dateSegments || field.dateSegments.length === 0) {
+    console.warn("[AutoForm] LinkedDate field missing dateSegments:", field.label);
+    return {
+      ...normalizeField(field),
+      fieldType: "date",
+    };
+  }
+
+  // Use bounding box of all segments as main coordinates
+  const boundingBox = calculateBoundingBox(field.dateSegments);
+
+  return {
+    label: field.label,
+    fieldType: "date", // Store as date with dateSegments
+    coordinates: boundingBox,
+    groupLabel: field.groupLabel ?? null,
+    rows: null,
+    tableConfig: null,
+    dateSegments: field.dateSegments,
+    segments: null,
+  };
+}
+
+/**
+ * Process checkbox to ensure visual square rendering
+ */
+function processCheckboxField(field: RawExtractedField): ProcessedField {
+  const { coordinates } = field;
+
+  // Adjust height for visual square on non-square page
+  const adjustedHeight = coordinates.width / PAGE_ASPECT_RATIO;
+
+  return {
+    label: field.label,
+    fieldType: field.fieldType as FieldType,
+    coordinates: {
+      ...coordinates,
+      height: adjustedHeight,
+    },
+    groupLabel: field.groupLabel ?? null,
+    rows: null,
+    tableConfig: null,
+    dateSegments: null,
+    segments: null,
+  };
+}
+
+/**
+ * Calculate bounding box for an array of segments
+ */
+function calculateBoundingBox(segments: NormalizedCoordinates[]): NormalizedCoordinates {
+  if (segments.length === 0) {
+    return { left: 0, top: 0, width: 0, height: 0 };
+  }
+
+  let minLeft = Infinity;
+  let minTop = Infinity;
+  let maxRight = -Infinity;
+  let maxBottom = -Infinity;
+
+  for (const seg of segments) {
+    minLeft = Math.min(minLeft, seg.left);
+    minTop = Math.min(minTop, seg.top);
+    maxRight = Math.max(maxRight, seg.left + seg.width);
+    maxBottom = Math.max(maxBottom, seg.top + seg.height);
+  }
+
+  return {
+    left: minLeft,
+    top: minTop,
+    width: maxRight - minLeft,
+    height: maxBottom - minTop,
+  };
+}
