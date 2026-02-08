@@ -41,7 +41,7 @@ interface PDFWithKonvaProps {
   currentPage: number;
   onPageChange: (page: number) => void;
   onFieldChange: (fieldId: string, value: string) => void;
-  onFieldClick?: (fieldId: string) => void;
+  onFieldClick?: (fieldId: string | null) => void;
   onFieldCoordinatesChange?: (fieldId: string, coords: NormalizedCoordinates) => void;
   onFieldCopy?: (fieldId: string) => void;
   onFieldDelete?: (fieldId: string) => void;
@@ -229,8 +229,8 @@ export function PDFWithKonva({
     if (newFieldId) {
       setNewFieldId(null);
     }
+    onFieldClick?.(fieldId);
     if (fieldId) {
-      onFieldClick?.(fieldId);
       onNavigateToQuestion?.(fieldId);
     }
   }, [onFieldClick, onNavigateToQuestion, newFieldId]);
@@ -423,6 +423,10 @@ export function PDFWithKonva({
                   onFieldCoordinatesChange={onFieldCoordinatesChange}
                   onChoiceToggle={handleChoiceToggle}
                   onStageBackgroundClick={handleStageBackgroundClick}
+                  onDeleteActiveField={(fieldId) => {
+                    setDeletedFieldIds((prev) => new Set([...prev, fieldId]));
+                    onFieldDelete?.(fieldId);
+                  }}
                   stageRef={stageRef}
                 />
               </div>

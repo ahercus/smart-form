@@ -6,7 +6,7 @@ import {
   ChevronRight,
   ZoomIn,
   ZoomOut,
-  Move,
+  VectorSquare,
   Copy,
   Plus,
   Trash2,
@@ -86,7 +86,7 @@ export function PDFControls({
           onClick={() => onLayoutModeChange(!layoutMode)}
           title={layoutMode ? "Exit layout mode" : "Edit layout - move and resize fields"}
         >
-          <Move className="h-4 w-4" />
+          <VectorSquare className="h-4 w-4" />
         </Button>
         <div className="w-px h-6 bg-border mx-1" />
         <Button

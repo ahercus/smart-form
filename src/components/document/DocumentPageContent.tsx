@@ -199,7 +199,12 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
   }, [fetchPdfUrl]);
 
   const handleFieldClick = useCallback(
-    (fieldId: string) => {
+    (fieldId: string | null) => {
+      if (!fieldId) {
+        setActiveFieldId(null);
+        return;
+      }
+
       const field = fields.find((f) => f.id === fieldId);
       if (field && field.page_number !== currentPage) {
         setCurrentPage(field.page_number);

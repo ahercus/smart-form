@@ -50,6 +50,8 @@ interface KonvaFieldCanvasProps {
   onChoiceToggle?: (fieldId: string, optionLabel: string) => void;
   /** Called when user clicks on the stage background (not a field) */
   onStageBackgroundClick?: () => void;
+  /** Called when user presses delete on a selected field */
+  onDeleteActiveField?: (fieldId: string) => void;
   /** Ref to access stage for export */
   stageRef?: React.RefObject<StageType | null>;
 }
@@ -72,6 +74,7 @@ export function KonvaFieldCanvas({
   onFieldCoordinatesChange,
   onChoiceToggle,
   onStageBackgroundClick,
+  onDeleteActiveField,
   stageRef: externalStageRef,
 }: KonvaFieldCanvasProps) {
   const internalStageRef = useRef<StageType>(null);
@@ -79,6 +82,17 @@ export function KonvaFieldCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const shapeRefs = useRef<Map<string, Konva.Group>>(new Map());
+  const isDraggingRef = useRef(false);
+  const isPanningRef = useRef(false);
+  const panMovedRef = useRef(false);
+  const panStartRef = useRef({
+    x: 0,
+    y: 0,
+    scrollLeft: 0,
+    scrollTop: 0,
+  });
+  const scrollContainerRef = useRef<HTMLElement | null>(null);
+  const [isPanning, setIsPanning] = useState(false);
 
   // State for text editing
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
@@ -106,6 +120,12 @@ export function KonvaFieldCanvas({
       transformerRef.current.nodes([]);
     }
   }, [activeFieldId, layoutMode, fields]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    scrollContainerRef.current =
+      (containerRef.current.closest("[data-scroll-container]") as HTMLElement | null) || null;
+  }, []);
 
   // Get the field being edited
   const editingField = editingFieldId
@@ -136,11 +156,21 @@ export function KonvaFieldCanvas({
   // Handle field click - Google Slides-like interaction
   const handleFieldClick = useCallback(
     (field: ExtractedField) => {
+      if (isDraggingRef.current) {
+        return;
+      }
+
+      if (layoutMode) {
+        onFieldClick(field.id);
+        return;
+      }
+
       // Checkbox: toggle immediately (no selection state)
       if (field.field_type === "checkbox") {
         const currentValue = fieldValues[field.id] || "";
         const newValue = currentValue === "yes" || currentValue === "true" ? "" : "yes";
         onFieldValueChange(field.id, newValue);
+        onFieldClick(field.id);
         return;
       }
 
@@ -151,34 +181,47 @@ export function KonvaFieldCanvas({
         return;
       }
 
-      // Desktop: click selected field to edit, or just select
-      if (activeFieldId === field.id) {
-        // Already selected - enter edit mode
-        if (isTextType(field)) {
-          startEditing(field);
-        }
+      // Desktop: single click enters edit mode for text fields
+      if (isTextType(field)) {
+        onFieldClick(field.id);
+        startEditing(field);
       } else {
-        // Select the field
         onFieldClick(field.id);
       }
     },
-    [activeFieldId, isMobile, isTextType, onFieldClick, onFieldValueChange, fieldValues, startEditing]
+    [isMobile, isTextType, layoutMode, onFieldClick, onFieldValueChange, fieldValues, startEditing]
   );
 
   // Handle double-click - always enters edit mode for text fields
   const handleFieldDoubleClick = useCallback(
     (field: ExtractedField) => {
+      if (layoutMode) {
+        onStageBackgroundClick?.();
+      }
+
+      if (field.field_type === "checkbox") {
+        const currentValue = fieldValues[field.id] || "";
+        const newValue = currentValue === "yes" || currentValue === "true" ? "" : "yes";
+        onFieldValueChange(field.id, newValue);
+        onFieldClick(field.id);
+        return;
+      }
+
       if (isTextType(field)) {
         onFieldClick(field.id);
         startEditing(field);
       }
     },
-    [isTextType, onFieldClick, startEditing]
+    [fieldValues, isTextType, layoutMode, onFieldClick, onFieldValueChange, onStageBackgroundClick, startEditing]
   );
 
   // Handle field drag end - update coordinates
   const handleFieldDragEnd = useCallback(
     (field: ExtractedField, newX: number, newY: number) => {
+      setTimeout(() => {
+        isDraggingRef.current = false;
+      }, 100);
+
       if (!onFieldCoordinatesChange) return;
 
       const newCoords: NormalizedCoordinates = {
@@ -191,6 +234,68 @@ export function KonvaFieldCanvas({
     },
     [onFieldCoordinatesChange, pageWidth, pageHeight]
   );
+
+  const startPan = useCallback((clientX: number, clientY: number) => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    isPanningRef.current = true;
+    panMovedRef.current = false;
+    panStartRef.current = {
+      x: clientX,
+      y: clientY,
+      scrollLeft: scrollContainer.scrollLeft,
+      scrollTop: scrollContainer.scrollTop,
+    };
+    setIsPanning(true);
+  }, []);
+
+  const handleStageMouseDown = useCallback(
+    (e: Konva.KonvaEventObject<MouseEvent>) => {
+      if (e.evt.button !== 0) return;
+
+      const layerName = e.target.getLayer?.()?.name?.();
+      const isBackgroundClick =
+        e.target === e.target.getStage() ||
+        (layerName && layerName !== "fields");
+
+      if (!isBackgroundClick) return;
+
+      startPan(e.evt.clientX, e.evt.clientY);
+    },
+    [startPan]
+  );
+
+  useEffect(() => {
+    const handleMove = (e: MouseEvent) => {
+      if (!isPanningRef.current) return;
+      const scrollContainer = scrollContainerRef.current;
+      if (!scrollContainer) return;
+
+      const dx = e.clientX - panStartRef.current.x;
+      const dy = e.clientY - panStartRef.current.y;
+
+      if (!panMovedRef.current && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) {
+        panMovedRef.current = true;
+      }
+
+      scrollContainer.scrollLeft = panStartRef.current.scrollLeft - dx;
+      scrollContainer.scrollTop = panStartRef.current.scrollTop - dy;
+    };
+
+    const handleUp = () => {
+      if (!isPanningRef.current) return;
+      isPanningRef.current = false;
+      setIsPanning(false);
+    };
+
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+  }, []);
 
   // Handle transform end (resize) - update coordinates
   const handleTransformEnd = useCallback(
@@ -246,12 +351,20 @@ export function KonvaFieldCanvas({
 
   // Handle click on empty space - close editing, deselect, and notify parent
   const handleStageClick = useCallback(
-    (e: { target: { getStage: () => unknown } }) => {
-      // If clicking on the stage background (not a field), close editing and deselect
-      if (e.target === e.target.getStage()) {
+    (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+      if (panMovedRef.current) {
+        panMovedRef.current = false;
+        return;
+      }
+
+      const layerName = e.target.getLayer?.()?.name?.();
+      const isBackgroundClick =
+        e.target === e.target.getStage() ||
+        (layerName && layerName !== "fields");
+
+      if (isBackgroundClick) {
         setEditingFieldId(null);
         onFieldClick(null);
-        // Notify parent (e.g., to exit layout mode)
         onStageBackgroundClick?.();
       }
     },
@@ -260,17 +373,24 @@ export function KonvaFieldCanvas({
 
   // Keyboard listener for type-to-edit (desktop only)
   useEffect(() => {
-    // Skip if no field selected, already editing, or on mobile
-    if (!activeFieldId || editingFieldId || isMobile) return;
+    // Skip if no field selected or on mobile
+    if (!activeFieldId || isMobile) return;
 
     const field = fields.find((f) => f.id === activeFieldId);
-    if (!field || !isTextType(field)) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't intercept if user is typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
+
+      if ((e.key === "Delete" || e.key === "Backspace") && layoutMode && activeFieldId) {
+        e.preventDefault();
+        onDeleteActiveField?.(activeFieldId);
+        return;
+      }
+
+      if (!field || editingFieldId || !isTextType(field)) return;
 
       // Printable character - start editing
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -285,7 +405,7 @@ export function KonvaFieldCanvas({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeFieldId, editingFieldId, isMobile, fields, isTextType, startEditing, onFieldClick]);
+  }, [activeFieldId, editingFieldId, isMobile, fields, isTextType, layoutMode, startEditing, onDeleteActiveField, onFieldClick]);
 
   // Scaled dimensions
   const scaledWidth = pageWidth * scale;
@@ -309,7 +429,7 @@ export function KonvaFieldCanvas({
   return (
     <div
       ref={containerRef}
-      className="relative"
+      className={`relative ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
       style={{ width: scaledWidth, height: scaledHeight }}
     >
       <Stage
@@ -317,6 +437,7 @@ export function KonvaFieldCanvas({
         width={scaledWidth}
         height={scaledHeight}
         scale={{ x: scale, y: scale }}
+        onMouseDown={handleStageMouseDown}
         onClick={handleStageClick}
         onTap={handleStageClick}
       >
@@ -360,10 +481,15 @@ export function KonvaFieldCanvas({
               isActive={field.id === activeFieldId}
               isEditing={field.id === editingFieldId}
               isNew={field.id === newFieldId}
-              draggable={layoutMode}
+              draggable={!isMobile && field.id !== editingFieldId}
               hideFieldColors={hideFieldColors}
               onClick={() => handleFieldClick(field)}
               onDblClick={() => handleFieldDoubleClick(field)}
+              onDragStart={() => {
+                isDraggingRef.current = true;
+                setEditingFieldId(null);
+                onFieldClick(field.id);
+              }}
               onDragEnd={(x, y) => handleFieldDragEnd(field, x, y)}
               onTransformEnd={(node) => handleTransformEnd(field, node)}
               onChoiceClick={(label) => handleChoiceClick(field.id, label)}

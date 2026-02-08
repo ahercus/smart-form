@@ -38,6 +38,7 @@ interface FieldShapeProps {
   hideFieldColors?: boolean;
   onClick: () => void;
   onDblClick?: () => void;
+  onDragStart?: () => void;
   onDragEnd?: (x: number, y: number) => void;
   onTransformEnd?: (node: Konva.Group) => void;
   onChoiceClick?: (optionLabel: string) => void;
@@ -58,6 +59,7 @@ export function FieldShape({
   hideFieldColors,
   onClick,
   onDblClick,
+  onDragStart,
   onDragEnd,
   onTransformEnd,
   onChoiceClick,
@@ -226,6 +228,7 @@ export function FieldShape({
       width={width}
       height={height}
       draggable={draggable}
+      onDragStart={onDragStart}
       onDragEnd={handleDragEnd}
       onTransformEnd={handleTransformEnd}
       onDblClick={onDblClick}
