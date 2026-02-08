@@ -12,7 +12,7 @@ const ACCEPTED_TYPES = [
   "image/gif",
 ];
 
-// Max dimension for images (Azure Document Intelligence has limits)
+// Max dimension for page images
 const MAX_IMAGE_DIMENSION = 2000;
 
 async function preprocessImageIfNeeded(

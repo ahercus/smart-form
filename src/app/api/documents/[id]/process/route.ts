@@ -2,31 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
   getDocument,
-  getFile,
   updateDocumentStatus,
-  updateDocument,
-  setDocumentFields,
 } from "@/lib/storage";
-import { processDocument } from "@/lib/processing";
-import { preGenerateQuestions } from "@/lib/orchestrator/question-pregeneration";
-import type { DocumentStatus, ExtractedField } from "@/lib/types";
+import type { DocumentStatus } from "@/lib/types";
 
 /**
  * Document Processing Flow:
  *
- * 1. Azure Document Intelligence extracts fields (~5s)
- * 2. Gemini Vision QC refines field coordinates (~5-10s)
- * 3. Document marked "ready" - fields shown to user
+ * 1. This route marks document as "extracting"
+ * 2. Field extraction happens via /refine-fields (Gemini Vision)
+ * 3. Document marked "ready" when extraction completes
  *
- * Why QC is always required:
- * - Azure's confidence scores don't reflect coordinate accuracy
- * - Field boxes are often misaligned without QC
- * - QC catches missing fields and table fragmentation
- *
- * Speed optimizations applied:
- * - Question generation uses Flash (no vision) - 1-2s vs 3-5s
- * - Pages processed in parallel - 5x speedup for multi-page forms
- * - Form type inferred from field labels (no vision call)
+ * Speed: Single Gemini Flash call per page (~10s/page)
  */
 export async function POST(
   request: NextRequest,
@@ -78,83 +65,22 @@ export async function POST(
       });
     }
 
-    // Get file data from storage
-    const fileLoadStart = Date.now();
-    const fileData = await getFile(document.storage_path);
-    const fileLoadDuration = Date.now() - fileLoadStart;
-    console.log(`[AutoForm] ⏱️ File loaded from storage (${fileLoadDuration}ms)`);
-
-    // Process the document with Azure Document Intelligence
-    const azureStart = Date.now();
-    const result = await processDocument(
-      id,
-      fileData,
-      async (status: string) => {
-        await updateDocumentStatus(id, status as DocumentStatus);
-      }
-    );
-    const azureDuration = Date.now() - azureStart;
-    console.log(`[AutoForm] ⏱️ Azure DI processing complete (${(azureDuration / 1000).toFixed(1)}s)`);
-
-    if (!result.success) {
-      await updateDocumentStatus(id, "failed", result.error);
-      return NextResponse.json({ error: result.error }, { status: 500 });
-    }
-
-    // Store extracted fields
-    const dbSaveStart = Date.now();
-    await setDocumentFields(id, result.fields);
-    await updateDocument(id, { page_count: result.pageCount });
-    const dbSaveDuration = Date.now() - dbSaveStart;
-    console.log(`[AutoForm] ⏱️ Fields saved to database (${dbSaveDuration}ms)`);
-
-    // DON'T mark as ready yet - wait for QC to complete
-    // Azure's confidence scores don't reflect coordinate accuracy
-    // QC is essential for proper field positioning
-
-    // PRE-WARM OPTIMIZATION: Start question pre-generation immediately
-    // Questions are saved with status="pending_context" (hidden until context submitted)
-    // This runs in parallel with QC - when both complete + context submitted, questions appear instantly
-    if (result.fields.length > 0) {
-      preGenerateQuestions({
-        documentId: id,
-        fields: result.fields as ExtractedField[],
-      })
-        .then((pregenResult) => {
-          console.log("[AutoForm] Question pre-generation complete:", {
-            documentId: id,
-            questionsPregenerated: pregenResult.questionsPregenerated,
-            success: pregenResult.success,
-          });
-        })
-        .catch((err) => {
-          // Non-fatal: questions will be generated normally on context submit
-          console.error("[AutoForm] Question pre-generation failed (non-fatal):", {
-            documentId: id,
-            error: err instanceof Error ? err.message : "Unknown error",
-          });
-        });
-    }
+    // Mark as extracting - field extraction will happen via /refine-fields
+    await updateDocumentStatus(id, "extracting" as DocumentStatus);
 
     const totalProcessDuration = Date.now() - processStartTime;
     console.log("[AutoForm] ⏱️ PROCESS ROUTE COMPLETE:", {
       documentId: id,
-      fieldCount: result.fields.length,
       totalDurationMs: totalProcessDuration,
-      breakdown: {
-        fileLoad: `${fileLoadDuration}ms`,
-        azureDI: `${(azureDuration / 1000).toFixed(1)}s`,
-        dbSave: `${dbSaveDuration}ms`,
-      },
     });
 
-    // Check if page images are already uploaded (client may have uploaded them while Azure was processing)
-    // If so, trigger QC immediately. If not, pages/route.ts will trigger QC when images arrive.
+    // Check if page images are already uploaded
+    // If so, trigger field extraction immediately
     const freshDoc = await getDocument(id);
     const pageImages = freshDoc?.page_images || [];
 
     if (pageImages.length > 0) {
-      console.log("[AutoForm] Page images already available, triggering QC:", {
+      console.log("[AutoForm] Page images available, triggering field extraction:", {
         documentId: id,
         pageCount: pageImages.length,
       });
@@ -168,7 +94,7 @@ export async function POST(
       })
         .then(async (res) => {
           const data = await res.json().catch(() => ({}));
-          console.log("[AutoForm] Field refinement response:", {
+          console.log("[AutoForm] Field extraction response:", {
             documentId: id,
             status: res.status,
             ok: res.ok,
@@ -176,23 +102,21 @@ export async function POST(
           });
         })
         .catch((err) => {
-          console.error("[AutoForm] Background refinement failed:", {
+          console.error("[AutoForm] Background extraction failed:", {
             documentId: id,
             error: err instanceof Error ? err.message : "Unknown error",
           });
         });
     } else {
-      console.log("[AutoForm] Waiting for page images before QC:", {
+      console.log("[AutoForm] Waiting for page images:", {
         documentId: id,
-        message: "QC will be triggered by pages route when images are uploaded",
+        message: "Field extraction will be triggered when images are uploaded",
       });
     }
 
     return NextResponse.json({
       success: true,
-      status: "extracting", // Not ready yet - QC pending
-      field_count: result.fields.length,
-      page_count: result.pageCount,
+      status: "extracting",
     });
   } catch (error) {
     console.error(`[AutoForm] Process route error:`, error);

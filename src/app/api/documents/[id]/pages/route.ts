@@ -91,17 +91,15 @@ export async function POST(
       pages: uploadedPages.length,
     });
 
-    // PIPELINE OPTIMIZATION: Check if Azure has completed and QC hasn't run yet
-    // If so, trigger QC now. This handles the case where Azure finished before page images.
-    // (If Azure hasn't finished yet, process/route.ts will trigger QC when it completes)
+    // Check if document is ready for field extraction
     const freshDocument = await getDocument(documentId);
-    const azureComplete = freshDocument?.status === "extracting" ||
-                          freshDocument?.status === "refining" ||
-                          freshDocument?.status === "ready";
-    const qcNotStarted = !freshDocument?.fields_qc_complete;
+    const readyForExtraction = freshDocument?.status === "extracting" ||
+                               freshDocument?.status === "refining" ||
+                               freshDocument?.status === "ready";
+    const extractionNotStarted = !freshDocument?.fields_qc_complete;
 
-    if (azureComplete && qcNotStarted) {
-      console.log("[AutoForm] Azure complete, triggering QC now:", {
+    if (readyForExtraction && extractionNotStarted) {
+      console.log("[AutoForm] Triggering field extraction:", {
         documentId,
         status: freshDocument?.status,
       });
@@ -144,7 +142,7 @@ export async function POST(
       .select("page_number")
       .eq("document_id", documentId)
       .in("page_number", uploadedPageNumbers)
-      .or("detection_source.eq.azure_document_intelligence,detection_source.eq.document_ai")
+      .neq("detection_source", "gemini_vision")
       .is("deleted_at", null);
 
     // Find unique pages that need processing

@@ -1,16 +1,11 @@
-// Question finalization - runs when BOTH context and QC are ready
+// Question finalization - runs when BOTH context and extraction are ready
 //
-// PRE-WARM FINALIZATION:
-// Questions were pre-generated from Azure fields (status="pending_context").
-// Now we finalize them by:
-// 1. Filtering out questions for QC-deleted fields
-// 2. Applying context to auto-answer questions
-// 3. Generating questions for QC-discovered fields
-// 4. Making remaining questions visible
+// FINALIZATION:
+// Apply user context to questions and make them visible.
 //
 // This happens when BOTH:
 // - User has submitted context (context_submitted = true)
-// - QC has completed (fields_qc_complete = true)
+// - Field extraction has completed (fields_qc_complete = true)
 
 import { reevaluatePendingQuestions, generateQuestionsForPage } from "../gemini/vision";
 import { saveQuestion, updateQuestion, batchUpdateFieldValues, getConversationHistory } from "./state";

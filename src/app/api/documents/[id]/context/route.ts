@@ -10,20 +10,11 @@ import { getPageImageBase64 } from "@/lib/storage";
 export const maxDuration = 300;
 
 /**
- * POST /api/documents/[id]/context - Submit context and trigger question finalization
+ * POST /api/documents/[id]/context - Submit context and trigger question generation
  *
- * PRE-WARM OPTIMIZATION:
- * Questions are pre-generated immediately after Azure completes (status="pending_context").
  * When context is submitted:
- * - If QC + pre-gen complete → finalize instantly (apply context, make visible)
- * - If still waiting → finalization triggered by QC/pre-gen completion
- *
- * Fallback: If pre-generation didn't run (edge case), generate questions normally.
- *
- * Timeline (typical):
- * - T+0s: User submits context
- * - T+0.1s: Check if pre-gen + QC complete
- * - T+0.3s: Finalize questions (apply context) → questions appear INSTANTLY
+ * - If extraction complete → generate questions with context
+ * - If still extracting → questions generated when extraction completes
  */
 export async function POST(
   request: NextRequest,

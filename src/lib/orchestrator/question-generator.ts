@@ -111,10 +111,9 @@ export async function generateQuestions(
       fieldCount: fields?.length || 0,
     });
 
-    // Even if no fields were extracted by Document AI, we can still generate questions
-    // by having Gemini Vision analyze the page images directly
+    // If no fields were extracted yet, Gemini will analyze pages directly
     if (!fields || fields.length === 0) {
-      console.log("[AutoForm] No Document AI fields found, Gemini Vision will analyze pages directly:", {
+      console.log("[AutoForm] No fields found, Gemini Vision will analyze pages directly:", {
         documentId,
       });
     }

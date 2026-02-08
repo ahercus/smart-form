@@ -23,7 +23,7 @@ export interface DateSegment extends NormalizedCoordinates {
 // Flow: idle → parsing → displaying → enhancing → ready
 export type ProcessingPhase =
   | "idle"
-  | "parsing"      // Document AI extracting fields
+  | "parsing"      // Gemini extracting fields
   | "displaying"   // Fields shown to user (editable), questions being generated
   | "enhancing"    // Gemini Vision QC running in background
   | "ready"        // All done
@@ -197,13 +197,13 @@ export interface Document {
   context_notes: string | null;
   context_submitted: boolean;
   fields_qc_complete: boolean; // True when Gemini QC has refined fields
-  qc_skipped: boolean; // True if QC was skipped due to high Azure confidence
+  qc_skipped: boolean; // True if QC was skipped (legacy)
   qc_skip_reason: string | null; // Why QC was skipped (for debugging)
   questions_generated_at: string | null; // When questions were generated (prevents duplicate)
   questions_pregenerated: boolean; // True when questions pre-generated (before context submission)
   tailored_context_question: string | null; // AI-generated context question based on document
   use_memory: boolean; // Whether to use saved memories for auto-fill
-  extraction_response: unknown | null; // Azure Document Intelligence response
+  extraction_response: unknown | null; // Legacy extraction response
   gemini_refinement_response: unknown | null;
   page_images: PageImage[];
   created_at: string;

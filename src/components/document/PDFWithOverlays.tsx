@@ -242,7 +242,7 @@ export function PDFWithOverlays({
   }, [currentPage, onPageRender]);
 
   // Filter fields for current page
-  // Show all non-deleted fields (azure_di, gemini_vision, gemini_refinement, manual)
+  // Show all non-deleted fields
   const pageFields = fields.filter(
     (f) =>
       f.page_number === currentPage &&

@@ -24,7 +24,7 @@ interface ProcessPageParams {
   userId: string;
   pageNumber: number;
   pageImageBase64: string;
-  fields: ExtractedField[]; // Document AI fields for this page (may be empty)
+  fields: ExtractedField[]; // Extracted fields for this page (may be empty)
   useMemory?: boolean;
 }
 
