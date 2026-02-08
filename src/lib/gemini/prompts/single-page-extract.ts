@@ -38,13 +38,17 @@ CRITICAL RULES
    ✗ WRONG: {"label": "Name", "fieldType": "text"}
    ✓ RIGHT: {"label": "Name", "fieldType": "text", "coordinates": {"left": 20, "top": 15, "width": 30, "height": 2.5}}
 
-2. EXCLUDE LABELS FROM COORDINATES
+2. EXCLUDE LABELS FROM COORDINATES - CRITICAL
    The bounding box contains ONLY the empty input area, NOT the label text.
+   The LEFT coordinate must be where the UNDERLINE or BOX visually STARTS.
 
    Example: "Name: _________________"
-   - The label "Name:" is at left 5%
-   - The underline starts at left 15%
-   - Correct coordinates: left=15, NOT left=5
+   - The label "Name:" ends at approximately left 14%
+   - The underline STARTS at left 15% (where the line begins, NOT where the label ends)
+   - Correct coordinates: left=15, NOT left=5 or left=14
+
+   COMMON MISTAKE: Starting the box too far left, overlapping with label text.
+   ALWAYS measure from where the INPUT AREA visually begins.
 
 3. MEASURE INPUT AREAS ACCURATELY
    - Underlines: Measure from start to end of the line
@@ -250,7 +254,8 @@ Before returning, verify:
 BEGIN EXTRACTION NOW.`;
 }
 
-// JSON schema for structured output (constrains field types)
+// JSON schema for structured output - simplified to avoid nesting depth limits
+// Gemini limits nesting to ~5 levels, so we use "object" type without nested properties
 export const SINGLE_PAGE_EXTRACTION_SCHEMA = {
   type: "object",
   properties: {
@@ -276,60 +281,14 @@ export const SINGLE_PAGE_EXTRACTION_SCHEMA = {
               "linkedDate",
             ],
           },
-          coordinates: {
-            type: "object",
-            properties: {
-              left: { type: "number" },
-              top: { type: "number" },
-              width: { type: "number" },
-              height: { type: "number" },
-            },
-            required: ["left", "top", "width", "height"],
-          },
-          groupLabel: { type: ["string", "null"] },
+          // Coordinates as object - internal structure enforced by prompt
+          coordinates: { type: "object" },
+          groupLabel: { type: "string", nullable: true },
           rows: { type: "number" },
-          tableConfig: {
-            type: "object",
-            properties: {
-              columnHeaders: { type: "array", items: { type: "string" } },
-              coordinates: {
-                type: "object",
-                properties: {
-                  left: { type: "number" },
-                  top: { type: "number" },
-                  width: { type: "number" },
-                  height: { type: "number" },
-                },
-              },
-              dataRows: { type: "number" },
-              columnPositions: { type: "array", items: { type: "number" } },
-            },
-          },
-          dateSegments: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                left: { type: "number" },
-                top: { type: "number" },
-                width: { type: "number" },
-                height: { type: "number" },
-                part: { type: "string", enum: ["day", "month", "year", "year2"] },
-              },
-            },
-          },
-          segments: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                left: { type: "number" },
-                top: { type: "number" },
-                width: { type: "number" },
-                height: { type: "number" },
-              },
-            },
-          },
+          // Complex nested types simplified to avoid depth limits
+          tableConfig: { type: "object" },
+          dateSegments: { type: "array" },
+          segments: { type: "array" },
         },
         required: ["label", "fieldType", "coordinates"],
       },

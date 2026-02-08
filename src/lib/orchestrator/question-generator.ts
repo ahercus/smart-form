@@ -171,12 +171,13 @@ export async function generateQuestions(
 
     await updateDocumentStatus(documentId, "ready");
 
-    // Clear processing lock and mark questions as generated
+    // Clear processing lock and mark questions as generated (only if we actually generated some)
+    // If 0 questions generated (e.g., fields not ready yet), don't set timestamp so retry can happen
     await supabase
       .from("documents")
       .update({
         processing_lock: null,
-        questions_generated_at: new Date().toISOString(),
+        questions_generated_at: totalQuestions > 0 ? new Date().toISOString() : null,
       })
       .eq("id", documentId);
 

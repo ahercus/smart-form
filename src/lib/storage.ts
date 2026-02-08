@@ -385,9 +385,10 @@ export async function setPageFields(
   }
 
   // Convert ExtractionField to DB format
-  const dbFields = fields.map((f) => ({
+  const dbFields = fields.map((f, index) => ({
     document_id: documentId,
     page_number: pageNumber,
+    field_index: index, // Required field - sequential index within page
     label: f.label,
     field_type: f.fieldType,
     coordinates: f.coordinates,

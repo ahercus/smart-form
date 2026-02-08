@@ -214,10 +214,18 @@ function expandTableToFields(tableField: RawExtractedField): ProcessedField[] {
     return [];
   }
 
-  const { columnHeaders, coordinates, dataRows, columnPositions, rowHeights } = config;
-  const numColumns = columnHeaders.length;
+  const { columnHeaders, dataRows, columnPositions, rowHeights } = config;
+  // Use tableConfig.coordinates if present, otherwise fall back to field's coordinates
+  const coordinates = config.coordinates || tableField.coordinates;
 
-  if (numColumns === 0 || dataRows === 0) {
+  if (!coordinates) {
+    console.warn("[AutoForm] Table field missing coordinates:", tableField.label);
+    return [];
+  }
+
+  const numColumns = columnHeaders?.length || 0;
+
+  if (numColumns === 0 || !dataRows || dataRows === 0) {
     console.warn("[AutoForm] Table has no columns or rows:", { columnHeaders, dataRows });
     return [];
   }
