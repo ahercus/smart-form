@@ -113,7 +113,7 @@ export type FieldType =
 export type SignatureType = "signature" | "initials";
 
 // Detection source for fields
-export type DetectionSource = "document_ai" | "azure_document_intelligence" | "gemini_refinement" | "gemini_vision" | "manual";
+export type DetectionSource = "gemini_vision" | "manual";
 
 // Document processing status
 export type DocumentStatus =
@@ -140,13 +140,6 @@ export interface Signature {
   updated_at: string;
 }
 
-// Legacy signature reference stored in profile (deprecated, use Signature table)
-export interface SignatureReference {
-  id: string;
-  name: string;
-  storage_path: string;
-}
-
 // Core profile data for auto-fill
 export interface CoreProfileData {
   name?: string;
@@ -170,7 +163,6 @@ export interface Profile {
   email: string;
   core_data: CoreProfileData;
   extended_context: string | null;
-  signatures: SignatureReference[];
   subscription_tier: SubscriptionTier;
   stripe_customer_id: string | null;
   created_at: string;
@@ -196,15 +188,11 @@ export interface Document {
   error_message: string | null;
   context_notes: string | null;
   context_submitted: boolean;
-  fields_qc_complete: boolean; // True when Gemini QC has refined fields
-  qc_skipped: boolean; // True if QC was skipped (legacy)
-  qc_skip_reason: string | null; // Why QC was skipped (for debugging)
+  fields_qc_complete: boolean; // True when field extraction is complete
   questions_generated_at: string | null; // When questions were generated (prevents duplicate)
   questions_pregenerated: boolean; // True when questions pre-generated (before context submission)
   tailored_context_question: string | null; // AI-generated context question based on document
   use_memory: boolean; // Whether to use saved memories for auto-fill
-  extraction_response: unknown | null; // Legacy extraction response
-  gemini_refinement_response: unknown | null;
   page_images: PageImage[];
   created_at: string;
   updated_at: string;
@@ -252,35 +240,6 @@ export interface ExtractedField {
 // Document with fields (for API responses)
 export interface DocumentWithFields extends Document {
   fields: ExtractedField[];
-}
-
-// Async state pattern for UI
-export type AsyncState<T> =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "success"; data: T }
-  | { status: "error"; error: string; retry: () => void };
-
-// Auto-fill suggestion from Gemini
-export interface AutoFillSuggestion {
-  field_id: string;
-  value: string;
-  confidence: number;
-  reasoning?: string;
-}
-
-// Missing info request from Gemini
-export interface MissingInfoRequest {
-  field_id: string;
-  label: string;
-  question: string;
-  why_needed?: string;
-}
-
-// Auto-fill response
-export interface AutoFillResponse {
-  suggestions: AutoFillSuggestion[];
-  missing_info: MissingInfoRequest[];
 }
 
 // Field update for batch updates
