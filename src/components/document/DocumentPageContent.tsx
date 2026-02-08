@@ -667,9 +667,9 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
             )}
           </div>
 
-          {/* Setup Card Overlay */}
+          {/* Setup Card Overlay - z-20 to be above scan line (z-15) */}
           {showSetupCard && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center p-4">
+            <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
               <SetupCard
                 state={setupCardState as SetupCardState}
                 onFileSelect={() => {}}

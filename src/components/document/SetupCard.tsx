@@ -337,7 +337,7 @@ export function SetupCard({
               className="h-2"
             />
             <p className="text-xs text-muted-foreground text-center">
-              {progress.label || `${progress.current} / ${progress.total} pages`}
+              {progress.label || `Analyzing ${progress.total} page${progress.total > 1 ? "s" : ""}...`}
             </p>
           </div>
         )}
@@ -367,8 +367,7 @@ export function SetupCard({
               className="h-2"
             />
             <p className="text-xs text-muted-foreground text-center">
-              {progress.label ||
-                `Mapping fields on page ${progress.current} of ${progress.total}`}
+              {progress.label || `Analyzing ${progress.total} page${progress.total > 1 ? "s" : ""}...`}
             </p>
           </div>
         )}
