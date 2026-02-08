@@ -1,0 +1,10 @@
+{
+  "config": "flash_medium_minimal",
+  "model": "gemini-3-flash-preview",
+  "thinking_level": "medium",
+  "prompt_variant": "minimal",
+  "fields": [],
+  "score": null,
+  "duration_ms": 13775.592833000701,
+  "error": "Gemini extraction failed: 'list' object has no attribute 'get'"
+}

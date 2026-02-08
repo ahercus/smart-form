@@ -1,0 +1,239 @@
+{
+  "config": {
+    "model": "gemini-3-flash-preview",
+    "thinking_level": "minimal",
+    "architecture": "quadrant_4",
+    "prompt_style": "medium_agency"
+  },
+  "fields": [
+    {
+      "label": "Child's Name",
+      "fieldType": "text",
+      "groupLabel": "Student Information",
+      "coordinates": {
+        "left": 17.5,
+        "top": 25.1,
+        "width": 32,
+        "height": 2.2
+      },
+      "_quadrant": 1
+    },
+    {
+      "label": "D.O.B",
+      "fieldType": "linkedDate",
+      "groupLabel": "Student Information",
+      "dateSegments": [
+        {
+          "left": 56,
+          "top": 25.1,
+          "width": 6.5,
+          "height": 2.2,
+          "part": "day"
+        },
+        {
+          "left": 64,
+          "top": 25.1,
+          "width": 6.5,
+          "height": 2.2,
+          "part": "month"
+        },
+        {
+          "left": 72,
+          "top": 25.1,
+          "width": 10.5,
+          "height": 2.2,
+          "part": "year"
+        }
+      ],
+      "_quadrant": 1
+    },
+    {
+      "label": "Preferred Name",
+      "fieldType": "text",
+      "groupLabel": "Student Information",
+      "coordinates": {
+        "left": 19.5,
+        "top": 28.5,
+        "width": 30,
+        "height": 2.2
+      },
+      "_quadrant": 1
+    },
+    {
+      "label": "Left or Right Handed (if known)",
+      "fieldType": "text",
+      "groupLabel": "Student Information",
+      "coordinates": {
+        "left": 71,
+        "top": 28.5,
+        "width": 20.5,
+        "height": 2.2
+      },
+      "_quadrant": 1
+    },
+    {
+      "label": "Parent's/Guardian's Names",
+      "fieldType": "text",
+      "groupLabel": "Student Information",
+      "coordinates": {
+        "left": 27.5,
+        "top": 32.1,
+        "width": 54,
+        "height": 2.2
+      },
+      "_quadrant": 1
+    },
+    {
+      "label": "Names and ages of siblings in the family",
+      "fieldType": "table",
+      "groupLabel": "Student Information",
+      "tableConfig": {
+        "columnHeaders": [
+          "Siblings Names",
+          "Current Age",
+          "Class Teacher (Year started at KG if applicable)",
+          "Comments (if required)"
+        ],
+        "coordinates": {
+          "left": 5.8,
+          "top": 37.3,
+          "width": 88.4,
+          "height": 13
+        },
+        "dataRows": 4,
+        "columnPositions": [
+          0,
+          20.3,
+          40.3,
+          72.8,
+          100
+        ]
+      },
+      "_quadrant": 1
+    },
+    {
+      "label": "Parent's/Guardian's Names",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 28,
+        "top": 32.3,
+        "width": 54,
+        "height": 2.2
+      },
+      "_quadrant": 2
+    },
+    {
+      "label": "Siblings",
+      "fieldType": "table",
+      "tableConfig": {
+        "columnHeaders": [
+          "Siblings Names",
+          "Current Age",
+          "Class Teacher (Year started at KG if applicable)",
+          "Comments (if required)"
+        ],
+        "coordinates": {
+          "left": 6,
+          "top": 37.1,
+          "width": 88.2,
+          "height": 13.2
+        },
+        "dataRows": 4
+      },
+      "groupLabel": "Names and ages of siblings in the family:",
+      "_quadrant": 2
+    },
+    {
+      "label": "Kindergarten",
+      "fieldType": "checkbox",
+      "coordinates": {
+        "left": 59.5,
+        "top": 58.4,
+        "width": 1.7,
+        "height": 1.1
+      },
+      "groupLabel": "What Pre-Prep experiences has your child had?",
+      "_quadrant": 3
+    },
+    {
+      "label": "Family Day Care",
+      "fieldType": "checkbox",
+      "coordinates": {
+        "left": 251.5,
+        "top": 58.4,
+        "width": 1.7,
+        "height": 1.1
+      },
+      "groupLabel": "What Pre-Prep experiences has your child had?",
+      "_quadrant": 3
+    },
+    {
+      "label": "Long Day Care",
+      "fieldType": "checkbox",
+      "coordinates": {
+        "left": 475.5,
+        "top": 58.4,
+        "width": 1.7,
+        "height": 1.1
+      },
+      "groupLabel": "What Pre-Prep experiences has your child had?",
+      "_quadrant": 3
+    },
+    {
+      "label": "Pre-Prep",
+      "fieldType": "checkbox",
+      "coordinates": {
+        "left": 687.5,
+        "top": 58.4,
+        "width": 1.7,
+        "height": 1.1
+      },
+      "groupLabel": "What Pre-Prep experiences has your child had?",
+      "_quadrant": 3
+    },
+    {
+      "label": "Name of Centre",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 185.5,
+        "top": 617,
+        "width": 302,
+        "height": 13.5
+      },
+      "_quadrant": 3
+    },
+    {
+      "label": "How many days?",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 182,
+        "top": 634.5,
+        "width": 226,
+        "height": 13.5
+      },
+      "_quadrant": 3
+    },
+    {
+      "label": "How do you think your child will settle into Prep?",
+      "fieldType": "textarea",
+      "coordinates": {
+        "left": 60,
+        "top": 698.5,
+        "width": 878,
+        "height": 60
+      },
+      "rows": 4,
+      "_quadrant": 3
+    }
+  ],
+  "score": {
+    "detection_rate": 23.52941176470588,
+    "precision_rate": 26.666666666666668,
+    "avg_iou": 42.13338370155337,
+    "type_accuracy": 100.0,
+    "label_accuracy": 100.0,
+    "overall_score": 56.189034718309145
+  },
+  "duration_ms": 14982.713749996037,
+  "error": "Quadrant 4 failed: Gemini extraction failed: 'list' object has no attribute 'get'"
+}

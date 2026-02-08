@@ -30,7 +30,7 @@ import {
 } from "../../gemini/vision/quadrant-extract";
 import { processExtractedFields } from "./field-processors";
 import { quickContextScan, type ContextScanResult } from "../../gemini/vision/context-scan";
-import type { ExtractedField, NormalizedCoordinates, ChoiceOption } from "../../types";
+import type { ExtractedField, NormalizedCoordinates, ChoiceOption, DateSegment } from "../../types";
 
 /**
  * Deduplicate fields that appear in multiple quadrants due to boundary overlap
@@ -114,6 +114,10 @@ function toExtractedField(
     deleted_at: null,
     choice_options: choiceOptions,
     segments: raw.segments || null, // For linkedText fields
+    date_segments: raw.dateSegments || null, // For linkedDate fields
+    table_config: raw.tableConfig || null, // For table fields
+    rows: raw.rows || null, // For textarea fields - number of visible lines
+    group_label: raw.groupLabel || null, // Question/header context for this field
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };

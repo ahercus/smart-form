@@ -41,8 +41,8 @@ DEFAULT_PARALLEL_TESTS = 4
 
 
 # Test matrix configuration
-MODELS = ["gemini-3-flash-preview"]  # Pro reserved for future
-THINKING_LEVELS = ["MINIMAL", "MEDIUM"]
+MODELS = ["gemini-3-flash-preview", "gemini-3-pro-preview"]
+THINKING_LEVELS = ["low", "high"]
 ARCHITECTURES: list[Architecture] = ["single_page", "single_page_with_rulers", "quadrant_4"]
 PROMPT_STYLES: list[PromptStyle] = ["minimal", "high_agency", "medium_agency", "full_rails"]
 

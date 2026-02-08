@@ -1,0 +1,66 @@
+{
+  "azure_baseline": {
+    "overall_score": 50.95319254959056,
+    "detection_rate": 58.82352941176471,
+    "precision_rate": 27.027027027027028,
+    "avg_iou": 47.89477562479762,
+    "type_accuracy": 40.0,
+    "label_accuracy": 74.50783204338263
+  },
+  "tests": [
+    {
+      "config": "flash_medium_full",
+      "overall": 86.59697611873035,
+      "detection": 94.11764705882352,
+      "iou": 63.9822586696601,
+      "types": 100.0,
+      "duration_ms": 23403.00291700987,
+      "error": null
+    },
+    {
+      "config": "flash_medium_minimal",
+      "overall": 0,
+      "detection": 0,
+      "iou": 0,
+      "types": 0,
+      "duration_ms": 13775.592833000701,
+      "error": "Gemini extraction failed: 'list' object has no attribute 'get'"
+    },
+    {
+      "config": "flash_low_full",
+      "overall": 85.00997057718646,
+      "detection": 94.11764705882352,
+      "iou": 58.69224019784717,
+      "types": 100.0,
+      "duration_ms": 8817.073707992677,
+      "error": null
+    },
+    {
+      "config": "flash_low_minimal",
+      "overall": 0,
+      "detection": 0,
+      "iou": 0,
+      "types": 0,
+      "duration_ms": 6812.369499995839,
+      "error": "Gemini extraction failed: 'list' object has no attribute 'get'"
+    },
+    {
+      "config": "pro_low_full",
+      "overall": 82.44063997907705,
+      "detection": 100.0,
+      "iou": 45.12018174282439,
+      "types": 100.0,
+      "duration_ms": 16897.83291600179,
+      "error": null
+    },
+    {
+      "config": "pro_low_minimal",
+      "overall": 0,
+      "detection": 0,
+      "iou": 0,
+      "types": 0,
+      "duration_ms": 12489.135374999023,
+      "error": "Gemini extraction failed: 'list' object has no attribute 'get'"
+    }
+  ]
+}

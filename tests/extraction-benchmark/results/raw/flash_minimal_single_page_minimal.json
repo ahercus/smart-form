@@ -1,0 +1,370 @@
+{
+  "config": {
+    "model": "gemini-3-flash-preview",
+    "thinking_level": "minimal",
+    "architecture": "single_page",
+    "prompt_style": "minimal"
+  },
+  "fields": [
+    {
+      "label": "Child's Name:",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 16.5,
+        "top": 251,
+        "width": 328,
+        "height": 14
+      }
+    },
+    {
+      "label": "D.O.B:",
+      "fieldType": "date",
+      "coordinates": {
+        "left": 557,
+        "top": 251,
+        "width": 266,
+        "height": 15
+      }
+    },
+    {
+      "label": "Preferred Name:",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 204,
+        "top": 288,
+        "width": 290,
+        "height": 13
+      }
+    },
+    {
+      "label": "Left or Right Handed (if known):",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 771,
+        "top": 288,
+        "width": 145,
+        "height": 13
+      }
+    },
+    {
+      "label": "Parent's/Guardian's Names:",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 298,
+        "top": 325,
+        "width": 518,
+        "height": 14
+      }
+    },
+    {
+      "label": "Sibling Name 1",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 60,
+        "top": 412,
+        "width": 178,
+        "height": 22
+      }
+    },
+    {
+      "label": "Sibling Age 1",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 240,
+        "top": 412,
+        "width": 175,
+        "height": 22
+      }
+    },
+    {
+      "label": "Sibling Class Teacher 1",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 417,
+        "top": 412,
+        "width": 288,
+        "height": 22
+      }
+    },
+    {
+      "label": "Sibling Comments 1",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 707,
+        "top": 412,
+        "width": 236,
+        "height": 22
+      }
+    },
+    {
+      "label": "Sibling Name 2",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 60,
+        "top": 435,
+        "width": 178,
+        "height": 22
+      }
+    },
+    {
+      "label": "Sibling Age 2",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 240,
+        "top": 435,
+        "width": 175,
+        "height": 22
+      }
+    },
+    {
+      "label": "Sibling Class Teacher 2",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 417,
+        "top": 435,
+        "width": 288,
+        "height": 22
+      }
+    },
+    {
+      "label": "Sibling Comments 2",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 707,
+        "top": 435,
+        "width": 236,
+        "height": 22
+      }
+    },
+    {
+      "label": "Sibling Name 3",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 60,
+        "top": 458,
+        "width": 178,
+        "height": 22
+      }
+    },
+    {
+      "label": "Sibling Age 3",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 240,
+        "top": 458,
+        "width": 175,
+        "height": 22
+      }
+    },
+    {
+      "label": "Sibling Class Teacher 3",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 417,
+        "top": 458,
+        "width": 288,
+        "height": 22
+      }
+    },
+    {
+      "label": "Sibling Comments 3",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 707,
+        "top": 458,
+        "width": 236,
+        "height": 22
+      }
+    },
+    {
+      "label": "Sibling Name 4",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 60,
+        "top": 481,
+        "width": 178,
+        "height": 22
+      }
+    },
+    {
+      "label": "Sibling Age 4",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 240,
+        "top": 481,
+        "width": 175,
+        "height": 22
+      }
+    },
+    {
+      "label": "Sibling Class Teacher 4",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 417,
+        "top": 481,
+        "width": 288,
+        "height": 22
+      }
+    },
+    {
+      "label": "Sibling Comments 4",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 707,
+        "top": 481,
+        "width": 236,
+        "height": 22
+      }
+    },
+    {
+      "label": "Kindergarten",
+      "fieldType": "checkbox",
+      "coordinates": {
+        "left": 60.5,
+        "top": 583.5,
+        "width": 12,
+        "height": 12
+      }
+    },
+    {
+      "label": "Family Day Care",
+      "fieldType": "checkbox",
+      "coordinates": {
+        "left": 252.5,
+        "top": 583.5,
+        "width": 12,
+        "height": 12
+      }
+    },
+    {
+      "label": "Long Day Care",
+      "fieldType": "checkbox",
+      "coordinates": {
+        "left": 476.5,
+        "top": 583.5,
+        "width": 12,
+        "height": 12
+      }
+    },
+    {
+      "label": "Pre-Prep",
+      "fieldType": "checkbox",
+      "coordinates": {
+        "left": 687.5,
+        "top": 583.5,
+        "width": 12,
+        "height": 12
+      }
+    },
+    {
+      "label": "Name of Centre:",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 194,
+        "top": 625,
+        "width": 293,
+        "height": 12
+      }
+    },
+    {
+      "label": "How many days?",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 188,
+        "top": 645,
+        "width": 220,
+        "height": 12
+      }
+    },
+    {
+      "label": "How do you think your child will settle into Prep? Line 1",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 60,
+        "top": 697,
+        "width": 878,
+        "height": 12
+      }
+    },
+    {
+      "label": "How do you think your child will settle into Prep? Line 2",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 60,
+        "top": 717,
+        "width": 878,
+        "height": 12
+      }
+    },
+    {
+      "label": "How do you think your child will settle into Prep? Line 3",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 60,
+        "top": 737,
+        "width": 878,
+        "height": 12
+      }
+    },
+    {
+      "label": "How do you think your child will settle into Prep? Line 4",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 60,
+        "top": 756,
+        "width": 878,
+        "height": 12
+      }
+    },
+    {
+      "label": "Does your child participate in any out-of-school activity? eg soccer, craft, drama, dance, music?",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 60,
+        "top": 819,
+        "width": 710,
+        "height": 12
+      }
+    },
+    {
+      "label": "How well does your child play with other children?",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 516,
+        "top": 846,
+        "width": 365,
+        "height": 12
+      }
+    },
+    {
+      "label": "What are your child's special interests?",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 413,
+        "top": 873,
+        "width": 465,
+        "height": 12
+      }
+    },
+    {
+      "label": "What is your child good at?",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 313,
+        "top": 900,
+        "width": 565,
+        "height": 12
+      }
+    }
+  ],
+  "score": {
+    "detection_rate": 0.0,
+    "precision_rate": 0.0,
+    "avg_iou": 0,
+    "type_accuracy": 0,
+    "label_accuracy": 0,
+    "overall_score": 0.0
+  },
+  "duration_ms": 13341.022874999908,
+  "error": null
+}

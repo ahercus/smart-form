@@ -316,6 +316,17 @@ export async function setDocumentFields(
 ): Promise<void> {
   const supabase = createAdminClient();
 
+  // Delete existing fields for this document first (prevents duplicate key errors on reprocess)
+  const { error: deleteError } = await supabase
+    .from("extracted_fields")
+    .delete()
+    .eq("document_id", documentId);
+
+  if (deleteError) {
+    console.error("[AutoForm] Failed to delete existing fields:", deleteError);
+    // Continue anyway - insert might still work if no existing fields
+  }
+
   // Insert all fields
   const { error } = await supabase.from("extracted_fields").insert(
     fields.map((f) => ({
@@ -327,6 +338,52 @@ export async function setDocumentFields(
   if (error) {
     throw new Error(`Failed to save fields: ${error.message}`);
   }
+}
+
+/**
+ * Set fields for a specific page only (used for progressive page-by-page saving)
+ * Only deletes/replaces fields for the specified page, not the entire document
+ */
+export async function setPageFields(
+  documentId: string,
+  pageNumber: number,
+  fields: ExtractedField[]
+): Promise<void> {
+  const supabase = createAdminClient();
+
+  // Delete existing fields for this specific page only
+  const { error: deleteError } = await supabase
+    .from("extracted_fields")
+    .delete()
+    .eq("document_id", documentId)
+    .eq("page_number", pageNumber);
+
+  if (deleteError) {
+    console.error("[AutoForm] Failed to delete existing page fields:", deleteError);
+    // Continue anyway - insert might still work if no existing fields
+  }
+
+  if (fields.length === 0) {
+    return; // No fields to insert for this page
+  }
+
+  // Insert fields for this page
+  const { error } = await supabase.from("extracted_fields").insert(
+    fields.map((f) => ({
+      ...f,
+      document_id: documentId,
+    }))
+  );
+
+  if (error) {
+    throw new Error(`Failed to save page fields: ${error.message}`);
+  }
+
+  console.log("[AutoForm] Page fields saved:", {
+    documentId: documentId.slice(0, 8),
+    pageNumber,
+    fieldCount: fields.length,
+  });
 }
 
 export async function updateField(

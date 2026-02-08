@@ -33,6 +33,8 @@ interface KonvaFieldCanvasProps {
   fieldValues: Record<string, string>;
   /** Currently active field */
   activeFieldId: string | null;
+  /** Newly created field ID (for pulse animation) */
+  newFieldId?: string | null;
   /** Layout editing mode - enables drag/resize of fields */
   layoutMode?: boolean;
   /** Whether on mobile device - affects interaction behavior */
@@ -46,6 +48,8 @@ interface KonvaFieldCanvasProps {
   onFieldValueChange: (fieldId: string, value: string) => void;
   onFieldCoordinatesChange?: (fieldId: string, coords: NormalizedCoordinates) => void;
   onChoiceToggle?: (fieldId: string, optionLabel: string) => void;
+  /** Called when user clicks on the stage background (not a field) */
+  onStageBackgroundClick?: () => void;
   /** Ref to access stage for export */
   stageRef?: React.RefObject<StageType | null>;
 }
@@ -58,6 +62,7 @@ export function KonvaFieldCanvas({
   fields,
   fieldValues,
   activeFieldId,
+  newFieldId,
   layoutMode = false,
   isMobile = false,
   showGrid = false,
@@ -66,6 +71,7 @@ export function KonvaFieldCanvas({
   onFieldValueChange,
   onFieldCoordinatesChange,
   onChoiceToggle,
+  onStageBackgroundClick,
   stageRef: externalStageRef,
 }: KonvaFieldCanvasProps) {
   const internalStageRef = useRef<StageType>(null);
@@ -79,6 +85,7 @@ export function KonvaFieldCanvas({
   const [inputPosition, setInputPosition] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
   // Update transformer when active field changes in layout mode
+  // Also re-run when fields change (for newly added fields)
   useEffect(() => {
     if (!layoutMode || !transformerRef.current) {
       transformerRef.current?.nodes([]);
@@ -86,15 +93,19 @@ export function KonvaFieldCanvas({
     }
 
     if (activeFieldId) {
-      const node = shapeRefs.current.get(activeFieldId);
-      if (node) {
-        transformerRef.current.nodes([node]);
-        transformerRef.current.getLayer()?.batchDraw();
-      }
+      // Use a short delay to ensure the field has been rendered
+      const timer = setTimeout(() => {
+        const node = shapeRefs.current.get(activeFieldId);
+        if (node && transformerRef.current) {
+          transformerRef.current.nodes([node]);
+          transformerRef.current.getLayer()?.batchDraw();
+        }
+      }, 50);
+      return () => clearTimeout(timer);
     } else {
       transformerRef.current.nodes([]);
     }
-  }, [activeFieldId, layoutMode]);
+  }, [activeFieldId, layoutMode, fields]);
 
   // Get the field being edited
   const editingField = editingFieldId
@@ -233,16 +244,18 @@ export function KonvaFieldCanvas({
     setEditingFieldId(null);
   }, []);
 
-  // Handle click on empty space - close editing and deselect
+  // Handle click on empty space - close editing, deselect, and notify parent
   const handleStageClick = useCallback(
     (e: { target: { getStage: () => unknown } }) => {
       // If clicking on the stage background (not a field), close editing and deselect
       if (e.target === e.target.getStage()) {
         setEditingFieldId(null);
         onFieldClick(null);
+        // Notify parent (e.g., to exit layout mode)
+        onStageBackgroundClick?.();
       }
     },
-    [onFieldClick]
+    [onFieldClick, onStageBackgroundClick]
   );
 
   // Keyboard listener for type-to-edit (desktop only)
@@ -277,6 +290,21 @@ export function KonvaFieldCanvas({
   // Scaled dimensions
   const scaledWidth = pageWidth * scale;
   const scaledHeight = pageHeight * scale;
+
+  // Calculate consistent font size based on smallest text field on this page
+  // This ensures all text fields use the same font size for visual consistency
+  const textFields = fields.filter((f) =>
+    ["text", "textarea", "date"].includes(f.field_type)
+  );
+  const pageFontSize = textFields.length > 0
+    ? (() => {
+        const minHeightPx = Math.min(
+          ...textFields.map((f) => (f.coordinates.height / 100) * pageHeight)
+        );
+        // Use 75% of smallest field height, clamped between 10-24px
+        return Math.min(Math.max(minHeightPx * 0.75, 10), 24);
+      })()
+    : null;
 
   return (
     <div
@@ -328,8 +356,10 @@ export function KonvaFieldCanvas({
               value={fieldValues[field.id] || ""}
               pageWidth={pageWidth}
               pageHeight={pageHeight}
+              pageFontSize={pageFontSize}
               isActive={field.id === activeFieldId}
               isEditing={field.id === editingFieldId}
+              isNew={field.id === newFieldId}
               draggable={layoutMode}
               hideFieldColors={hideFieldColors}
               onClick={() => handleFieldClick(field)}
@@ -381,6 +411,7 @@ export function KonvaFieldCanvas({
           value={fieldValues[editingField.id] || ""}
           position={inputPosition}
           scale={scale}
+          pageFontSize={pageFontSize}
           onValueChange={onFieldValueChange}
           onClose={handleInputClose}
         />

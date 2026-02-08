@@ -1,0 +1,242 @@
+[
+  {
+    "config": "flash_minimal_single_page_high_agency",
+    "overall": 89.24866608970873,
+    "detection": 100.0,
+    "precision": 100.0,
+    "iou": 67.00535755393105,
+    "types": 100.0,
+    "labels": 94.31372549019609,
+    "duration_ms": 24773.47970799019
+  },
+  {
+    "config": "flash_minimal_single_page_full_rails",
+    "overall": 75.68400877904396,
+    "detection": 82.35294117647058,
+    "precision": 82.35294117647058,
+    "iou": 44.65735119438447,
+    "types": 100.0,
+    "labels": 89.7551600597595,
+    "duration_ms": 27903.72825000668
+  },
+  {
+    "config": "flash_minimal_single_page_with_rulers_full_rails",
+    "overall": 82.94617769121615,
+    "detection": 88.23529411764706,
+    "precision": 88.23529411764706,
+    "iou": 58.54608250013229,
+    "types": 100.0,
+    "labels": 96.66666666666667,
+    "duration_ms": 30431.27362499945
+  },
+  {
+    "config": "flash_minimal_single_page_with_rulers_minimal",
+    "overall": 0.0,
+    "detection": 0.0,
+    "precision": 0,
+    "iou": 0,
+    "types": 0,
+    "labels": 0,
+    "duration_ms": 33699.26766700519
+  },
+  {
+    "config": "flash_minimal_single_page_with_rulers_high_agency",
+    "overall": 0.0,
+    "detection": 0.0,
+    "precision": 0,
+    "iou": 0,
+    "types": 0,
+    "labels": 0,
+    "duration_ms": 35738.90599999868
+  },
+  {
+    "config": "flash_minimal_quadrant_4_minimal",
+    "overall": 0.0,
+    "detection": 0.0,
+    "precision": 0,
+    "iou": 0,
+    "types": 0,
+    "labels": 0,
+    "duration_ms": 36314.21391600452
+  },
+  {
+    "config": "flash_minimal_single_page_with_rulers_medium_agency",
+    "overall": 0.0,
+    "detection": 0.0,
+    "precision": 0,
+    "iou": 0,
+    "types": 0,
+    "labels": 0,
+    "duration_ms": 37477.41833400505
+  },
+  {
+    "config": "flash_minimal_single_page_minimal",
+    "overall": 0.0,
+    "detection": 0.0,
+    "precision": 0,
+    "iou": 0,
+    "types": 0,
+    "labels": 0,
+    "duration_ms": 37615.824459004216
+  },
+  {
+    "config": "flash_minimal_single_page_medium_agency",
+    "overall": 0.0,
+    "detection": 0.0,
+    "precision": 0,
+    "iou": 0,
+    "types": 0,
+    "labels": 0,
+    "duration_ms": 38979.93208299158
+  },
+  {
+    "config": "flash_medium_single_page_high_agency",
+    "overall": 82.92722534390681,
+    "detection": 88.23529411764706,
+    "precision": 88.23529411764706,
+    "iou": 58.482908009101145,
+    "types": 100.0,
+    "labels": 96.66666666666667,
+    "duration_ms": 19714.102833007928
+  },
+  {
+    "config": "flash_medium_single_page_full_rails",
+    "overall": 85.07671917193525,
+    "detection": 94.11764705882352,
+    "precision": 94.11764705882352,
+    "iou": 58.68097567115673,
+    "types": 100.0,
+    "labels": 96.875,
+    "duration_ms": 18071.451708005043
+  },
+  {
+    "config": "flash_medium_single_page_minimal",
+    "overall": 0.0,
+    "detection": 0.0,
+    "precision": 0,
+    "iou": 0,
+    "types": 0,
+    "labels": 0,
+    "duration_ms": 33977.673541987315
+  },
+  {
+    "config": "flash_medium_single_page_with_rulers_high_agency",
+    "overall": 88.49449747950447,
+    "detection": 100.0,
+    "precision": 100.0,
+    "iou": 64.4914621865835,
+    "types": 100.0,
+    "labels": 94.31372549019609,
+    "duration_ms": 26903.530083000078
+  },
+  {
+    "config": "flash_medium_single_page_with_rulers_medium_agency",
+    "overall": 77.44690415901758,
+    "detection": 88.23529411764706,
+    "precision": 88.23529411764706,
+    "iou": 40.46451455815801,
+    "types": 100.0,
+    "labels": 96.16797900262468,
+    "duration_ms": 29407.64666699397
+  },
+  {
+    "config": "flash_medium_single_page_medium_agency",
+    "overall": 79.23602153377742,
+    "detection": 88.23529411764706,
+    "precision": 88.23529411764706,
+    "iou": 46.428239140690785,
+    "types": 100.0,
+    "labels": 96.16797900262468,
+    "duration_ms": 32649.221999992733
+  },
+  {
+    "config": "flash_minimal_quadrant_4_high_agency",
+    "overall": 84.72836078490617,
+    "detection": 76.47058823529412,
+    "precision": 100.0,
+    "iou": 71.26648165104471,
+    "types": 100.0,
+    "labels": 94.87179487179488,
+    "duration_ms": 73180.74620800326
+  },
+  {
+    "config": "flash_medium_single_page_with_rulers_minimal",
+    "overall": 0.0,
+    "detection": 0.0,
+    "precision": 0,
+    "iou": 0,
+    "types": 0,
+    "labels": 0,
+    "duration_ms": 36250.84374999278
+  },
+  {
+    "config": "flash_medium_single_page_with_rulers_full_rails",
+    "overall": 79.56733641933198,
+    "detection": 88.23529411764706,
+    "precision": 88.23529411764706,
+    "iou": 50.120389003101764,
+    "types": 100.0,
+    "labels": 90.99244518149992,
+    "duration_ms": 30153.989958009333
+  },
+  {
+    "config": "flash_medium_quadrant_4_high_agency",
+    "overall": 0.0,
+    "detection": 0.0,
+    "precision": 0,
+    "iou": 0,
+    "types": 0,
+    "labels": 0,
+    "duration_ms": 53911.72808299598
+  },
+  {
+    "config": "flash_medium_quadrant_4_minimal",
+    "overall": 72.82748310771653,
+    "detection": 82.35294117647058,
+    "precision": 43.75,
+    "iou": 45.50709557090369,
+    "types": 100.0,
+    "labels": 94.74746094885185,
+    "duration_ms": 67048.04812501243
+  },
+  {
+    "config": "flash_minimal_quadrant_4_medium_agency",
+    "overall": 76.56077520434097,
+    "detection": 88.23529411764706,
+    "precision": 83.33333333333334,
+    "iou": 39.14473830400726,
+    "types": 100.0,
+    "labels": 96.16797900262468,
+    "duration_ms": 98118.4368749964
+  },
+  {
+    "config": "flash_medium_quadrant_4_medium_agency",
+    "overall": 63.57775695361418,
+    "detection": 5.88235294117647,
+    "precision": 50.0,
+    "iou": 73.69056239440019,
+    "types": 100.0,
+    "labels": 100.0,
+    "duration_ms": 67383.54900000559
+  },
+  {
+    "config": "flash_medium_quadrant_4_full_rails",
+    "overall": 85.34726606572083,
+    "detection": 94.11764705882352,
+    "precision": 94.11764705882352,
+    "iou": 59.816558492961704,
+    "types": 100.0,
+    "labels": 96.40748031496062,
+    "duration_ms": 112466.15054200811
+  },
+  {
+    "config": "flash_minimal_quadrant_4_full_rails",
+    "overall": 0.0,
+    "detection": 0.0,
+    "precision": 0,
+    "iou": 0,
+    "types": 0,
+    "labels": 0,
+    "duration_ms": 600100.9680410061
+  }
+]

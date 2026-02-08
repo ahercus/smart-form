@@ -1,0 +1,68 @@
+[
+  {
+    "config": "flash_minimal_single_page_full_rails",
+    "baseline": {
+      "iou": 69.4,
+      "detection": 94.1
+    },
+    "extraction_only": {
+      "fields": 17,
+      "duration_ms": 8808.048666003742,
+      "detection": 94.11764705882352,
+      "iou": 61.480070898391844,
+      "types": 100.0
+    },
+    "extraction_with_questions": {
+      "fields": 17,
+      "questions": 17,
+      "duration_ms": 9119.46945800446,
+      "detection": 88.23529411764706,
+      "iou": 55.434778230314016,
+      "types": 100.0
+    }
+  },
+  {
+    "config": "flash_low_single_page_full_rails",
+    "baseline": {
+      "iou": 66.8,
+      "detection": 94.1
+    },
+    "extraction_only": {
+      "fields": 17,
+      "duration_ms": 9383.321707995492,
+      "detection": 94.11764705882352,
+      "iou": 61.107504423545954,
+      "types": 100.0
+    },
+    "extraction_with_questions": {
+      "fields": 17,
+      "questions": 17,
+      "duration_ms": 9703.928792005172,
+      "detection": 88.23529411764706,
+      "iou": 50.546677615852595,
+      "types": 100.0
+    }
+  },
+  {
+    "config": "flash_medium_single_page_high_agency",
+    "baseline": {
+      "iou": 60.9,
+      "detection": 100.0
+    },
+    "extraction_only": {
+      "fields": 17,
+      "duration_ms": 19693.15262499731,
+      "detection": 94.11764705882352,
+      "iou": 57.87460184408675,
+      "types": 100.0
+    },
+    "extraction_with_questions": {
+      "fields": 17,
+      "questions": 17,
+      "duration_ms": 26280.521209002472,
+      "detection": 88.23529411764706,
+      "iou": 58.07221552432588,
+      "types": 100.0
+    }
+  }
+]

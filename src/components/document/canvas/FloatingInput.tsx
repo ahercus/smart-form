@@ -23,6 +23,8 @@ interface FloatingInputProps {
     height: number;
   };
   scale: number;
+  /** Consistent font size for all text fields on this page (based on smallest field) */
+  pageFontSize?: number | null;
   onValueChange: (fieldId: string, value: string) => void;
   onClose: () => void;
 }
@@ -32,6 +34,7 @@ export function FloatingInput({
   value,
   position,
   scale,
+  pageFontSize,
   onValueChange,
   onClose,
 }: FloatingInputProps) {
@@ -74,21 +77,34 @@ export function FloatingInput({
     onClose();
   }, [onClose]);
 
-  // Calculate font size based on field height and scale
-  const baseFontSize = Math.min(Math.max(position.height * 0.5, 10), 14);
-  const fontSize = baseFontSize;
-  const padding = 2 * scale;
+  // Use page-consistent font size if provided, otherwise fall back to per-field calculation
+  // This ensures all text fields on the page have the same text size when typing
+  const fontSize = pageFontSize ?? Math.min(Math.max(position.height * 0.75, 10), 24);
+  const horizontalPadding = 2 * scale;
+
+  // Calculate vertical padding to center text within field height
+  const verticalPadding = Math.max(0, (position.height - fontSize) / 2);
+
+  const wrapperStyles: React.CSSProperties = {
+    position: "absolute",
+    left: position.x,
+    top: position.y,
+    width: position.width,
+    height: position.height,
+    display: "flex",
+    alignItems: "center",
+    overflow: "hidden",
+  };
 
   const commonStyles: React.CSSProperties = {
-    position: "absolute",
-    left: position.x + padding,
-    top: position.y,
-    width: position.width - padding * 2,
-    height: isTextarea ? "auto" : position.height,
-    minHeight: position.height,
+    width: "100%",
+    height: isTextarea ? "auto" : "100%",
+    minHeight: isTextarea ? position.height : undefined,
     fontSize,
-    lineHeight: isTextarea ? "1.2" : `${position.height}px`,
-    padding: `0 ${padding}px`,
+    lineHeight: isTextarea ? "1.2" : "1",
+    padding: isTextarea
+      ? `2px ${horizontalPadding}px`
+      : `${verticalPadding}px ${horizontalPadding}px`,
     color: "#374151",
     backgroundColor: "transparent",
     border: "none",
@@ -100,44 +116,50 @@ export function FloatingInput({
 
   if (isDateField) {
     return (
-      <Input
-        ref={inputRef as React.RefObject<HTMLInputElement>}
-        type="date"
-        value={value}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        onBlur={handleBlur}
-        style={commonStyles}
-        className="focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-      />
+      <div style={wrapperStyles}>
+        <Input
+          ref={inputRef as React.RefObject<HTMLInputElement>}
+          type="date"
+          value={value}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          onBlur={handleBlur}
+          style={commonStyles}
+          className="focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+        />
+      </div>
     );
   }
 
   if (isTextarea) {
     return (
-      <Textarea
-        ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+      <div style={{ ...wrapperStyles, alignItems: "flex-start" }}>
+        <Textarea
+          ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+          value={value}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          onBlur={handleBlur}
+          style={commonStyles}
+          className="focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+          rows={1}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div style={wrapperStyles}>
+      <Input
+        ref={inputRef as React.RefObject<HTMLInputElement>}
+        type="text"
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         onBlur={handleBlur}
         style={commonStyles}
         className="focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-        rows={1}
       />
-    );
-  }
-
-  return (
-    <Input
-      ref={inputRef as React.RefObject<HTMLInputElement>}
-      type="text"
-      value={value}
-      onChange={handleChange}
-      onKeyDown={handleKeyDown}
-      onBlur={handleBlur}
-      style={commonStyles}
-      className="focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-    />
+    </div>
   );
 }

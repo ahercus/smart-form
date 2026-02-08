@@ -1,0 +1,229 @@
+{
+  "config": {
+    "model": "gemini-3-flash-preview",
+    "thinking_level": "medium",
+    "architecture": "single_page",
+    "prompt_style": "medium_agency"
+  },
+  "fields": [
+    {
+      "label": "Child's Name",
+      "fieldType": "text",
+      "groupLabel": "Student Information",
+      "coordinates": {
+        "left": 17.5,
+        "top": 24.3,
+        "width": 31.8,
+        "height": 2.6
+      }
+    },
+    {
+      "label": "D.O.B",
+      "fieldType": "linkedDate",
+      "groupLabel": "Student Information",
+      "dateSegments": [
+        {
+          "left": 56.3,
+          "top": 24.3,
+          "width": 5.4,
+          "height": 2.6,
+          "part": "day"
+        },
+        {
+          "left": 63.3,
+          "top": 24.3,
+          "width": 5.4,
+          "height": 2.6,
+          "part": "month"
+        },
+        {
+          "left": 70.4,
+          "top": 24.3,
+          "width": 12.0,
+          "height": 2.6,
+          "part": "year"
+        }
+      ]
+    },
+    {
+      "label": "Preferred Name",
+      "fieldType": "text",
+      "groupLabel": "Student Information",
+      "coordinates": {
+        "left": 19.8,
+        "top": 28.3,
+        "width": 30.1,
+        "height": 2.6
+      }
+    },
+    {
+      "label": "Left or Right Handed (if known)",
+      "fieldType": "text",
+      "groupLabel": "Student Information",
+      "coordinates": {
+        "left": 71.0,
+        "top": 28.3,
+        "width": 20.5,
+        "height": 2.6
+      }
+    },
+    {
+      "label": "Parent's/Guardian's Names",
+      "fieldType": "text",
+      "groupLabel": "Student Information",
+      "coordinates": {
+        "left": 27.5,
+        "top": 32.1,
+        "width": 54.4,
+        "height": 2.6
+      }
+    },
+    {
+      "label": "Siblings",
+      "fieldType": "table",
+      "groupLabel": "Names and ages of siblings in the family",
+      "tableConfig": {
+        "columnHeaders": [
+          "Siblings Names",
+          "Current Age",
+          "Class Teacher (Year started at KG if applicable)",
+          "Comments (if required)"
+        ],
+        "coordinates": {
+          "left": 5.7,
+          "top": 37.2,
+          "width": 88.6,
+          "height": 13.3
+        },
+        "dataRows": 4
+      }
+    },
+    {
+      "label": "Kindergarten",
+      "fieldType": "checkbox",
+      "groupLabel": "What Pre-Prep experiences has your child had?",
+      "coordinates": {
+        "left": 6.2,
+        "top": 57.8,
+        "width": 1.8,
+        "height": 1.7
+      }
+    },
+    {
+      "label": "Family Day Care",
+      "fieldType": "checkbox",
+      "groupLabel": "What Pre-Prep experiences has your child had?",
+      "coordinates": {
+        "left": 25.2,
+        "top": 57.8,
+        "width": 1.8,
+        "height": 1.7
+      }
+    },
+    {
+      "label": "Long Day Care",
+      "fieldType": "checkbox",
+      "groupLabel": "What Pre-Prep experiences has your child had?",
+      "coordinates": {
+        "left": 47.7,
+        "top": 57.8,
+        "width": 1.8,
+        "height": 1.7
+      }
+    },
+    {
+      "label": "Pre-Prep",
+      "fieldType": "checkbox",
+      "groupLabel": "What Pre-Prep experiences has your child had?",
+      "coordinates": {
+        "left": 68.8,
+        "top": 57.8,
+        "width": 1.8,
+        "height": 1.7
+      }
+    },
+    {
+      "label": "Name of Centre",
+      "fieldType": "text",
+      "groupLabel": "What Pre-Prep experiences has your child had?",
+      "coordinates": {
+        "left": 19.5,
+        "top": 61.3,
+        "width": 29.1,
+        "height": 2.6
+      }
+    },
+    {
+      "label": "How many days?",
+      "fieldType": "text",
+      "groupLabel": "What Pre-Prep experiences has your child had?",
+      "coordinates": {
+        "left": 19.8,
+        "top": 63.5,
+        "width": 17.5,
+        "height": 2.6
+      }
+    },
+    {
+      "label": "How do you think your child will settle into Prep?",
+      "fieldType": "textarea",
+      "coordinates": {
+        "left": 5.7,
+        "top": 69.8,
+        "width": 88.6,
+        "height": 7.5
+      },
+      "rows": 4
+    },
+    {
+      "label": "Does your child participate in any out-of-school activity? eg soccer, craft, drama, dance, music?",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 5.7,
+        "top": 80.2,
+        "width": 71.0,
+        "height": 2.6
+      }
+    },
+    {
+      "label": "How well does your child play with other children?",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 51.5,
+        "top": 83.5,
+        "width": 36.8,
+        "height": 2.6
+      }
+    },
+    {
+      "label": "What are your child's special interests?",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 41.8,
+        "top": 86.2,
+        "width": 46.5,
+        "height": 2.6
+      }
+    },
+    {
+      "label": "What is your child good at?",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 31.4,
+        "top": 88.8,
+        "width": 56.9,
+        "height": 2.6
+      }
+    }
+  ],
+  "score": {
+    "detection_rate": 88.23529411764706,
+    "precision_rate": 88.23529411764706,
+    "avg_iou": 49.86975132039539,
+    "type_accuracy": 100.0,
+    "label_accuracy": 96.16797900262468,
+    "overall_score": 80.2684751876888
+  },
+  "duration_ms": 44533.089832999394,
+  "error": null
+}

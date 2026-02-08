@@ -1,0 +1,203 @@
+#!/usr/bin/env python3
+"""
+Combined extraction + questions test v2.
+
+Uses the same FieldExtractor infrastructure as the original benchmark
+to ensure fair comparison.
+"""
+
+import json
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from core.field_extractor import FieldExtractor, ExtractorConfig, run_extraction_test
+from core.gemini_client import GeminiClient, GeminiConfig
+from core.image_processor import resize_for_gemini, pdf_page_to_image
+from configs.prompts.extraction_with_questions import build_extraction_with_questions_prompt
+from evaluation.scorer import score_extraction
+
+
+# Top 3 configs by IoU with >90% detection (from original benchmark)
+CONFIGS_TO_TEST = [
+    {
+        "name": "flash_minimal_single_page_full_rails",
+        "model": "gemini-3-flash-preview",
+        "thinking_level": "minimal",
+        "architecture": "single_page",
+        "prompt_style": "full_rails",
+        "baseline_iou": 69.4,
+        "baseline_detection": 94.1,
+    },
+    {
+        "name": "flash_low_single_page_full_rails",
+        "model": "gemini-3-flash-preview",
+        "thinking_level": "low",
+        "architecture": "single_page",
+        "prompt_style": "full_rails",
+        "baseline_iou": 66.8,
+        "baseline_detection": 94.1,
+    },
+    {
+        "name": "flash_medium_single_page_high_agency",
+        "model": "gemini-3-flash-preview",
+        "thinking_level": "medium",
+        "architecture": "single_page",
+        "prompt_style": "high_agency",
+        "baseline_iou": 60.9,
+        "baseline_detection": 100.0,
+    },
+]
+
+PDF_PATH = "/Users/allisterhercus/Documents/Labs/smart-form/docs/tests/Prep Questionnaire 2025.pdf"
+
+
+def load_benchmark() -> list[dict]:
+    """Load ground truth benchmark."""
+    with open("benchmark/prep_questionnaire_page1.json") as f:
+        data = json.load(f)
+    return data["fields"]
+
+
+def run_extraction_with_questions(config: dict, image_base64: str) -> dict:
+    """Run combined extraction + questions call."""
+    client = GeminiClient(GeminiConfig(
+        model=config["model"],
+        thinking_level=config["thinking_level"],
+    ))
+
+    prompt = build_extraction_with_questions_prompt()
+
+    start_time = time.perf_counter()
+    result = client.extract_fields(image_base64, prompt)
+    duration_ms = (time.perf_counter() - start_time) * 1000
+
+    # Check if questions were generated
+    questions_generated = sum(1 for f in result.fields if f.get("question"))
+
+    return {
+        "fields": result.fields,
+        "duration_ms": duration_ms,
+        "questions_generated": questions_generated,
+    }
+
+
+def main():
+    print("=" * 70)
+    print("COMBINED EXTRACTION + QUESTIONS TEST (v2)")
+    print("=" * 70)
+    print()
+    print("Using FieldExtractor infrastructure for fair comparison")
+    print()
+
+    # Load data
+    benchmark = load_benchmark()
+    print(f"Benchmark: {len(benchmark)} fields")
+    print()
+
+    # Prepare image for combined test
+    page_image = pdf_page_to_image(PDF_PATH, page_number=0)
+    processed = resize_for_gemini(page_image)
+    image_base64 = processed.image_base64
+
+    results = []
+
+    for config in CONFIGS_TO_TEST:
+        print(f"Testing: {config['name']}")
+        print("-" * 50)
+
+        # Run extraction only using FieldExtractor (same as benchmark)
+        print("  Running extraction-only (via FieldExtractor)...")
+        extractor_config = ExtractorConfig(
+            model=config["model"],
+            thinking_level=config["thinking_level"],
+            architecture=config["architecture"],
+            prompt_style=config["prompt_style"],
+        )
+
+        start_time = time.perf_counter()
+        extract_result = run_extraction_test(PDF_PATH, extractor_config, page_number=0)
+        extract_duration = (time.perf_counter() - start_time) * 1000
+
+        extract_scores = score_extraction(extract_result.fields, benchmark)
+
+        print(f"    Fields: {len(extract_result.fields)}")
+        print(f"    Time: {extract_duration:.0f}ms")
+        print(f"    Detection: {extract_scores.detection_rate:.1f}%")
+        print(f"    IoU: {extract_scores.avg_iou:.1f}%")
+        print(f"    (Baseline was: {config['baseline_iou']}% IoU, {config['baseline_detection']}% detection)")
+
+        # Run extraction + questions
+        print("  Running extraction+questions...")
+        combined_result = run_extraction_with_questions(config, image_base64)
+        combined_scores = score_extraction(combined_result["fields"], benchmark)
+
+        print(f"    Fields: {len(combined_result['fields'])}")
+        print(f"    Questions: {combined_result['questions_generated']}")
+        print(f"    Time: {combined_result['duration_ms']:.0f}ms")
+        print(f"    Detection: {combined_scores.detection_rate:.1f}%")
+        print(f"    IoU: {combined_scores.avg_iou:.1f}%")
+
+        # Calculate deltas
+        time_delta = combined_result["duration_ms"] - extract_duration
+        iou_delta = combined_scores.avg_iou - extract_scores.avg_iou
+        detection_delta = combined_scores.detection_rate - extract_scores.detection_rate
+
+        print(f"  Delta vs this run:")
+        print(f"    Time: {time_delta:+.0f}ms ({time_delta/extract_duration*100:+.1f}%)")
+        print(f"    IoU: {iou_delta:+.1f}%")
+        print(f"    Detection: {detection_delta:+.1f}%")
+        print()
+
+        results.append({
+            "config": config["name"],
+            "baseline": {
+                "iou": config["baseline_iou"],
+                "detection": config["baseline_detection"],
+            },
+            "extraction_only": {
+                "fields": len(extract_result.fields),
+                "duration_ms": extract_duration,
+                "detection": extract_scores.detection_rate,
+                "iou": extract_scores.avg_iou,
+                "types": extract_scores.type_accuracy,
+            },
+            "extraction_with_questions": {
+                "fields": len(combined_result["fields"]),
+                "questions": combined_result["questions_generated"],
+                "duration_ms": combined_result["duration_ms"],
+                "detection": combined_scores.detection_rate,
+                "iou": combined_scores.avg_iou,
+                "types": combined_scores.type_accuracy,
+            },
+        })
+
+    # Save results
+    output_dir = Path("results/combined_extraction")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    with open(output_dir / "results_v2.json", "w") as f:
+        json.dump(results, f, indent=2)
+
+    # Print summary
+    print("=" * 70)
+    print("SUMMARY")
+    print("=" * 70)
+    print()
+    print(f"{'Config':<40} {'Baseline':>10} {'Fresh':>10} {'+Qs':>10}")
+    print("-" * 75)
+
+    for r in results:
+        print(f"{r['config']:<40} "
+              f"{r['baseline']['iou']:>9.1f}% "
+              f"{r['extraction_only']['iou']:>9.1f}% "
+              f"{r['extraction_with_questions']['iou']:>9.1f}%")
+
+    print()
+    print(f"Results saved to: {output_dir}/results_v2.json")
+
+
+if __name__ == "__main__":
+    main()

@@ -10,6 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ProfileCoreData } from "@/app/api/profile/route";
 import { Entity, EntityFact, CONFIDENCE_ADJUSTMENTS } from "./types";
 import { generateEmbedding } from "./embeddings";
+import { recomputeAllRelationships } from "./relationships";
 
 // Profile fields are authoritative - use max confidence
 const PROFILE_CONFIDENCE = CONFIDENCE_ADJUSTMENTS.MAX_CONFIDENCE;
@@ -59,6 +60,7 @@ interface ReconciliationResult {
 /**
  * Sync profile data to the "self" entity
  * Profile is the source of truth - facts get max confidence
+ * If an entity is incorrectly marked as "self", demote it
  * Returns the number of facts synced
  */
 async function syncProfileToSelfEntity(
@@ -67,20 +69,81 @@ async function syncProfileToSelfEntity(
   profile: ProfileCoreData
 ): Promise<{ factsSynced: number; selfEntityId: string | null }> {
   let factsSynced = 0;
+  const profileFullName = [profile.firstName, profile.lastName].filter(Boolean).join(" ");
+  const profileFirstName = profile.firstName?.toLowerCase();
+  const profileLastName = profile.lastName?.toLowerCase();
 
-  // Find the self entity
-  const { data: selfEntity } = await supabase
+  // Find the current self entity (if any)
+  const { data: currentSelfEntity } = await supabase
     .from("entities")
     .select("id, canonical_name")
     .eq("user_id", userId)
     .eq("relationship_to_user", "self")
     .single();
 
-  let selfEntityId = selfEntity?.id;
+  let selfEntityId = currentSelfEntity?.id;
+
+  // Check if the current "self" entity is actually the user
+  if (currentSelfEntity && profileFullName) {
+    const selfNameParts = currentSelfEntity.canonical_name.toLowerCase().split(" ");
+    const selfFirstName = selfNameParts[0];
+    const selfLastName = selfNameParts[selfNameParts.length - 1];
+
+    // If the self entity doesn't match the profile, it's wrong
+    const firstNameMatches = !profileFirstName || selfFirstName === profileFirstName;
+    const lastNameMatches = !profileLastName || selfLastName === profileLastName;
+    const isWrongSelf = !firstNameMatches || !lastNameMatches;
+
+    if (isWrongSelf) {
+      console.log("[AutoForm] Detected wrong 'self' entity:", {
+        currentSelf: currentSelfEntity.canonical_name,
+        profileName: profileFullName,
+      });
+
+      // Demote the wrong entity - set relationship to null (unknown)
+      await supabase
+        .from("entities")
+        .update({
+          relationship_to_user: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", currentSelfEntity.id);
+
+      console.log("[AutoForm] Demoted wrong 'self' entity to unknown relationship");
+      selfEntityId = undefined;
+
+      // Check if there's an existing entity that matches the profile name
+      const { data: matchingEntity } = await supabase
+        .from("entities")
+        .select("id, canonical_name, relationship_to_user")
+        .eq("user_id", userId)
+        .eq("entity_type", "person")
+        .ilike("canonical_name", `%${profileFirstName}%${profileLastName}%`)
+        .single();
+
+      if (matchingEntity) {
+        // Promote the matching entity to "self"
+        await supabase
+          .from("entities")
+          .update({
+            relationship_to_user: "self",
+            confidence: PROFILE_CONFIDENCE,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", matchingEntity.id);
+
+        selfEntityId = matchingEntity.id;
+        console.log("[AutoForm] Promoted matching entity to 'self':", {
+          name: matchingEntity.canonical_name,
+          id: matchingEntity.id,
+        });
+      }
+    }
+  }
 
   // Create self entity if it doesn't exist and we have profile data
-  if (!selfEntity) {
-    const name = [profile.firstName, profile.lastName].filter(Boolean).join(" ") || "Me";
+  if (!selfEntityId) {
+    const name = profileFullName || "Me";
     const embedding = await generateEmbedding(name);
 
     const { data: newSelf, error } = await supabase
@@ -103,24 +166,21 @@ async function syncProfileToSelfEntity(
 
     selfEntityId = newSelf.id;
     console.log("[AutoForm] Created self entity from profile:", { name, id: selfEntityId });
-  } else {
-    // Update self entity name if profile has full name
-    const fullName = [profile.firstName, profile.lastName].filter(Boolean).join(" ");
-    if (fullName && selfEntity.canonical_name !== fullName) {
-      await supabase
-        .from("entities")
-        .update({
-          canonical_name: fullName,
-          confidence: PROFILE_CONFIDENCE,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", selfEntityId);
+  } else if (currentSelfEntity && profileFullName && currentSelfEntity.canonical_name !== profileFullName) {
+    // Update self entity name if profile has full name and it differs
+    await supabase
+      .from("entities")
+      .update({
+        canonical_name: profileFullName,
+        confidence: PROFILE_CONFIDENCE,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", selfEntityId);
 
-      console.log("[AutoForm] Updated self entity name:", {
-        oldName: selfEntity.canonical_name,
-        newName: fullName,
-      });
-    }
+    console.log("[AutoForm] Updated self entity name:", {
+      oldName: currentSelfEntity.canonical_name,
+      newName: profileFullName,
+    });
   }
 
   // Sync each profile field to a fact
@@ -469,6 +529,24 @@ async function applyReconciliationActions(
 }
 
 /**
+ * Set reconciliation status for realtime UI updates
+ */
+async function setReconciliationStatus(
+  supabase: ReturnType<typeof createAdminClient>,
+  userId: string,
+  isActive: boolean,
+  actionsApplied?: number
+) {
+  await supabase.from("reconciliation_status").upsert({
+    user_id: userId,
+    is_active: isActive,
+    ...(isActive
+      ? { started_at: new Date().toISOString() }
+      : { completed_at: new Date().toISOString(), last_action_count: actionsApplied ?? 0 }),
+  });
+}
+
+/**
  * Main reconciliation function - called when profile is updated
  */
 export async function reconcileMemoriesWithProfile(
@@ -477,6 +555,9 @@ export async function reconcileMemoriesWithProfile(
 ): Promise<{ success: boolean; actionsApplied: number }> {
   const startTime = Date.now();
   const supabase = createAdminClient();
+
+  // Mark reconciliation as active
+  await setReconciliationStatus(supabase, userId, true);
 
   try {
     // Step 1: Sync profile to self entity (profile is source of truth)
@@ -542,15 +623,26 @@ export async function reconcileMemoriesWithProfile(
       result
     );
 
+    // Recompute all relationship labels from the graph
+    // This ensures labels like "grandmother" become "mother-in-law" when properly connected
+    const relationshipsUpdated = await recomputeAllRelationships(userId);
+    console.log("[AutoForm] Recomputed relationship labels:", { relationshipsUpdated });
+
     const duration = Date.now() - startTime;
     console.log(`[AutoForm] Reconciliation completed in ${duration}ms`, {
       entitiesAffected: result.entities.length,
       actionsApplied,
+      relationshipsUpdated,
     });
+
+    // Mark reconciliation as complete
+    await setReconciliationStatus(supabase, userId, false, actionsApplied + relationshipsUpdated);
 
     return { success: true, actionsApplied };
   } catch (error) {
     console.error("[AutoForm] Reconciliation failed:", error);
+    // Mark reconciliation as complete even on failure
+    await setReconciliationStatus(supabase, userId, false, 0);
     return { success: false, actionsApplied: 0 };
   }
 }

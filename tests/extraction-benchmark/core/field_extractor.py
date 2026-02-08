@@ -16,11 +16,11 @@ from .image_processor import (
     image_to_base64,
     QuadrantNumber,
 )
-from .gemini_client import GeminiClient, GeminiConfig, ExtractionResult
+from .gemini_client import GeminiClient, GeminiConfig, ExtractionResult, EXTRACTION_RESPONSE_SCHEMA
 from .deduplicator import deduplicate_boundary_fields
 
 
-PromptStyle = Literal["minimal", "high_agency", "medium_agency", "full_rails"]
+PromptStyle = Literal["minimal", "high_agency", "medium_agency", "full_rails", "full_rails_no_rulers"]
 Architecture = Literal["single_page", "single_page_with_rulers", "quadrant_4"]
 
 
@@ -28,9 +28,10 @@ Architecture = Literal["single_page", "single_page_with_rulers", "quadrant_4"]
 class ExtractorConfig:
     """Configuration for field extraction."""
     model: str = "gemini-3-flash-preview"
-    thinking_level: str = "MINIMAL"
+    thinking_level: str = "low"
     prompt_style: PromptStyle = "medium_agency"
     architecture: Architecture = "quadrant_4"
+    use_structured_output: bool = False
 
 
 @dataclass
@@ -45,18 +46,34 @@ class ExtractionTestResult:
 
 def get_prompt_builder(style: PromptStyle):
     """Get the prompt builder function for a style."""
+    import importlib.util
+    import sys
+    from pathlib import Path
+
+    # Get the configs/prompts directory
+    prompts_dir = Path(__file__).parent.parent / "configs" / "prompts"
+
+    def load_module(name: str):
+        spec = importlib.util.spec_from_file_location(name, prompts_dir / f"{name}.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
     if style == "minimal":
-        from ..configs.prompts.minimal import build_minimal_prompt
-        return lambda q=None: build_minimal_prompt()
+        module = load_module("minimal")
+        return lambda quadrant=None: module.build_minimal_prompt()
     elif style == "high_agency":
-        from ..configs.prompts.high_agency import build_high_agency_prompt
-        return build_high_agency_prompt
+        module = load_module("high_agency")
+        return module.build_high_agency_prompt
     elif style == "medium_agency":
-        from ..configs.prompts.medium_agency import build_medium_agency_prompt
-        return build_medium_agency_prompt
+        module = load_module("medium_agency")
+        return module.build_medium_agency_prompt
     elif style == "full_rails":
-        from ..configs.prompts.full_rails import build_full_rails_prompt
-        return build_full_rails_prompt
+        module = load_module("full_rails")
+        return module.build_full_rails_prompt
+    elif style == "full_rails_no_rulers":
+        module = load_module("full_rails_no_rulers")
+        return module.build_full_rails_no_rulers_prompt
     else:
         raise ValueError(f"Unknown prompt style: {style}")
 
@@ -132,8 +149,11 @@ class FieldExtractor:
         # Get prompt (no quadrant)
         prompt = self.prompt_builder(quadrant=None)
 
+        # Get schema if using structured output
+        schema = EXTRACTION_RESPONSE_SCHEMA if self.config.use_structured_output else None
+
         try:
-            result = self.gemini_client.extract_fields(image_base64, prompt)
+            result = self.gemini_client.extract_fields(image_base64, prompt, schema)
 
             return ExtractionTestResult(
                 config=self.config,
@@ -162,10 +182,14 @@ class FieldExtractor:
             # Get quadrant-specific prompt
             prompt = self.prompt_builder(quadrant=quadrant)
 
+            # Get schema if using structured output
+            schema = EXTRACTION_RESPONSE_SCHEMA if self.config.use_structured_output else None
+
             try:
                 result = self.gemini_client.extract_fields(
                     processed.image_base64,
-                    prompt
+                    prompt,
+                    schema
                 )
                 quadrant_results.append(result)
                 total_duration += result.duration_ms

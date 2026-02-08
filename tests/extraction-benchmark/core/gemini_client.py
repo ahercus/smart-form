@@ -1,17 +1,20 @@
 """
 Gemini client wrapper for field extraction.
 Supports both Flash and Pro models with configurable thinking levels.
+Uses the new google-genai library.
 """
 
 import os
 import time
+import json
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Literal
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 
-ThinkingLevel = Literal["MINIMAL", "MEDIUM"]
+ThinkingLevel = Literal["minimal", "low", "medium", "high"]
 ModelName = Literal["gemini-3-flash-preview", "gemini-3-pro-preview"]
 
 
@@ -30,8 +33,8 @@ class ExtractionResult:
 class GeminiConfig:
     """Configuration for Gemini client."""
     model: ModelName = "gemini-3-flash-preview"
-    thinking_level: ThinkingLevel = "MINIMAL"
-    temperature: float = 0.1
+    thinking_level: ThinkingLevel = "high"  # Default is high per Gemini 3 docs
+    temperature: float = 1.0  # Gemini 3 recommends 1.0
     max_output_tokens: int = 8192
 
 
@@ -41,8 +44,8 @@ class GeminiClient:
 
     Supports:
     - Multiple model variants (Flash, Pro)
-    - Configurable thinking levels (MINIMAL, MEDIUM)
-    - JSON schema enforcement
+    - Configurable thinking levels (minimal, low, medium, high)
+    - JSON response mode
     - Timing metrics
     """
 
@@ -61,17 +64,9 @@ class GeminiClient:
             raise ValueError(
                 "GEMINI_API_KEY or GOOGLE_API_KEY environment variable required"
             )
-        genai.configure(api_key=api_key)
 
-        # Initialize model
-        self.model = genai.GenerativeModel(
-            model_name=self.config.model,
-            generation_config=genai.GenerationConfig(
-                temperature=self.config.temperature,
-                max_output_tokens=self.config.max_output_tokens,
-                response_mime_type="application/json",
-            )
-        )
+        # Initialize client with new library
+        self.client = genai.Client(api_key=api_key)
 
     def extract_fields(
         self,
@@ -92,47 +87,44 @@ class GeminiClient:
         """
         import base64
 
-        # Build message content
+        # Build content with image
         contents = [
-            {
-                "role": "user",
-                "parts": [
-                    {"text": prompt},
-                    {
-                        "inline_data": {
-                            "mime_type": "image/jpeg",
-                            "data": image_base64
-                        }
-                    }
-                ]
-            }
+            types.Part.from_text(text=prompt),
+            types.Part.from_bytes(
+                data=base64.b64decode(image_base64),
+                mime_type="image/jpeg"
+            )
         ]
 
-        # Add thinking level configuration
-        generation_config = {
+        # Build generation config with thinking level
+        config_kwargs = {
             "temperature": self.config.temperature,
             "max_output_tokens": self.config.max_output_tokens,
             "response_mime_type": "application/json",
         }
 
-        # Add response schema if provided
-        if response_schema:
-            generation_config["response_schema"] = response_schema
+        # Add thinking config
+        if self.config.thinking_level:
+            config_kwargs["thinking_config"] = types.ThinkingConfig(
+                thinking_level=self.config.thinking_level
+            )
+
+        generation_config = types.GenerateContentConfig(**config_kwargs)
 
         # Time the API call
         start_time = time.perf_counter()
 
         try:
-            response = self.model.generate_content(
-                contents,
-                generation_config=generation_config
+            response = self.client.models.generate_content(
+                model=self.config.model,
+                contents=contents,
+                config=generation_config
             )
 
             duration_ms = (time.perf_counter() - start_time) * 1000
 
             # Parse response
             response_text = response.text
-            import json
             parsed = json.loads(response_text)
 
             return ExtractionResult(

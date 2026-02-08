@@ -44,25 +44,64 @@ RULES:
 3. FULL WIDTH: Underlines spanning the page should have width ≈ 85-90%
 4. CHECKBOXES: Small square only (width/height ≈ 2-3%)
 5. EXTRACT EVERYTHING: Include text fields, dates, checkboxes, signatures - not just tables!
+6. GROUP CONTEXT: For ANY field with a question/header above it, include "groupLabel" with that text
 
-SPECIAL TOOL - TABLE (for grids with columns):
+FIELD SIZING - MAXIMIZE INPUT AREA:
+- Text fields: height 2.5-4% depending on visible underline/box - make as tall as the space allows
+- Checkboxes/radio: 2-2.5% (small squares only)
+- Signatures: 5-8% height, 25-40% width
+- CONSISTENCY: If multiple fields look similar (same style underline, same box height), give them IDENTICAL dimensions
+
+groupLabel - REQUIRED when context is needed:
+{
+  "label": "Child's Name",
+  "fieldType": "text",
+  "coordinates": {...},
+  "groupLabel": "Child's Details"
+}
+{
+  "label": "Kindergarten",
+  "fieldType": "checkbox",
+  "coordinates": {...},
+  "groupLabel": "What Pre-Prep experiences has your child had?"
+}
+- groupLabel captures the question/header/section that the field belongs to
+- Include for ANY field where the label alone doesn't explain what info is needed
+
+MULTI-LINE TEXT AREAS:
+- For rectangular multi-line text boxes, use "textarea" with normal coordinates
+- CRITICAL: Include "rows" property = count of visible horizontal lines in the textarea box
+- The rows value helps render the field correctly (text aligns to lines)
+- For irregular/non-rectangular flowing text (rare), use linkedText with segments
+
+Example textarea:
+{
+  "label": "How will child settle into Prep?",
+  "fieldType": "textarea",
+  "coordinates": { "left": 6, "top": 68, "width": 88, "height": 7 },
+  "rows": 4
+}
+
+SPECIAL TOOL - TABLE (ONLY for structured grids with column headers):
+⚠️ DO NOT use table for simple lists or single-column areas - use textarea instead!
+⚠️ TABLE FIELDS WITHOUT tableConfig WILL BE REJECTED!
 {
   "fieldType": "table",
   "label": "Siblings",
   "tableConfig": {
     "columnHeaders": ["Name", "Age", "Teacher", "Comments"],
     "coordinates": { "left": 5, "top": 30, "width": 90, "height": 15 },
-    "dataRows": 4,
-    "columnPositions": [0, 20, 35, 60, 100]
+    "dataRows": 4
   }
 }
-- tableConfig is REQUIRED for tables
-- dataRows = number of BLANK rows to fill (NOT counting the header row with column labels)
-- columnPositions = boundaries as % of table width (0=left edge, 100=right edge). Look at actual column widths!
-  Example: 4 columns where first is 20%, second is 15%, third is 25%, fourth is 40% → [0, 20, 35, 60, 100]
-  If columns look roughly equal, omit columnPositions for uniform distribution
+- ONLY use table when there are VISIBLE column headers AND multiple data rows
+- tableConfig with columnHeaders, coordinates, and dataRows is MANDATORY
+- dataRows = number of BLANK rows (NOT counting the header row)
+- columnPositions = optional, for non-uniform column widths as % boundaries [0, 20, 35, 60, 100]
 
-SPECIAL TOOL - LINKED TEXT (for multi-line flowing text):
+SPECIAL TOOL - LINKED TEXT (ONLY for irregular flowing text):
+⚠️ DO NOT use linkedText for simple multi-line boxes - use textarea instead!
+⚠️ LINKEDTEXT FIELDS WITHOUT segments WILL BE REJECTED!
 {
   "fieldType": "linkedText",
   "label": "Details",
@@ -71,11 +110,32 @@ SPECIAL TOOL - LINKED TEXT (for multi-line flowing text):
     { "left": 5, "top": 33, "width": 90, "height": 2 }
   ]
 }
-- segments is REQUIRED for linkedText
+- ONLY use linkedText when text flows across MULTIPLE NON-ALIGNED lines (like text that wraps around an image)
+- segments array is REQUIRED - each segment is a separate line/region
+- For simple rectangular multi-line areas, use textarea with normal coordinates instead
+
+SPECIAL TOOL - LINKED DATE (for segmented date fields like __ / __ / ____):
+⚠️ DO NOT use linkedDate for simple date fields - use date instead!
+⚠️ LINKEDDATE FIELDS WITHOUT dateSegments WILL BE REJECTED!
+{
+  "fieldType": "linkedDate",
+  "label": "D.O.B",
+  "dateSegments": [
+    { "left": 45, "top": 12, "width": 4, "height": 2.5, "part": "day" },
+    { "left": 52, "top": 12, "width": 4, "height": 2.5, "part": "month" },
+    { "left": 59, "top": 12, "width": 6, "height": 2.5, "part": "year" }
+  ]
+}
+- Use when date has SEPARATE BOXES for day, month, year (e.g., "__ / __ / ____")
+- Each segment needs coordinates AND a "part": "day", "month", "year", or "year2"
+- "year" = 4 digits (2026), "year2" = 2 digits (26)
+- For simple single-box date fields, use "date" with normal coordinates instead
 
 ${boundaryRules}
 
-Field types: text, date, checkbox, radio, signature, initials, circle_choice, table, linkedText
+Field types: text, textarea, date, checkbox, radio, signature, initials, circle_choice, table, linkedText, linkedDate
+- text = single-line input
+- textarea = multi-line rectangular box (PREFER THIS over linkedText!)
 
 Return JSON - EVERY field needs coordinates:
 {
@@ -111,6 +171,7 @@ export const quadrantExtractionSchema = {
               "circle_choice",
               "table",
               "linkedText",
+              "linkedDate",
             ],
             description: "Field type",
           },
@@ -192,6 +253,33 @@ export const quadrantExtractionSchema = {
               required: ["left", "top", "width", "height"],
             },
             description: "Segments for linkedText fields - multiple rectangles that form a single flowing text input",
+          },
+          dateSegments: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                left: { type: "number" },
+                top: { type: "number" },
+                width: { type: "number" },
+                height: { type: "number" },
+                part: {
+                  type: "string",
+                  enum: ["day", "month", "year", "year2"],
+                  description: "Which part of the date this segment represents",
+                },
+              },
+              required: ["left", "top", "width", "height", "part"],
+            },
+            description: "Segments for linkedDate fields - separate boxes for day/month/year",
+          },
+          rows: {
+            type: "number",
+            description: "Number of visible text lines for textarea fields",
+          },
+          groupLabel: {
+            type: "string",
+            description: "Question/header/section text that this field belongs to",
           },
         },
         required: ["label", "fieldType"],

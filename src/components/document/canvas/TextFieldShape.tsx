@@ -19,6 +19,8 @@ interface TextFieldShapeProps {
   y: number;
   width: number;
   height: number;
+  /** Consistent font size for all text fields on this page (based on smallest field) */
+  pageFontSize?: number | null;
   isActive: boolean;
   isEditing: boolean;
   hideFieldColors?: boolean;
@@ -40,15 +42,18 @@ export function TextFieldShape({
   y,
   width,
   height,
+  pageFontSize,
   isActive,
   isEditing,
   hideFieldColors,
   onClick,
 }: TextFieldShapeProps) {
   const color = COLORS[field.field_type as keyof typeof COLORS] || COLORS.default;
+  const isTextarea = field.field_type === "textarea";
 
-  // Calculate font size based on field height
-  const fontSize = Math.min(Math.max(height * 0.5, 8), 12);
+  // Use page-consistent font size if provided, otherwise fall back to per-field calculation
+  // This ensures all text fields on the page have the same text size
+  const fontSize = pageFontSize ?? Math.min(Math.max(height * 0.75, 10), 24);
   const padding = 4;
 
   // Determine background and border styles
@@ -84,13 +89,15 @@ export function TextFieldShape({
       {!isEditing && value && (
         <Text
           x={x + padding}
-          y={y + (height - fontSize) / 2}
+          y={isTextarea ? y + padding : y + (height - fontSize) / 2}
           width={width - padding * 2}
+          height={isTextarea ? height - padding * 2 : undefined}
           text={value}
           fontSize={fontSize}
           fill="#374151"
-          ellipsis
-          wrap="none"
+          ellipsis={!isTextarea}
+          wrap={isTextarea ? "word" : "none"}
+          verticalAlign={isTextarea ? "top" : "middle"}
         />
       )}
     </Group>

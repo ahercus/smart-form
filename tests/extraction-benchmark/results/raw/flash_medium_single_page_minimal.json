@@ -1,0 +1,19 @@
+{
+  "config": {
+    "model": "gemini-3-flash-preview",
+    "thinking_level": "medium",
+    "architecture": "single_page",
+    "prompt_style": "minimal"
+  },
+  "fields": [],
+  "score": {
+    "detection_rate": 0.0,
+    "precision_rate": 0,
+    "avg_iou": 0,
+    "type_accuracy": 0,
+    "label_accuracy": 0,
+    "overall_score": 0.0
+  },
+  "duration_ms": 50657.35512500396,
+  "error": "Gemini extraction failed: Unterminated string starting at: line 69 column 9 (char 1326)"
+}

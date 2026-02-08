@@ -1,0 +1,20 @@
+[
+  {
+    "config": "flash_minimal_single_page_full_rails",
+    "has_rulers_on_image": false,
+    "fields": 17,
+    "duration_ms": 9052.238000003854,
+    "detection": 94.11764705882352,
+    "iou": 64.41129410071052,
+    "overall": 86.79581470080139
+  },
+  {
+    "config": "flash_minimal_single_page_with_rulers_full_rails",
+    "has_rulers_on_image": true,
+    "fields": 17,
+    "duration_ms": 8952.371624996886,
+    "detection": 94.11764705882352,
+    "iou": 50.033838540830956,
+    "overall": 82.41245008008161
+  }
+]

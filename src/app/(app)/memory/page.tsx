@@ -29,7 +29,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/layout";
 import { useEntities, type Entity, type EntityFact } from "@/hooks/useEntities";
-import { ChevronDown, Pencil, Trash2, Brain, User, MapPin, Building2, Plus, AlertTriangle } from "lucide-react";
+import { getFactPriority, shouldHideFact } from "@/lib/memory/relationships";
+import { ChevronDown, Pencil, Trash2, Brain, User, MapPin, Building2, Plus, AlertTriangle, Loader2 } from "lucide-react";
 
 // Entity type icons
 function getEntityIcon(type: string) {
@@ -64,9 +65,12 @@ export default function MemoryPage() {
     totalEntities,
     totalFacts,
     deleteEntity,
+    updateEntity,
     updateFact,
     deleteFact,
     addFact,
+    isReconciling,
+    recentlyUpdatedIds,
   } = useEntities();
 
   // Edit fact dialog state
@@ -75,6 +79,11 @@ export default function MemoryPage() {
   const [editingEntity, setEditingEntity] = useState<Entity | null>(null);
   const [factValue, setFactValue] = useState("");
   const [factSubmitting, setFactSubmitting] = useState(false);
+
+  // Edit relationship dialog state
+  const [editRelationshipDialogOpen, setEditRelationshipDialogOpen] = useState(false);
+  const [relationshipEntity, setRelationshipEntity] = useState<Entity | null>(null);
+  const [relationshipValue, setRelationshipValue] = useState("");
 
   // Add fact dialog state
   const [addFactDialogOpen, setAddFactDialogOpen] = useState(false);
@@ -92,6 +101,29 @@ export default function MemoryPage() {
     setEditingFact(fact);
     setFactValue(fact.fact_value);
     setEditFactDialogOpen(true);
+  }
+
+  function openEditRelationshipDialog(entity: Entity) {
+    setRelationshipEntity(entity);
+    setRelationshipValue(entity.relationship_to_user || "");
+    setEditRelationshipDialogOpen(true);
+  }
+
+  async function handleUpdateRelationship() {
+    if (!relationshipEntity) return;
+
+    setFactSubmitting(true);
+    try {
+      await updateEntity(relationshipEntity.id, {
+        relationship_to_user: relationshipValue.trim().toLowerCase() || null,
+      });
+      toast.success("Relationship updated");
+      setEditRelationshipDialogOpen(false);
+    } catch {
+      toast.error("Failed to update relationship");
+    } finally {
+      setFactSubmitting(false);
+    }
   }
 
   function openAddFactDialog(entityId: string) {
@@ -173,6 +205,12 @@ export default function MemoryPage() {
       <AppHeader>
         <div className="flex flex-1 items-center justify-between">
           <h1 className="text-lg font-semibold">Memory</h1>
+          {isReconciling && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Syncing...</span>
+            </div>
+          )}
         </div>
       </AppHeader>
 
@@ -213,7 +251,9 @@ export default function MemoryPage() {
                     key={type}
                     type={type}
                     entities={entitiesByType[type]}
+                    recentlyUpdatedIds={recentlyUpdatedIds}
                     onEditFact={openEditFactDialog}
+                    onEditRelationship={openEditRelationshipDialog}
                     onDeleteFact={confirmDeleteFact}
                     onDeleteEntity={confirmDeleteEntity}
                     onAddFact={openAddFactDialog}
@@ -344,6 +384,43 @@ export default function MemoryPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Relationship Dialog */}
+      <Dialog open={editRelationshipDialogOpen} onOpenChange={setEditRelationshipDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Relationship</DialogTitle>
+            <DialogDescription>
+              How is {relationshipEntity?.canonical_name} related to you?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="relationship">Relationship</Label>
+              <Input
+                id="relationship"
+                value={relationshipValue}
+                onChange={(e) => setRelationshipValue(e.target.value)}
+                placeholder="e.g., spouse, son, daughter, mother, friend..."
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave empty to clear the relationship tag
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditRelationshipDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateRelationship}
+              disabled={factSubmitting}
+            >
+              {factSubmitting ? "Saving..." : "Update"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -351,14 +428,18 @@ export default function MemoryPage() {
 function EntityTypeSection({
   type,
   entities,
+  recentlyUpdatedIds,
   onEditFact,
+  onEditRelationship,
   onDeleteFact,
   onDeleteEntity,
   onAddFact,
 }: {
   type: string;
   entities: Entity[];
+  recentlyUpdatedIds: Set<string>;
   onEditFact: (entity: Entity, fact: EntityFact) => void;
+  onEditRelationship: (entity: Entity) => void;
   onDeleteFact: (fact: EntityFact) => void;
   onDeleteEntity: (entity: Entity) => void;
   onAddFact: (entityId: string) => void;
@@ -388,7 +469,9 @@ function EntityTypeSection({
           <EntityCard
             key={entity.id}
             entity={entity}
+            isRecentlyUpdated={recentlyUpdatedIds.has(entity.id)}
             onEditFact={onEditFact}
+            onEditRelationship={onEditRelationship}
             onDeleteFact={onDeleteFact}
             onDeleteEntity={onDeleteEntity}
             onAddFact={onAddFact}
@@ -399,15 +482,27 @@ function EntityTypeSection({
   );
 }
 
+// Format relationship for display (Title Case)
+function formatRelationship(relationship: string): string {
+  return relationship
+    .split(/[\s_-]+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
 function EntityCard({
   entity,
+  isRecentlyUpdated,
   onEditFact,
+  onEditRelationship,
   onDeleteFact,
   onDeleteEntity,
   onAddFact,
 }: {
   entity: Entity;
+  isRecentlyUpdated?: boolean;
   onEditFact: (entity: Entity, fact: EntityFact) => void;
+  onEditRelationship: (entity: Entity) => void;
   onDeleteFact: (fact: EntityFact) => void;
   onDeleteEntity: (entity: Entity) => void;
   onAddFact: (entityId: string) => void;
@@ -415,8 +510,27 @@ function EntityCard({
   const [isExpanded, setIsExpanded] = useState(false);
   const hasConflicts = entity.facts.some((f) => f.has_conflict);
 
+  // Check if entity has a full_name fact (to hide redundant name components)
+  const hasFullName = entity.facts.some(
+    (f) => f.fact_type.toLowerCase() === "full_name"
+  );
+
+  // Filter out redundant facts and sort by priority
+  const visibleFacts = entity.facts
+    .filter((f) => !shouldHideFact(f.fact_type, hasFullName))
+    .sort((a, b) => getFactPriority(a.fact_type) - getFactPriority(b.fact_type));
+
+  // For preview, show top priority visible facts
+  const previewFacts = visibleFacts.slice(0, 3);
+
   return (
-    <div className="border rounded-lg p-3 ml-6">
+    <div
+      className={`border rounded-lg p-3 ml-6 transition-all ${
+        isRecentlyUpdated
+          ? "animate-pulse ring-2 ring-primary/50 bg-primary/5"
+          : ""
+      }`}
+    >
       <div className="flex items-start justify-between gap-2">
         <button
           className="flex-1 text-left"
@@ -424,11 +538,18 @@ function EntityCard({
         >
           <div className="flex items-center gap-2">
             <span className="font-medium">{entity.canonical_name}</span>
-            {entity.relationship_to_user && (
-              <Badge variant="secondary" className="text-xs">
-                {entity.relationship_to_user}
-              </Badge>
-            )}
+            <Badge
+              variant="secondary"
+              className="text-xs cursor-pointer hover:bg-secondary/80"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditRelationship(entity);
+              }}
+            >
+              {entity.relationship_to_user
+                ? formatRelationship(entity.relationship_to_user)
+                : "Add Tag"}
+            </Badge>
             {hasConflicts && (
               <Badge variant="destructive" className="text-xs">
                 <AlertTriangle className="h-3 w-3 mr-1" />
@@ -436,10 +557,10 @@ function EntityCard({
               </Badge>
             )}
           </div>
-          {!isExpanded && (
+          {!isExpanded && visibleFacts.length > 0 && (
             <p className="text-sm text-muted-foreground mt-1">
-              {entity.facts.slice(0, 3).map((f) => f.fact_value).join(" • ")}
-              {entity.facts.length > 3 && ` +${entity.facts.length - 3} more`}
+              {previewFacts.map((f) => f.fact_value).join(" • ")}
+              {visibleFacts.length > 3 && ` +${visibleFacts.length - 3} more`}
             </p>
           )}
         </button>
@@ -457,7 +578,7 @@ function EntityCard({
 
       {isExpanded && (
         <div className="mt-3 space-y-1">
-          {entity.facts.map((fact) => (
+          {visibleFacts.map((fact) => (
             <div
               key={fact.id}
               className="group flex items-center justify-between gap-2 rounded-md p-2 hover:bg-muted/50"

@@ -37,6 +37,7 @@ const fieldExtractionSchema = {
               "circle_choice",
               "table",
               "linkedText",
+              "linkedDate",
             ],
           },
           coordinates: {
@@ -49,6 +50,10 @@ const fieldExtractionSchema = {
             },
             required: ["left", "top", "width", "height"],
           },
+          groupLabel: {
+            type: "string",
+            description: "Question/header/section text that this field belongs to",
+          },
         },
         required: ["label", "fieldType"],
       },
@@ -59,7 +64,7 @@ const fieldExtractionSchema = {
 };
 import { buildQuadrantExtractionPrompt } from "../prompts/quadrant-extract";
 import type { QuadrantNumber } from "../../image-compositor";
-import type { NormalizedCoordinates } from "../../types";
+import type { NormalizedCoordinates, DateSegment } from "../../types";
 
 /**
  * Table configuration for compact table definitions
@@ -87,6 +92,12 @@ export interface RawExtractedField {
   tableConfig?: TableConfig;
   // For linkedText fields - multiple segments that form a single flowing text input
   segments?: NormalizedCoordinates[];
+  // For linkedDate fields - segmented date inputs (day/month/year boxes)
+  dateSegments?: DateSegment[];
+  // For textarea fields - number of visible text lines
+  rows?: number;
+  // Question/header/section that this field belongs to (for context in question generation)
+  groupLabel?: string;
 }
 
 /**
@@ -135,6 +146,21 @@ function validateFieldCoordinates(field: {
     }
     if (typeof segments[0].top !== "number") {
       return { valid: false, reason: "linkedText segment missing coordinates" };
+    }
+    return { valid: true };
+  }
+
+  if (fieldType === "linkedDate") {
+    // LinkedDate needs dateSegments with coordinates and part
+    const dateSegments = (field as { dateSegments?: Array<{ left?: number; top?: number; width?: number; height?: number; part?: string }> }).dateSegments;
+    if (!dateSegments || dateSegments.length === 0) {
+      return { valid: false, reason: "linkedDate missing dateSegments" };
+    }
+    if (typeof dateSegments[0].top !== "number") {
+      return { valid: false, reason: "linkedDate segment missing coordinates" };
+    }
+    if (!dateSegments[0].part) {
+      return { valid: false, reason: "linkedDate segment missing part" };
     }
     return { valid: true };
   }
@@ -226,8 +252,51 @@ function parseQuadrantExtractionResponse(
     let invalidCount = 0;
 
     for (const field of parsed.fields || []) {
-      // Validate field has proper coordinates based on type
-      const validation = validateFieldCoordinates(field);
+      // Check for invalid special types and convert to textarea as fallback
+      let effectiveFieldType = field.fieldType;
+      let convertedToTextarea = false;
+
+      // Table without tableConfig → convert to textarea if has regular coordinates
+      if (field.fieldType === "table" && !field.tableConfig?.coordinates) {
+        if (field.coordinates && typeof field.coordinates.top === "number") {
+          console.log("[AutoForm] Converting invalid table to textarea:", {
+            quadrant,
+            label: field.label,
+          });
+          effectiveFieldType = "textarea";
+          convertedToTextarea = true;
+        }
+      }
+
+      // LinkedText without segments → convert to textarea if has regular coordinates
+      if (field.fieldType === "linkedText" && (!field.segments || field.segments.length === 0)) {
+        if (field.coordinates && typeof field.coordinates.top === "number") {
+          console.log("[AutoForm] Converting invalid linkedText to textarea:", {
+            quadrant,
+            label: field.label,
+          });
+          effectiveFieldType = "textarea";
+          convertedToTextarea = true;
+        }
+      }
+
+      // LinkedDate without dateSegments → convert to date if has regular coordinates
+      if (field.fieldType === "linkedDate" && (!field.dateSegments || field.dateSegments.length === 0)) {
+        if (field.coordinates && typeof field.coordinates.top === "number") {
+          console.log("[AutoForm] Converting invalid linkedDate to date:", {
+            quadrant,
+            label: field.label,
+          });
+          effectiveFieldType = "date";
+          convertedToTextarea = true; // Reuse flag to indicate conversion
+        }
+      }
+
+      // Validate field has proper coordinates based on (effective) type
+      const fieldForValidation = convertedToTextarea
+        ? { ...field, fieldType: effectiveFieldType }
+        : field;
+      const validation = validateFieldCoordinates(fieldForValidation);
       if (!validation.valid) {
         console.warn("[AutoForm] Quadrant extraction: Invalid field, skipping", {
           quadrant,
@@ -244,10 +313,12 @@ function parseQuadrantExtractionResponse(
       // For regular fields, check nested coordinates OR flat coordinates at field level
       let rawCoords: { left: number; top: number; width: number; height: number } | undefined;
 
-      if (field.fieldType === "table" && field.tableConfig?.coordinates) {
+      if (effectiveFieldType === "table" && field.tableConfig?.coordinates) {
         rawCoords = field.tableConfig.coordinates;
-      } else if (field.fieldType === "linkedText" && field.segments?.length > 0) {
+      } else if (effectiveFieldType === "linkedText" && field.segments?.length > 0) {
         rawCoords = field.segments[0]; // Use first segment for bounds checking
+      } else if (effectiveFieldType === "linkedDate" && field.dateSegments?.length > 0) {
+        rawCoords = field.dateSegments[0]; // Use first segment for bounds checking
       } else if (field.coordinates && typeof field.coordinates.top === "number") {
         rawCoords = field.coordinates; // Nested coordinates
       } else if (typeof field.left === "number" && typeof field.top === "number") {
@@ -295,9 +366,10 @@ function parseQuadrantExtractionResponse(
       }
 
       // Build the raw field with all properties
+      // Use effectiveFieldType which may have been converted from table/linkedText to textarea
       const rawField: RawExtractedField = {
         label: field.label || "Unknown",
-        fieldType: field.fieldType || "text",
+        fieldType: effectiveFieldType || "text",
         coordinates: {
           left: coords.left || 0,
           top: coords.top || 0,
@@ -305,10 +377,12 @@ function parseQuadrantExtractionResponse(
           height: coords.height || 4,
         },
         choiceOptions: field.choiceOptions,
+        groupLabel: field.groupLabel, // Pass through groupLabel from model
+        rows: field.rows, // For textarea fields - number of visible lines
       };
 
-      // For table fields, include the tableConfig
-      if (field.fieldType === "table" && field.tableConfig) {
+      // For valid table fields (with tableConfig), include the tableConfig
+      if (effectiveFieldType === "table" && field.tableConfig) {
         rawField.tableConfig = {
           columnHeaders: field.tableConfig.columnHeaders || [],
           coordinates: normalizeCoordinates(field.tableConfig.coordinates || coords),
@@ -318,11 +392,19 @@ function parseQuadrantExtractionResponse(
         };
       }
 
-      // For linkedText fields, include the segments
-      if (field.fieldType === "linkedText" && field.segments) {
+      // For valid linkedText fields (with segments), include the segments
+      if (effectiveFieldType === "linkedText" && field.segments) {
         rawField.segments = field.segments.map((seg: NormalizedCoordinates) =>
           normalizeCoordinates(seg)
         );
+      }
+
+      // For valid linkedDate fields (with dateSegments), include the dateSegments
+      if (effectiveFieldType === "linkedDate" && field.dateSegments) {
+        rawField.dateSegments = field.dateSegments.map((seg: { left: number; top: number; width: number; height: number; part: string }) => ({
+          ...normalizeCoordinates(seg),
+          part: seg.part as "day" | "month" | "year" | "year2",
+        }));
       }
 
       validFields.push(rawField);

@@ -325,14 +325,14 @@ export default function SignaturesPage() {
                     }`}
                     onClick={() => setSelectedSignature(sig)}
                   >
-                    <div className="aspect-[2/1] bg-white rounded flex items-center justify-center overflow-hidden">
+                    <div className="h-16 bg-white rounded flex items-center justify-center overflow-hidden px-2">
                       {sig.preview_data_url ? (
                         <Image
                           src={sig.preview_data_url}
                           alt={sig.name}
-                          width={180}
-                          height={90}
-                          className="object-contain"
+                          width={300}
+                          height={60}
+                          className="object-contain w-full h-full"
                         />
                       ) : (
                         <span className="text-muted-foreground text-xs">

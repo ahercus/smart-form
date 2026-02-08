@@ -1,0 +1,238 @@
+{
+  "config": {
+    "model": "gemini-3-flash-preview",
+    "thinking_level": "medium",
+    "architecture": "quadrant_4",
+    "prompt_style": "medium_agency"
+  },
+  "fields": [
+    {
+      "label": "Child's Name",
+      "fieldType": "text",
+      "groupLabel": "Student Information",
+      "coordinates": {
+        "left": 16.0,
+        "top": 24.3,
+        "width": 33.6,
+        "height": 2.5
+      },
+      "_quadrant": 1
+    },
+    {
+      "label": "D.O.B",
+      "fieldType": "linkedDate",
+      "groupLabel": "Student Information",
+      "dateSegments": [
+        {
+          "left": 56.6,
+          "top": 24.3,
+          "width": 5.6,
+          "height": 2.5,
+          "part": "day"
+        },
+        {
+          "left": 63.6,
+          "top": 24.3,
+          "width": 5.6,
+          "height": 2.5,
+          "part": "month"
+        },
+        {
+          "left": 71.0,
+          "top": 24.3,
+          "width": 11.5,
+          "height": 2.5,
+          "part": "year"
+        }
+      ],
+      "_quadrant": 1
+    },
+    {
+      "label": "Child's Name",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 18.2,
+        "top": 25.1,
+        "width": 31.3,
+        "height": 2.5
+      },
+      "_quadrant": 2
+    },
+    {
+      "label": "D.O.B",
+      "fieldType": "linkedDate",
+      "dateSegments": [
+        {
+          "left": 56.6,
+          "top": 25.1,
+          "width": 4.5,
+          "height": 2.5,
+          "part": "day"
+        },
+        {
+          "left": 64.0,
+          "top": 25.1,
+          "width": 4.5,
+          "height": 2.5,
+          "part": "month"
+        },
+        {
+          "left": 71.5,
+          "top": 25.1,
+          "width": 11.2,
+          "height": 2.5,
+          "part": "year"
+        }
+      ],
+      "_quadrant": 2
+    },
+    {
+      "label": "Preferred Name",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 20.6,
+        "top": 28.4,
+        "width": 28.8,
+        "height": 2.5
+      },
+      "_quadrant": 2
+    },
+    {
+      "label": "Left or Right Handed (if known)",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 73.8,
+        "top": 28.4,
+        "width": 20.4,
+        "height": 2.5
+      },
+      "_quadrant": 2
+    },
+    {
+      "label": "Parent's/Guardian's Names",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 29.0,
+        "top": 31.8,
+        "width": 54.4,
+        "height": 2.5
+      },
+      "_quadrant": 2
+    },
+    {
+      "label": "Siblings",
+      "fieldType": "table",
+      "groupLabel": "Names and ages of siblings in the family:",
+      "tableConfig": {
+        "columnHeaders": [
+          "Siblings Names",
+          "Current Age",
+          "Class Teacher (Year started at KG if applicable)",
+          "Comments (if required)"
+        ],
+        "coordinates": {
+          "left": 6.0,
+          "top": 37.2,
+          "width": 88.2,
+          "height": 13.2
+        },
+        "dataRows": 4
+      },
+      "_quadrant": 2
+    },
+    {
+      "label": "Kindergarten",
+      "fieldType": "checkbox",
+      "groupLabel": "What Pre-Prep experiences has your child had?",
+      "coordinates": {
+        "left": 5.9,
+        "top": 58.2,
+        "width": 1.8,
+        "height": 1.2
+      },
+      "_quadrant": 3
+    },
+    {
+      "label": "Family Day Care",
+      "fieldType": "checkbox",
+      "groupLabel": "What Pre-Prep experiences has your child had?",
+      "coordinates": {
+        "left": 25.1,
+        "top": 58.2,
+        "width": 1.8,
+        "height": 1.2
+      },
+      "_quadrant": 3
+    },
+    {
+      "label": "Long Day Care",
+      "fieldType": "checkbox",
+      "groupLabel": "What Pre-Prep experiences has your child had?",
+      "coordinates": {
+        "left": 47.6,
+        "top": 58.2,
+        "width": 1.8,
+        "height": 1.2
+      },
+      "_quadrant": 3
+    },
+    {
+      "label": "Pre-Prep",
+      "fieldType": "checkbox",
+      "groupLabel": "What Pre-Prep experiences has your child had?",
+      "coordinates": {
+        "left": 68.8,
+        "top": 58.2,
+        "width": 1.8,
+        "height": 1.2
+      },
+      "_quadrant": 3
+    },
+    {
+      "label": "Name of Centre",
+      "fieldType": "text",
+      "groupLabel": "What Pre-Prep experiences has your child had?",
+      "coordinates": {
+        "left": 19.3,
+        "top": 61.6,
+        "width": 31.0,
+        "height": 2.5
+      },
+      "_quadrant": 3
+    },
+    {
+      "label": "How many days?",
+      "fieldType": "text",
+      "groupLabel": "What Pre-Prep experiences has your child had?",
+      "coordinates": {
+        "left": 20.4,
+        "top": 63.2,
+        "width": 20.5,
+        "height": 2.5
+      },
+      "_quadrant": 3
+    },
+    {
+      "label": "How do you think your child will settle into Prep?",
+      "fieldType": "textarea",
+      "rows": 4,
+      "coordinates": {
+        "left": 5.8,
+        "top": 69.7,
+        "width": 88.0,
+        "height": 6.3
+      },
+      "_quadrant": 3
+    }
+  ],
+  "score": {
+    "detection_rate": 64.70588235294117,
+    "precision_rate": 73.33333333333333,
+    "avg_iou": 60.23512152512919,
+    "type_accuracy": 100.0,
+    "label_accuracy": 100.0,
+    "overall_score": 76.58034037910738
+  },
+  "duration_ms": 121843.80529100599,
+  "error": "Quadrant 4 failed: Gemini extraction failed: Unterminated string starting at: line 39 column 9 (char 889)"
+}

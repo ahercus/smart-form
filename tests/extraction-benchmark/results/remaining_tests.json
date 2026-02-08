@@ -1,0 +1,386 @@
+[
+  {
+    "config": "flash_minimal_single_page_high_agency",
+    "thinking": "minimal",
+    "overall": 64.48980166232953,
+    "detection": 23.52941176470588,
+    "iou": 73.54443691364744,
+    "time": 10033.358375003445
+  },
+  {
+    "config": "flash_minimal_single_page_with_rulers_minimal",
+    "thinking": "minimal",
+    "overall": 0.0,
+    "detection": 0.0,
+    "iou": 0,
+    "time": 10799.291125003947
+  },
+  {
+    "config": "flash_minimal_single_page_with_rulers_medium_agency",
+    "thinking": "minimal",
+    "overall": 79.32398448902146,
+    "detection": 88.23529411764706,
+    "iou": 47.19105940784931,
+    "time": 10965.19904199522
+  },
+  {
+    "config": "flash_minimal_single_page_full_rails",
+    "thinking": "minimal",
+    "overall": 88.22178747403298,
+    "detection": 94.11764705882352,
+    "iou": 69.39829652066886,
+    "time": 11170.056333008688
+  },
+  {
+    "config": "flash_minimal_single_page_medium_agency",
+    "thinking": "minimal",
+    "overall": 79.39178649452566,
+    "detection": 88.23529411764706,
+    "iou": 46.698111844497284,
+    "time": 11219.62158298993
+  },
+  {
+    "config": "flash_minimal_single_page_with_rulers_high_agency",
+    "thinking": "minimal",
+    "overall": 63.333782229306195,
+    "detection": 23.52941176470588,
+    "iou": 66.99496037219711,
+    "time": 11269.025957997655
+  },
+  {
+    "config": "flash_minimal_single_page_with_rulers_full_rails",
+    "thinking": "minimal",
+    "overall": 83.18585220551063,
+    "detection": 94.11764705882352,
+    "iou": 52.611845625594356,
+    "time": 11727.372499997728
+  },
+  {
+    "config": "flash_minimal_single_page_minimal",
+    "thinking": "minimal",
+    "overall": 0.0,
+    "detection": 0.0,
+    "iou": 0,
+    "time": 13341.022874999908
+  },
+  {
+    "config": "flash_low_single_page_high_agency",
+    "thinking": "low",
+    "overall": 60.388900571510106,
+    "detection": 35.294117647058826,
+    "iou": 49.880213234009744,
+    "time": 9429.678542001056
+  },
+  {
+    "config": "flash_low_single_page_medium_agency",
+    "thinking": "low",
+    "overall": 82.65685651490514,
+    "detection": 88.23529411764706,
+    "iou": 57.581678579095566,
+    "time": 9954.741207999177
+  },
+  {
+    "config": "flash_low_single_page_full_rails",
+    "thinking": "low",
+    "overall": 87.44149513691772,
+    "detection": 94.11764705882352,
+    "iou": 66.79732206361801,
+    "time": 10861.61908399663
+  },
+  {
+    "config": "flash_minimal_quadrant_4_high_agency",
+    "thinking": "minimal",
+    "overall": 62.672082813676454,
+    "detection": 29.411764705882355,
+    "iou": 60.08341330049015,
+    "time": 14651.801040992723
+  },
+  {
+    "config": "flash_minimal_quadrant_4_full_rails",
+    "thinking": "minimal",
+    "overall": 82.88494437087544,
+    "detection": 94.11764705882352,
+    "iou": 51.60881951014377,
+    "time": 14618.252000000211
+  },
+  {
+    "config": "flash_minimal_quadrant_4_medium_agency",
+    "thinking": "minimal",
+    "overall": 56.189034718309145,
+    "detection": 23.52941176470588,
+    "iou": 42.13338370155337,
+    "time": 14982.713749996037
+  },
+  {
+    "config": "flash_low_single_page_minimal",
+    "thinking": "low",
+    "overall": 0.0,
+    "detection": 0.0,
+    "iou": 0,
+    "time": 15260.285374999512
+  },
+  {
+    "config": "flash_low_single_page_with_rulers_high_agency",
+    "thinking": "low",
+    "overall": 72.7418447577996,
+    "detection": 64.70588235294117,
+    "iou": 52.92858974446588,
+    "time": 10006.29525000113
+  },
+  {
+    "config": "flash_low_single_page_with_rulers_medium_agency",
+    "thinking": "low",
+    "overall": 82.65479629363638,
+    "detection": 88.23529411764706,
+    "iou": 57.824155006887345,
+    "time": 9744.583666994004
+  },
+  {
+    "config": "flash_low_single_page_with_rulers_minimal",
+    "thinking": "low",
+    "overall": 0.0,
+    "detection": 0.0,
+    "iou": 0,
+    "time": 15198.357291999855
+  },
+  {
+    "config": "flash_low_single_page_with_rulers_full_rails",
+    "thinking": "low",
+    "overall": 86.49276242334774,
+    "detection": 94.11764705882352,
+    "iou": 63.40111984253169,
+    "time": 10566.674125002464
+  },
+  {
+    "config": "flash_low_quadrant_4_medium_agency",
+    "thinking": "low",
+    "overall": 64.13994552191558,
+    "detection": 47.05882352941176,
+    "iou": 46.695170335433325,
+    "time": 13858.4722920059
+  },
+  {
+    "config": "flash_low_quadrant_4_high_agency",
+    "thinking": "low",
+    "overall": 59.500914303707276,
+    "detection": 35.294117647058826,
+    "iou": 47.81350519536414,
+    "time": 17324.91845799086
+  },
+  {
+    "config": "flash_minimal_quadrant_4_minimal",
+    "thinking": "minimal",
+    "overall": 79.42465055420976,
+    "detection": 88.23529411764706,
+    "iou": 70.97573997262127,
+    "time": 34614.483875004225
+  },
+  {
+    "config": "flash_low_quadrant_4_full_rails",
+    "thinking": "low",
+    "overall": 81.99390614526294,
+    "detection": 70.58823529411765,
+    "iou": 71.15615773911173,
+    "time": 16772.809040994616
+  },
+  {
+    "config": "flash_low_quadrant_4_minimal",
+    "thinking": "low",
+    "overall": 0.0,
+    "detection": 0.0,
+    "iou": 0,
+    "time": 33601.51616699295
+  },
+  {
+    "config": "flash_medium_single_page_high_agency",
+    "thinking": "medium",
+    "overall": 87.25192694295416,
+    "detection": 100.0,
+    "iou": 60.93779569220015,
+    "time": 26858.91666599491
+  },
+  {
+    "config": "flash_medium_single_page_full_rails",
+    "thinking": "medium",
+    "overall": 84.53638077762963,
+    "detection": 94.11764705882352,
+    "iou": 57.11360753265768,
+    "time": 30722.898249994614
+  },
+  {
+    "config": "flash_medium_single_page_with_rulers_high_agency",
+    "thinking": "medium",
+    "overall": 86.88094998845536,
+    "detection": 100.0,
+    "iou": 59.70120584387082,
+    "time": 28262.698249993264
+  },
+  {
+    "config": "flash_medium_single_page_medium_agency",
+    "thinking": "medium",
+    "overall": 80.2684751876888,
+    "detection": 88.23529411764706,
+    "iou": 49.86975132039539,
+    "time": 44533.089832999394
+  },
+  {
+    "config": "flash_medium_single_page_with_rulers_medium_agency",
+    "thinking": "medium",
+    "overall": 82.00112347159204,
+    "detection": 88.23529411764706,
+    "iou": 55.64524560007287,
+    "time": 33453.67458299734
+  },
+  {
+    "config": "flash_medium_single_page_with_rulers_full_rails",
+    "thinking": "medium",
+    "overall": 79.93384958150105,
+    "detection": 88.23529411764706,
+    "iou": 48.504988801081936,
+    "time": 22660.905167009332
+  },
+  {
+    "config": "flash_medium_single_page_minimal",
+    "thinking": "medium",
+    "overall": 0.0,
+    "detection": 0.0,
+    "iou": 0,
+    "time": 50657.35512500396
+  },
+  {
+    "config": "flash_medium_single_page_with_rulers_minimal",
+    "thinking": "medium",
+    "overall": 71.9401125478991,
+    "detection": 88.23529411764706,
+    "iou": 38.294340522931805,
+    "time": 44526.727667005616
+  },
+  {
+    "config": "pro_low_single_page_high_agency",
+    "thinking": "low",
+    "overall": 81.10136512271221,
+    "detection": 100.0,
+    "iou": 52.20675613392821,
+    "time": 16880.21508300153
+  },
+  {
+    "config": "pro_low_single_page_medium_agency",
+    "thinking": "low",
+    "overall": 79.7673031454577,
+    "detection": 88.23529411764706,
+    "iou": 48.19917784629177,
+    "time": 15431.255375006003
+  },
+  {
+    "config": "pro_low_single_page_full_rails",
+    "thinking": "low",
+    "overall": 84.92881917961142,
+    "detection": 100.0,
+    "iou": 53.194103147724334,
+    "time": 16815.12866700359
+  },
+  {
+    "config": "pro_low_single_page_minimal",
+    "thinking": "low",
+    "overall": 81.89920500437609,
+    "detection": 94.11764705882352,
+    "iou": 64.49785133116386,
+    "time": 23564.949791994877
+  },
+  {
+    "config": "pro_low_single_page_with_rulers_medium_agency",
+    "thinking": "low",
+    "overall": 81.63743765076134,
+    "detection": 88.23529411764706,
+    "iou": 54.18361569861625,
+    "time": 15699.653709001723
+  },
+  {
+    "config": "pro_low_single_page_with_rulers_full_rails",
+    "thinking": "low",
+    "overall": 85.23684338660551,
+    "detection": 100.0,
+    "iou": 53.06220522807901,
+    "time": 16435.41279200872
+  },
+  {
+    "config": "pro_low_single_page_with_rulers_high_agency",
+    "thinking": "low",
+    "overall": 84.6317625298668,
+    "detection": 100.0,
+    "iou": 57.0430728604737,
+    "time": 23113.707125012297
+  },
+  {
+    "config": "pro_low_single_page_with_rulers_minimal",
+    "thinking": "low",
+    "overall": 78.34568844094092,
+    "detection": 94.11764705882352,
+    "iou": 58.913800068520516,
+    "time": 24491.671291005332
+  },
+  {
+    "config": "flash_medium_quadrant_4_full_rails",
+    "thinking": "medium",
+    "overall": 0.0,
+    "detection": 0.0,
+    "iou": 0,
+    "time": 57957.54920800391
+  },
+  {
+    "config": "pro_low_quadrant_4_medium_agency",
+    "thinking": "low",
+    "overall": 63.226160013779975,
+    "detection": 23.52941176470588,
+    "iou": 61.146023575345,
+    "time": 25196.287458995357
+  },
+  {
+    "config": "pro_low_quadrant_4_full_rails",
+    "thinking": "low",
+    "overall": 85.431103063231,
+    "detection": 100.0,
+    "iou": 56.9402438751894,
+    "time": 31577.03116600169
+  },
+  {
+    "config": "pro_low_quadrant_4_high_agency",
+    "thinking": "low",
+    "overall": 81.94824226224347,
+    "detection": 100.0,
+    "iou": 47.81478677956592,
+    "time": 33735.869625001214
+  },
+  {
+    "config": "flash_medium_quadrant_4_minimal",
+    "thinking": "medium",
+    "overall": 79.70253013467466,
+    "detection": 94.11764705882352,
+    "iou": 65.15125751557687,
+    "time": 103108.66300000635
+  },
+  {
+    "config": "flash_medium_quadrant_4_medium_agency",
+    "thinking": "medium",
+    "overall": 76.58034037910738,
+    "detection": 64.70588235294117,
+    "iou": 60.23512152512919,
+    "time": 121843.80529100599
+  },
+  {
+    "config": "pro_low_quadrant_4_minimal",
+    "thinking": "low",
+    "overall": 79.06789178505298,
+    "detection": 94.11764705882352,
+    "iou": 64.20849224843852,
+    "time": 91443.45016698935
+  },
+  {
+    "config": "flash_medium_quadrant_4_high_agency",
+    "thinking": "medium",
+    "overall": 80.36722187658201,
+    "detection": 64.70588235294117,
+    "iou": 67.50515170664097,
+    "time": 3655572.130917004
+  }
+]

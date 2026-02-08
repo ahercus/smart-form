@@ -48,11 +48,23 @@ export function useDocumentRealtime(documentId: string) {
     }
 
     try {
-      // Fetch document
+      // Get current user for ownership verification
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          error: "Not authenticated",
+        }));
+        return;
+      }
+
+      // Fetch document - include user_id filter for security
       const { data: doc, error: docError } = await supabase
         .from("documents")
         .select("*")
         .eq("id", documentId)
+        .eq("user_id", user.id)
         .single();
 
       if (docError) throw docError;

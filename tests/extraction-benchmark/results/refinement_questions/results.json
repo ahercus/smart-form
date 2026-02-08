@@ -1,0 +1,65 @@
+[
+  {
+    "config": "flash_minimal_single_page_high_agency",
+    "pass1_extraction": {
+      "fields": 17,
+      "duration_ms": 8827.085667013307,
+      "detection": 76.47058823529412,
+      "iou": 55.80612236386483
+    },
+    "pass2_refinement": {
+      "fields": 17,
+      "questions": 17,
+      "duration_ms": 25124.55866599339,
+      "detection": 94.11764705882352,
+      "iou": 59.72371691970927
+    },
+    "delta": {
+      "iou": 3.9175945558444383,
+      "detection": 17.647058823529406
+    },
+    "total_duration_ms": 33951.6443330067
+  },
+  {
+    "config": "flash_medium_single_page_high_agency",
+    "pass1_extraction": {
+      "fields": 17,
+      "duration_ms": 18486.498000012944,
+      "detection": 100.0,
+      "iou": 63.83133578955832
+    },
+    "pass2_refinement": {
+      "fields": 17,
+      "questions": 17,
+      "duration_ms": 19799.831332988106,
+      "detection": 100.0,
+      "iou": 61.85952769610745
+    },
+    "delta": {
+      "iou": -1.9718080934508677,
+      "detection": 0.0
+    },
+    "total_duration_ms": 38286.32933300105
+  },
+  {
+    "config": "flash_medium_single_page_full_rails",
+    "pass1_extraction": {
+      "fields": 17,
+      "duration_ms": 24815.745624990086,
+      "detection": 94.11764705882352,
+      "iou": 50.023788505903454
+    },
+    "pass2_refinement": {
+      "fields": 17,
+      "questions": 17,
+      "duration_ms": 20723.847333996673,
+      "detection": 88.23529411764706,
+      "iou": 49.47308798566122
+    },
+    "delta": {
+      "iou": -0.5507005202422306,
+      "detection": -5.882352941176464
+    },
+    "total_duration_ms": 45539.59295898676
+  }
+]

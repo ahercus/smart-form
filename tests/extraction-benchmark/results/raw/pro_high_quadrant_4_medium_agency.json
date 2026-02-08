@@ -1,0 +1,19 @@
+{
+  "config": {
+    "model": "gemini-3-pro-preview",
+    "thinking_level": "high",
+    "architecture": "quadrant_4",
+    "prompt_style": "medium_agency"
+  },
+  "fields": [],
+  "score": {
+    "detection_rate": 0.0,
+    "precision_rate": 0,
+    "avg_iou": 0,
+    "type_accuracy": 0,
+    "label_accuracy": 0,
+    "overall_score": 0.0
+  },
+  "duration_ms": 190.53237501066178,
+  "error": "Quadrant 1 failed: Gemini extraction failed: Unknown field for GenerationConfig: thinking_config"
+}

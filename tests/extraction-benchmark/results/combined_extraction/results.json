@@ -1,0 +1,80 @@
+[
+  {
+    "config": "flash_minimal_full_rails",
+    "model": "gemini-3-flash-preview",
+    "thinking_level": "minimal",
+    "extraction_only": {
+      "fields": 17,
+      "duration_ms": 8957.853542000521,
+      "detection": 94.11764705882352,
+      "iou": 54.410510375055935,
+      "types": 100.0
+    },
+    "extraction_with_questions": {
+      "fields": 17,
+      "questions": 17,
+      "duration_ms": 9597.442249985761,
+      "detection": 88.23529411764706,
+      "iou": 58.974154147741295,
+      "types": 100.0
+    },
+    "delta": {
+      "time_ms": 639.58870798524,
+      "time_pct": 7.139977283468772,
+      "iou": 4.56364377268536,
+      "detection": -5.882352941176464
+    }
+  },
+  {
+    "config": "flash_low_full_rails",
+    "model": "gemini-3-flash-preview",
+    "thinking_level": "low",
+    "extraction_only": {
+      "fields": 17,
+      "duration_ms": 9088.940750007168,
+      "detection": 94.11764705882352,
+      "iou": 57.454732911192266,
+      "types": 100.0
+    },
+    "extraction_with_questions": {
+      "fields": 17,
+      "questions": 17,
+      "duration_ms": 9609.49858299864,
+      "detection": 88.23529411764706,
+      "iou": 54.27153169877265,
+      "types": 100.0
+    },
+    "delta": {
+      "time_ms": 520.5578329914715,
+      "time_pct": 5.727376240086733,
+      "iou": -3.1832012124196183,
+      "detection": -5.882352941176464
+    }
+  },
+  {
+    "config": "flash_medium_high_agency",
+    "model": "gemini-3-flash-preview",
+    "thinking_level": "medium",
+    "extraction_only": {
+      "fields": 17,
+      "duration_ms": 26019.508834011503,
+      "detection": 100.0,
+      "iou": 54.40089689377567,
+      "types": 100.0
+    },
+    "extraction_with_questions": {
+      "fields": 17,
+      "questions": 17,
+      "duration_ms": 19788.899749997654,
+      "detection": 88.23529411764706,
+      "iou": 56.736424858017784,
+      "types": 100.0
+    },
+    "delta": {
+      "time_ms": -6230.6090840138495,
+      "time_pct": -23.945913521124904,
+      "iou": 2.335527964242111,
+      "detection": -11.764705882352942
+    }
+  }
+]

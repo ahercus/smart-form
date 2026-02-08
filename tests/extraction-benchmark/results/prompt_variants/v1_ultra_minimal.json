@@ -1,0 +1,187 @@
+{
+  "fields": [
+    {
+      "label": "Child's Name",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 16.5,
+        "top": 25.1,
+        "width": 32.8,
+        "height": 1.5
+      }
+    },
+    {
+      "label": "D.O.B",
+      "fieldType": "linkedDate",
+      "coordinates": {
+        "left": 56.5,
+        "top": 25.1,
+        "width": 25.8,
+        "height": 1.5
+      }
+    },
+    {
+      "label": "Preferred Name",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 19.5,
+        "top": 28.6,
+        "width": 29.8,
+        "height": 1.5
+      }
+    },
+    {
+      "label": "Left or Right Handed (if known)",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 70.8,
+        "top": 28.6,
+        "width": 20.7,
+        "height": 1.5
+      }
+    },
+    {
+      "label": "Parent's/Guardian's Names",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 31.5,
+        "top": 32.1,
+        "width": 50.8,
+        "height": 1.5
+      }
+    },
+    {
+      "label": "Siblings table",
+      "fieldType": "table",
+      "coordinates": {
+        "left": 6.0,
+        "top": 37.2,
+        "width": 88.2,
+        "height": 13.1
+      }
+    },
+    {
+      "label": "Kindergarten",
+      "fieldType": "checkbox",
+      "coordinates": {
+        "left": 6.0,
+        "top": 58.2,
+        "width": 1.5,
+        "height": 1.1
+      }
+    },
+    {
+      "label": "Family Day Care",
+      "fieldType": "checkbox",
+      "coordinates": {
+        "left": 25.2,
+        "top": 58.2,
+        "width": 1.5,
+        "height": 1.1
+      }
+    },
+    {
+      "label": "Long Day Care",
+      "fieldType": "checkbox",
+      "coordinates": {
+        "left": 47.6,
+        "top": 58.2,
+        "width": 1.5,
+        "height": 1.1
+      }
+    },
+    {
+      "label": "Pre-Prep",
+      "fieldType": "checkbox",
+      "coordinates": {
+        "left": 68.8,
+        "top": 58.2,
+        "width": 1.5,
+        "height": 1.1
+      }
+    },
+    {
+      "label": "Name of Centre",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 20.5,
+        "top": 61.6,
+        "width": 28.2,
+        "height": 1.5
+      }
+    },
+    {
+      "label": "How many days?",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 20.5,
+        "top": 63.4,
+        "width": 20.3,
+        "height": 1.5
+      }
+    },
+    {
+      "label": "How do you think your child will settle into Prep?",
+      "fieldType": "textarea",
+      "coordinates": {
+        "left": 6.0,
+        "top": 69.8,
+        "width": 87.9,
+        "height": 5.8
+      }
+    },
+    {
+      "label": "Does your child participate in any out-of-school activity?",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 6.0,
+        "top": 81.3,
+        "width": 71.1,
+        "height": 1.5
+      }
+    },
+    {
+      "label": "How well does your child play with other children?",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 51.8,
+        "top": 83.8,
+        "width": 36.3,
+        "height": 1.5
+      }
+    },
+    {
+      "label": "What are your child's special interests?",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 41.8,
+        "top": 86.3,
+        "width": 46.3,
+        "height": 1.5
+      }
+    },
+    {
+      "label": "What is your child good at?",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 31.5,
+        "top": 88.8,
+        "width": 56.6,
+        "height": 1.5
+      }
+    }
+  ],
+  "score": {
+    "variant": "v1_ultra_minimal",
+    "description": "Bare minimum - just the task",
+    "fields": 17,
+    "overall": 87.90419122473071,
+    "detection": 100.0,
+    "precision": 100.0,
+    "iou": 61.95336468849633,
+    "types": 100.0,
+    "labels": 95.45454545454545,
+    "duration_ms": 19688.537540991092,
+    "error": null
+  }
+}

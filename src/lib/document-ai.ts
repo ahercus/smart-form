@@ -371,6 +371,8 @@ export async function extractFieldsFromPDF(
       deleted_at: null,
       choice_options: null,
       segments: null,
+      date_segments: null,
+      group_label: null,
       created_at: now,
       updated_at: now,
     };
@@ -420,6 +422,8 @@ export async function extractFieldsFromPDF(
         deleted_at: null,
         choice_options: null,
         segments: null,
+        date_segments: null,
+        group_label: null,
         created_at: now,
         updated_at: now,
       };
@@ -507,6 +511,8 @@ export async function extractFieldsFromPDF(
         deleted_at: null,
         choice_options: null,
         segments: null,
+        date_segments: null,
+        group_label: null,
         created_at: now,
         updated_at: now,
       };

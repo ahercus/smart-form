@@ -167,6 +167,14 @@ export function useSignatures(): UseSignaturesReturn {
   const deleteSignature = useCallback(
     async (id: string): Promise<boolean> => {
       try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          throw new Error("Not authenticated");
+        }
+
         const signature = signatures.find((s) => s.id === id);
         if (!signature) {
           throw new Error("Signature not found");
@@ -182,14 +190,19 @@ export function useSignatures(): UseSignaturesReturn {
           // Continue anyway - file might already be deleted
         }
 
-        // Delete from database
-        const { error: deleteError } = await supabase
+        // Delete from database - include user_id for security
+        const { error: deleteError, count } = await supabase
           .from("signatures")
           .delete()
-          .eq("id", id);
+          .eq("id", id)
+          .eq("user_id", user.id);
 
         if (deleteError) {
           throw deleteError;
+        }
+
+        if (count === 0) {
+          throw new Error("Signature not found or access denied");
         }
 
         // Update local state
@@ -227,14 +240,19 @@ export function useSignatures(): UseSignaturesReturn {
           .eq("type", type)
           .eq("is_default", true);
 
-        // Set new default
-        const { error: updateError } = await supabase
+        // Set new default - include user_id for security
+        const { error: updateError, count } = await supabase
           .from("signatures")
           .update({ is_default: true })
-          .eq("id", id);
+          .eq("id", id)
+          .eq("user_id", user.id);
 
         if (updateError) {
           throw updateError;
+        }
+
+        if (count === 0) {
+          throw new Error("Signature not found or access denied");
         }
 
         // Update local state

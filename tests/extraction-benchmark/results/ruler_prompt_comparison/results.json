@@ -1,0 +1,22 @@
+[
+  {
+    "config": "full_rails (mentions rulers)",
+    "prompt_style": "full_rails",
+    "prompt_mentions_rulers": true,
+    "fields": 17,
+    "duration_ms": 9670.665792000364,
+    "detection": 94.11764705882352,
+    "iou": 53.95409196282446,
+    "overall": 83.58852610667967
+  },
+  {
+    "config": "full_rails_no_rulers (no ruler mentions)",
+    "prompt_style": "full_rails_no_rulers",
+    "prompt_mentions_rulers": false,
+    "fields": 17,
+    "duration_ms": 9188.139500009129,
+    "detection": 94.11764705882352,
+    "iou": 57.033507690250985,
+    "overall": 84.51235082490761
+  }
+]

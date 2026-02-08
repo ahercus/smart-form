@@ -12,6 +12,13 @@ export interface ChoiceOption {
   coordinates: NormalizedCoordinates;
 }
 
+// Date segment for linkedDate fields (segmented date inputs like DD/MM/YYYY)
+export type DatePart = "day" | "month" | "year" | "year2";
+
+export interface DateSegment extends NormalizedCoordinates {
+  part: DatePart;
+}
+
 // Processing phases for parallel pipeline
 // Flow: idle → parsing → displaying → enhancing → ready
 export type ProcessingPhase =
@@ -99,6 +106,7 @@ export type FieldType =
   | "initials"
   | "memory_choice"
   | "circle_choice"
+  | "linkedDate"
   | "unknown";
 
 // Signature type (signature vs initials)
@@ -205,6 +213,15 @@ export interface Document {
   filled_fields?: number;
 }
 
+// Table configuration for table fields
+export interface TableConfig {
+  columnHeaders: string[];
+  coordinates: NormalizedCoordinates;
+  dataRows: number;
+  columnPositions?: number[]; // Optional - defaults to uniform
+  rowHeights?: number[]; // Optional - defaults to uniform
+}
+
 // Extracted field from a document
 export interface ExtractedField {
   id: string;
@@ -224,6 +241,10 @@ export interface ExtractedField {
   deleted_at: string | null;
   choice_options: ChoiceOption[] | null; // For circle_choice fields
   segments: NormalizedCoordinates[] | null; // For linkedText fields - multiple segments that form a single flowing text input
+  date_segments: DateSegment[] | null; // For linkedDate fields - segmented date inputs (day/month/year boxes)
+  table_config: TableConfig | null; // For table fields - column/row configuration
+  rows: number | null; // For textarea fields - number of visible text lines
+  group_label: string | null; // Question/header/section that this field belongs to
   created_at: string;
   updated_at: string;
 }

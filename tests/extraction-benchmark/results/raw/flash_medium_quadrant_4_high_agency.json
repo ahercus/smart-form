@@ -1,0 +1,261 @@
+{
+  "config": {
+    "model": "gemini-3-flash-preview",
+    "thinking_level": "medium",
+    "architecture": "quadrant_4",
+    "prompt_style": "high_agency"
+  },
+  "fields": [
+    {
+      "label": "Preferred Name:",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 18.3,
+        "top": 28.4,
+        "width": 31.5,
+        "height": 1.5
+      },
+      "_quadrant": 2
+    },
+    {
+      "label": "Left or Right Handed (if known):",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 77.2,
+        "top": 28.4,
+        "width": 17.1,
+        "height": 1.5
+      },
+      "_quadrant": 2
+    },
+    {
+      "label": "Parent's/Guardian's Names:",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 30.3,
+        "top": 32.2,
+        "width": 51.5,
+        "height": 1.5
+      },
+      "_quadrant": 2
+    },
+    {
+      "label": "Names and ages of siblings in the family:",
+      "fieldType": "table",
+      "coordinates": {
+        "left": 6.0,
+        "top": 37.1,
+        "width": 88.2,
+        "height": 13.0
+      },
+      "tableConfig": {
+        "columnHeaders": [
+          "Siblings Names",
+          "Current Age",
+          "Class Teacher (Year started at KG if applicable)",
+          "Comments (if required)"
+        ],
+        "coordinates": {
+          "left": 6.0,
+          "top": 37.1,
+          "width": 88.2,
+          "height": 13.0
+        },
+        "dataRows": [
+          [
+            {
+              "left": 6.0,
+              "top": 41.2,
+              "width": 18.0,
+              "height": 3.2
+            },
+            {
+              "left": 24.0,
+              "top": 41.2,
+              "width": 17.6,
+              "height": 3.2
+            },
+            {
+              "left": 41.6,
+              "top": 41.2,
+              "width": 28.9,
+              "height": 3.2
+            },
+            {
+              "left": 70.5,
+              "top": 41.2,
+              "width": 23.7,
+              "height": 3.2
+            }
+          ],
+          [
+            {
+              "left": 6.0,
+              "top": 44.4,
+              "width": 18.0,
+              "height": 2.2
+            },
+            {
+              "left": 24.0,
+              "top": 44.4,
+              "width": 17.6,
+              "height": 2.2
+            },
+            {
+              "left": 41.6,
+              "top": 44.4,
+              "width": 28.9,
+              "height": 2.2
+            },
+            {
+              "left": 70.5,
+              "top": 44.4,
+              "width": 23.7,
+              "height": 2.2
+            }
+          ],
+          [
+            {
+              "left": 6.0,
+              "top": 46.6,
+              "width": 18.0,
+              "height": 2.2
+            },
+            {
+              "left": 24.0,
+              "top": 46.6,
+              "width": 17.6,
+              "height": 2.2
+            },
+            {
+              "left": 41.6,
+              "top": 46.6,
+              "width": 28.9,
+              "height": 2.2
+            },
+            {
+              "left": 70.5,
+              "top": 46.6,
+              "width": 23.7,
+              "height": 2.2
+            }
+          ],
+          [
+            {
+              "left": 6.0,
+              "top": 48.8,
+              "width": 18.0,
+              "height": 2.3
+            },
+            {
+              "left": 24.0,
+              "top": 48.8,
+              "width": 17.6,
+              "height": 2.3
+            },
+            {
+              "left": 41.6,
+              "top": 48.8,
+              "width": 28.9,
+              "height": 2.3
+            },
+            {
+              "left": 70.5,
+              "top": 48.8,
+              "width": 23.7,
+              "height": 2.3
+            }
+          ]
+        ]
+      },
+      "_quadrant": 2
+    },
+    {
+      "label": "Kindergarten",
+      "fieldType": "checkbox",
+      "coordinates": {
+        "left": 6.1,
+        "top": 58.2,
+        "width": 1.5,
+        "height": 1.1
+      },
+      "_quadrant": 3
+    },
+    {
+      "label": "Family Day Care",
+      "fieldType": "checkbox",
+      "coordinates": {
+        "left": 25.3,
+        "top": 58.2,
+        "width": 1.5,
+        "height": 1.1
+      },
+      "_quadrant": 3
+    },
+    {
+      "label": "Long Day Care",
+      "fieldType": "checkbox",
+      "coordinates": {
+        "left": 47.7,
+        "top": 58.2,
+        "width": 1.5,
+        "height": 1.1
+      },
+      "_quadrant": 3
+    },
+    {
+      "label": "Pre-Prep",
+      "fieldType": "checkbox",
+      "coordinates": {
+        "left": 68.8,
+        "top": 58.2,
+        "width": 1.5,
+        "height": 1.1
+      },
+      "_quadrant": 3
+    },
+    {
+      "label": "Name of Centre:",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 20.0,
+        "top": 61.2,
+        "width": 28.7,
+        "height": 1.5
+      },
+      "_quadrant": 3
+    },
+    {
+      "label": "How many days?",
+      "fieldType": "text",
+      "coordinates": {
+        "left": 20.0,
+        "top": 63.3,
+        "width": 20.8,
+        "height": 1.4
+      },
+      "_quadrant": 3
+    },
+    {
+      "label": "How do you think your child will settle into Prep?",
+      "fieldType": "textarea",
+      "coordinates": {
+        "left": 6.0,
+        "top": 69.8,
+        "width": 87.8,
+        "height": 6.0
+      },
+      "_quadrant": 3
+    }
+  ],
+  "score": {
+    "detection_rate": 64.70588235294117,
+    "precision_rate": 100.0,
+    "avg_iou": 67.50515170664097,
+    "type_accuracy": 100.0,
+    "label_accuracy": 92.92803850902953,
+    "overall_score": 80.36722187658201
+  },
+  "duration_ms": 3655572.130917004,
+  "error": "Quadrant 4 failed: Gemini extraction failed: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'The service is currently unavailable.', 'status': 'UNAVAILABLE'}}"
+}

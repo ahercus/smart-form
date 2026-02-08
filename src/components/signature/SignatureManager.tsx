@@ -360,14 +360,14 @@ export function SignatureManager({
                         }`}
                         onClick={() => setSelectedSignature(sig)}
                       >
-                        <div className="h-10 bg-white rounded flex items-center justify-center overflow-hidden">
+                        <div className="h-12 bg-white rounded flex items-center justify-center overflow-hidden px-1.5">
                           {sig.preview_data_url ? (
                             <Image
                               src={sig.preview_data_url}
                               alt={sig.name}
                               width={200}
-                              height={40}
-                              className="object-contain h-full w-auto"
+                              height={48}
+                              className="object-contain w-full h-full"
                             />
                           ) : (
                             <span className="text-muted-foreground text-xs">

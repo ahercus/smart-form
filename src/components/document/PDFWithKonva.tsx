@@ -102,6 +102,9 @@ export function PDFWithKonva({
     type: SignatureType;
   } | null>(null);
   const [deletedFieldIds, setDeletedFieldIds] = useState<Set<string>>(new Set());
+  // Track newly created field for pulse animation (cleared on interaction)
+  const [newFieldId, setNewFieldId] = useState<string | null>(null);
+  const [expectingNewField, setExpectingNewField] = useState(false);
   // Track actual page dimensions from rendered canvas (not hardcoded)
   const [pageDimensions, setPageDimensions] = useState<Map<number, { width: number; height: number }>>(new Map());
 
@@ -159,6 +162,14 @@ export function PDFWithKonva({
     setDeletedFieldIds(new Set());
   }, [fields]);
 
+  // Track when a new field is created (activeFieldId changes while expecting)
+  useEffect(() => {
+    if (expectingNewField && activeFieldId) {
+      setNewFieldId(activeFieldId);
+      setExpectingNewField(false);
+    }
+  }, [activeFieldId, expectingNewField]);
+
   // Document callbacks
   const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -214,11 +225,15 @@ export function PDFWithKonva({
 
   // Field interaction handlers
   const handleFieldClick = useCallback((fieldId: string | null) => {
+    // Clear pulse animation on any field interaction
+    if (newFieldId) {
+      setNewFieldId(null);
+    }
     if (fieldId) {
       onFieldClick?.(fieldId);
       onNavigateToQuestion?.(fieldId);
     }
-  }, [onFieldClick, onNavigateToQuestion]);
+  }, [onFieldClick, onNavigateToQuestion, newFieldId]);
 
   const handleChoiceToggle = useCallback((fieldId: string, optionLabel: string) => {
     const currentValue = fieldValues[fieldId] || "";
@@ -258,14 +273,54 @@ export function PDFWithKonva({
 
   // Control handlers
   const handleAddField = useCallback(() => {
-    const defaultCoords: NormalizedCoordinates = {
-      left: 35,
-      top: 40,
-      width: 30,
-      height: 4,
+    // Calculate viewport center to place field where user is looking
+    const container = document.getElementById("pdf-konva-container");
+    let centerLeftPercent = 35;
+    let centerTopPercent = 40;
+
+    if (container && scaledWidth > 0 && scaledHeight > 0) {
+      const scrollLeft = container.scrollLeft;
+      const scrollTop = container.scrollTop;
+      const viewportWidth = container.clientWidth;
+      const viewportHeight = container.clientHeight;
+
+      // Calculate center of visible area in pixels (accounting for padding)
+      const centerX = scrollLeft + viewportWidth / 2 - 16;
+      const centerY = scrollTop + viewportHeight / 2 - 16;
+
+      // Convert to percentage coordinates
+      centerLeftPercent = Math.max(5, Math.min(65, (centerX / scaledWidth) * 100));
+      centerTopPercent = Math.max(5, Math.min(90, (centerY / scaledHeight) * 100));
+    }
+
+    // Calculate average dimensions from existing text fields on this page
+    const pageTextFields = fields.filter(
+      (f) => f.page_number === currentPage && ["text", "textarea", "date"].includes(f.field_type)
+    );
+
+    let fieldWidth = 15; // Default: half of previous 30%
+    let fieldHeight = 2; // Default: half of previous 4%
+
+    if (pageTextFields.length > 0) {
+      // Calculate average width and height from existing text fields
+      const totalWidth = pageTextFields.reduce((sum, f) => sum + f.coordinates.width, 0);
+      const totalHeight = pageTextFields.reduce((sum, f) => sum + f.coordinates.height, 0);
+      fieldWidth = totalWidth / pageTextFields.length;
+      fieldHeight = totalHeight / pageTextFields.length;
+    }
+
+    const coords: NormalizedCoordinates = {
+      left: centerLeftPercent,
+      top: centerTopPercent,
+      width: fieldWidth,
+      height: fieldHeight,
     };
-    onFieldAdd?.(currentPage, defaultCoords);
-  }, [currentPage, onFieldAdd]);
+    // Mark that we're expecting a new field (to trigger pulse animation)
+    setExpectingNewField(true);
+    onFieldAdd?.(currentPage, coords);
+    // Auto-enable layout mode so user can position the new field
+    setLayoutMode(true);
+  }, [currentPage, onFieldAdd, scaledWidth, scaledHeight, fields]);
 
   const handleCopyField = useCallback(() => {
     if (activeFieldId) {
@@ -279,6 +334,13 @@ export function PDFWithKonva({
       onFieldDelete?.(activeFieldId);
     }
   }, [activeFieldId, onFieldDelete]);
+
+  // Handle canvas background click - exit layout mode
+  const handleStageBackgroundClick = useCallback(() => {
+    if (layoutMode) {
+      setLayoutMode(false);
+    }
+  }, [layoutMode]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -351,6 +413,7 @@ export function PDFWithKonva({
                   fields={pageFields}
                   fieldValues={fieldValues}
                   activeFieldId={activeFieldId || null}
+                  newFieldId={newFieldId}
                   layoutMode={layoutMode}
                   isMobile={isMobile}
                   showGrid={false} // Grid hidden from users
@@ -359,6 +422,7 @@ export function PDFWithKonva({
                   onFieldValueChange={onFieldChange}
                   onFieldCoordinatesChange={onFieldCoordinatesChange}
                   onChoiceToggle={handleChoiceToggle}
+                  onStageBackgroundClick={handleStageBackgroundClick}
                   stageRef={stageRef}
                 />
               </div>
