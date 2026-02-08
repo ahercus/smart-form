@@ -168,8 +168,8 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
               every field, fills in the answers, and remembers it all for next
               time. Forms so simple your mum could do it.
             </p>
-            <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-              <div className="flex flex-col items-center gap-1.5">
+            <div className="mt-10 flex flex-col items-center gap-3">
+              <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
                 <Button
                   size="lg"
                   onClick={handleGuestLogin}
@@ -179,21 +179,21 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
                   <UserRound className="size-4" />
                   {guestLoading ? "Loading demo..." : "Try It — No Sign Up"}
                 </Button>
-                <p className="text-xs text-muted-foreground">
-                  No login required. Pre-loaded with demo data.
-                </p>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  asChild
+                  className="w-full sm:w-auto"
+                >
+                  <Link href="/signup">
+                    Create Account
+                    <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
               </div>
-              <Button
-                size="lg"
-                variant="outline"
-                asChild
-                className="w-full sm:w-auto"
-              >
-                <Link href="/signup">
-                  Create Account
-                  <ArrowRight className="size-4" />
-                </Link>
-              </Button>
+              <p className="text-xs text-muted-foreground">
+                No login required. Pre-loaded with demo data.
+              </p>
             </div>
           </div>
         </section>
