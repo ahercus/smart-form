@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, User, Brain, PenTool, LogOut } from "lucide-react";
+import { FileText, User, Brain, PenTool, LogOut, Eye } from "lucide-react";
+import { isGuestEmail } from "@/lib/auth/guest-login";
 import {
   Sidebar,
   SidebarContent,
@@ -59,7 +60,7 @@ export function AppSidebar({ userEmail }: AppSidebarProps) {
                   <FileText className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">AutoForm AI</span>
+                  <span className="truncate font-semibold">Fit Form</span>
                   <span className="truncate text-xs text-muted-foreground">
                     Smart PDF Forms
                   </span>
@@ -105,8 +106,19 @@ export function AppSidebar({ userEmail }: AppSidebarProps) {
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip={userEmail}>
               <div className="cursor-default">
-                <User className="size-4" />
-                <span className="truncate text-xs">{userEmail}</span>
+                {isGuestEmail(userEmail) ? (
+                  <Eye className="size-4" />
+                ) : (
+                  <User className="size-4" />
+                )}
+                <span className="truncate text-xs">
+                  {isGuestEmail(userEmail) ? "Guest Demo" : userEmail}
+                </span>
+                {isGuestEmail(userEmail) && (
+                  <span className="ml-auto rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
+                    Guest
+                  </span>
+                )}
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>

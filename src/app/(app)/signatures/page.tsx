@@ -298,7 +298,7 @@ export default function SignaturesPage() {
         {/* Main content */}
         <div className="flex-1 overflow-auto flex flex-col">
           {/* Drawing area - takes priority on mobile */}
-          <div className="p-4 space-y-4 shrink-0">
+          <div className="p-2 md:p-4 space-y-4 shrink-0">
             {selectedSignature ? (
               // Viewing selected signature
               <div className="space-y-3">
@@ -393,7 +393,7 @@ export default function SignaturesPage() {
 
           {/* Saved signatures list */}
           <div className="flex-1 border-t bg-muted/30">
-            <div className="p-4">
+            <div className="p-2 md:p-4">
               <h3 className="text-sm font-medium text-muted-foreground mb-3">
                 Saved {activeTab === "signature" ? "Signatures" : "Initials"}
               </h3>
@@ -442,7 +442,7 @@ export default function SignaturesPage() {
                         )}
                       </div>
                       {/* Action buttons - visible on hover/tap */}
-                      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 md:group-hover:opacity-100">
+                      <div className="absolute top-1 right-1 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                         {!sig.is_default && (
                           <Button
                             variant="secondary"

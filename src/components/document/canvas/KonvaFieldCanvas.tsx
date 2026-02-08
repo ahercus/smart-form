@@ -284,6 +284,8 @@ export function KonvaFieldCanvas({
   const handleStageTouchStart = useCallback(
     (e: Konva.KonvaEventObject<TouchEvent>) => {
       if (e.evt.touches.length !== 1) return;
+      // In layout mode, don't pan — let fields be dragged instead
+      if (layoutMode) return;
 
       const layerName = e.target.getLayer?.()?.name?.();
       const isBackgroundClick =
@@ -295,7 +297,7 @@ export function KonvaFieldCanvas({
       const touch = e.evt.touches[0];
       startPan(touch.clientX, touch.clientY);
     },
-    [startPan]
+    [startPan, layoutMode]
   );
 
   useEffect(() => {
@@ -552,7 +554,7 @@ export function KonvaFieldCanvas({
               isActive={field.id === activeFieldId}
               isEditing={field.id === editingFieldId}
               isNew={field.id === newFieldId}
-              draggable={!isMobile && field.id !== editingFieldId}
+              draggable={layoutMode ? field.id !== editingFieldId : (!isMobile && field.id !== editingFieldId)}
               hideFieldColors={hideFieldColors}
               onClick={() => handleFieldClick(field)}
               onDblClick={() => handleFieldDoubleClick(field)}
@@ -577,6 +579,9 @@ export function KonvaFieldCanvas({
           {layoutMode && (
             <Transformer
               ref={transformerRef}
+              anchorSize={isMobile ? 14 : 10}
+              anchorCornerRadius={isMobile ? 7 : 0}
+              borderStrokeWidth={isMobile ? 2 : 1}
               boundBoxFunc={(oldBox, newBox) => {
                 // Limit minimum size
                 if (newBox.width < 10 || newBox.height < 10) {

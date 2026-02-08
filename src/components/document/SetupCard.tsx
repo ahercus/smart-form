@@ -158,7 +158,7 @@ export function SetupCard({
                 <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
                   <Sparkles className="h-5 w-5 text-primary-foreground" />
                 </div>
-                <h1 className="text-2xl font-bold">AutoForm AI</h1>
+                <h1 className="text-2xl font-bold">Fit Form</h1>
               </div>
               <p className="text-muted-foreground">
                 Scan your document and let AI identify where you need to sign or

@@ -52,17 +52,17 @@ export function PDFControls({
   // Mobile: streamlined compact toolbar
   if (isMobile) {
     return (
-      <div className="flex items-center justify-between px-2 py-1.5 border-b bg-muted/50 flex-shrink-0">
+      <div className="flex items-center justify-between px-2 py-1 border-b bg-muted/50 flex-shrink-0">
         {/* Left: Page navigation */}
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-9 w-11"
             onClick={() => onPageChange(Math.max(1, currentPage - 1))}
             disabled={currentPage <= 1}
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-5 w-5" />
           </Button>
           <span className="text-xs min-w-[36px] text-center tabular-nums">
             {currentPage}/{numPages || "-"}
@@ -70,62 +70,62 @@ export function PDFControls({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-9 w-11"
             onClick={() => onPageChange(Math.min(numPages, currentPage + 1))}
             disabled={currentPage >= numPages}
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-5 w-5" />
           </Button>
         </div>
 
         {/* Center: Essential tools only */}
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-1">
           <Button
             variant={layoutMode ? "secondary" : "ghost"}
             size="icon"
-            className="h-8 w-8"
+            className="h-9 w-11"
             onClick={() => onLayoutModeChange(!layoutMode)}
           >
-            <VectorSquare className="h-4 w-4" />
+            <VectorSquare className="h-5 w-5" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-9 w-11"
             onClick={onAddField}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-5 w-5" />
           </Button>
           {activeFieldId && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-9 w-11"
               onClick={onDeleteField}
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-5 w-5" />
             </Button>
           )}
         </div>
 
         {/* Right: View controls */}
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-1">
           <Button
-            variant={hideFieldColors ? "secondary" : "ghost"}
+            variant={hideFieldColors ? "ghost" : "secondary"}
             size="icon"
-            className="h-8 w-8"
+            className="h-9 w-11"
             onClick={onToggleFieldColors}
           >
-            <Layers2 className="h-4 w-4" />
+            <Layers2 className="h-5 w-5" />
           </Button>
           {onOpenSignatureManager && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-9 w-11"
               onClick={onOpenSignatureManager}
             >
-              <PenTool className="h-4 w-4" />
+              <PenTool className="h-5 w-5" />
             </Button>
           )}
         </div>

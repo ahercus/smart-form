@@ -14,8 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AutoForm AI",
-  description: "Transform PDF forms into intelligent, interactive experiences",
+  title: "Fit Form — PDF Forms, Filled by AI",
+  description:
+    "Upload any PDF form. AI detects fields, auto-fills your answers, and exports a ready-to-submit document in seconds. Powered by Gemini 3.",
 };
 
 export default function RootLayout({

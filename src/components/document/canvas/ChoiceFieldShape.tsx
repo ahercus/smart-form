@@ -84,7 +84,7 @@ export function ChoiceFieldShape({
         const h = (option.coordinates.height / 100) * pageHeight;
 
         // Hide unselected options when there's a selection (unless hovering)
-        const shouldHide = (hasSelection || hideFieldColors) && !isSelected && !isHovering;
+        const shouldHide = (hasSelection || hideFieldColors) && !isSelected && !isHovering && !isActive;
         const opacity = shouldHide ? 0 : 1;
 
         // Center of ellipse

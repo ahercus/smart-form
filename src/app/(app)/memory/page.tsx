@@ -144,7 +144,7 @@ export default function MemoryPage() {
         </div>
       </AppHeader>
 
-      <div className="flex-1 overflow-auto p-4 md:p-6">
+      <div className="flex-1 overflow-auto p-2 md:p-6">
         <div className="md:max-w-2xl md:mx-auto space-y-6">
           <p className="text-muted-foreground">
             Information learned from your form completions, organized by entities
@@ -350,14 +350,13 @@ function InlineFactEditor({
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Focus input on mount and scroll into view
+  // Focus input on mount and scroll into view after virtual keyboard appears
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
-      // Scroll container into view, accounting for virtual keyboard
       setTimeout(() => {
         containerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 100);
+      }, 350);
     }
   }, []);
 
@@ -499,7 +498,7 @@ function EntityCard({
 
   return (
     <div
-      className={`border rounded-lg p-3 ml-6 transition-all ${
+      className={`border rounded-lg p-3 ml-2 md:ml-6 transition-all ${
         isRecentlyUpdated
           ? "animate-pulse ring-2 ring-primary/50 bg-primary/5"
           : ""

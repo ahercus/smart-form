@@ -42,12 +42,23 @@ export function FloatingInput({
   const isDateField = field.field_type === "date";
   const isTextarea = field.field_type === "textarea";
 
-  // Focus on mount
+  // Focus on mount, then scroll into view for mobile virtual keyboard
   useEffect(() => {
     const timer = setTimeout(() => {
       inputRef.current?.focus();
     }, 0);
-    return () => clearTimeout(timer);
+
+    const scrollTimer = setTimeout(() => {
+      inputRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 350);
+
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(scrollTimer);
+    };
   }, []);
 
   const handleChange = useCallback(

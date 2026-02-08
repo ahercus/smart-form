@@ -121,8 +121,10 @@ export function PDFWithKonva({
   const scaledHeight = baseHeight * scale;
 
   // Pinch zoom state
-  const lastTouchDistance = useRef<number | null>(null);
+  const pinchStartDistance = useRef<number | null>(null);
   const pinchStartScale = useRef<number>(1);
+  const pinchStartMidpoint = useRef<{ x: number; y: number } | null>(null);
+  const pinchStartScroll = useRef<{ left: number; top: number } | null>(null);
   const rafScaleRef = useRef<number | null>(null);
   const rafIdRef = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -171,27 +173,50 @@ export function PDFWithKonva({
       return Math.sqrt(dx * dx + dy * dy);
     };
 
+    const getTouchMidpoint = (touches: TouchList) => {
+      if (touches.length < 2) return null;
+      return {
+        x: (touches[0].clientX + touches[1].clientX) / 2,
+        y: (touches[0].clientY + touches[1].clientY) / 2,
+      };
+    };
+
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
-        lastTouchDistance.current = getTouchDistance(e.touches);
+        pinchStartDistance.current = getTouchDistance(e.touches);
         pinchStartScale.current = scale;
+        pinchStartMidpoint.current = getTouchMidpoint(e.touches);
+        pinchStartScroll.current = {
+          left: container.scrollLeft,
+          top: container.scrollTop,
+        };
       }
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 2 && lastTouchDistance.current !== null) {
+      if (e.touches.length === 2 && pinchStartDistance.current !== null) {
         e.preventDefault();
         const currentDistance = getTouchDistance(e.touches);
         if (currentDistance !== null) {
-          const scaleFactor = currentDistance / lastTouchDistance.current;
+          const scaleFactor = currentDistance / pinchStartDistance.current;
           const nextScale = pinchStartScale.current * scaleFactor;
           applyScale(nextScale);
+        }
+
+        const midpoint = getTouchMidpoint(e.touches);
+        if (midpoint && pinchStartMidpoint.current && pinchStartScroll.current) {
+          const dx = midpoint.x - pinchStartMidpoint.current.x;
+          const dy = midpoint.y - pinchStartMidpoint.current.y;
+          container.scrollLeft = pinchStartScroll.current.left - dx;
+          container.scrollTop = pinchStartScroll.current.top - dy;
         }
       }
     };
 
     const handleTouchEnd = () => {
-      lastTouchDistance.current = null;
+      pinchStartDistance.current = null;
+      pinchStartMidpoint.current = null;
+      pinchStartScroll.current = null;
     };
 
     container.addEventListener("wheel", handleWheel, { passive: false });

@@ -55,7 +55,7 @@ export default function SignUpPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Create an account</CardTitle>
-          <CardDescription>Get started with AutoForm AI</CardDescription>
+          <CardDescription>Get started with Fit Form</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
