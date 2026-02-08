@@ -3,7 +3,6 @@
 import { createAdminClient } from "../supabase/admin";
 import type {
   ProcessingProgress,
-  GeminiMessage,
   QuestionGroup,
   FieldType,
   MemoryChoice,
@@ -105,56 +104,6 @@ export async function getProcessingProgress(
     pagesComplete: 0,
     questionsDelivered: 0,
   };
-}
-
-// Append to Gemini conversation history
-export async function appendToConversation(
-  documentId: string,
-  message: GeminiMessage
-): Promise<void> {
-  const supabase = createAdminClient();
-
-  // Get current conversation
-  const { data: doc } = await supabase
-    .from("documents")
-    .select("gemini_conversation")
-    .eq("id", documentId)
-    .single();
-
-  const conversation = (doc?.gemini_conversation as GeminiMessage[]) || [];
-  conversation.push(message);
-
-  const { error } = await supabase
-    .from("documents")
-    .update({
-      gemini_conversation: conversation,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", documentId);
-
-  if (error) {
-    console.error("[AutoForm] Failed to append to conversation:", error);
-    throw error;
-  }
-}
-
-// Get conversation history
-export async function getConversationHistory(
-  documentId: string
-): Promise<GeminiMessage[]> {
-  const supabase = createAdminClient();
-
-  const { data, error } = await supabase
-    .from("documents")
-    .select("gemini_conversation")
-    .eq("id", documentId)
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return (data?.gemini_conversation as GeminiMessage[]) || [];
 }
 
 // Save a question to the database (with retry for transient errors)

@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getDocument } from "@/lib/storage";
+import { getDocument, getPageImageBase64 } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkAndFinalizeIfReady } from "@/lib/orchestrator/question-finalization";
 import { generateQuestions } from "@/lib/orchestrator/question-generator";
-import { getPageImageBase64 } from "@/lib/storage";
 
 // Allow up to 5 minutes for question generation (Vercel Pro limit)
 export const maxDuration = 300;
@@ -12,9 +10,10 @@ export const maxDuration = 300;
 /**
  * POST /api/documents/[id]/context - Submit context and trigger question generation
  *
- * When context is submitted:
- * - If extraction complete → generate questions with context
- * - If still extracting → questions generated when extraction completes
+ * Flow:
+ * 1. Save context to document
+ * 2. If field extraction is complete, generate questions with full document context
+ * 3. If still extracting, questions will be generated when extraction completes
  */
 export async function POST(
   request: NextRequest,
@@ -45,7 +44,14 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { context, skip, useMemory } = body;
+    const {
+      context,
+      skip,
+      useMemory,
+      clientDateTime,
+      clientTimeZone,
+      clientTimeZoneOffsetMinutes,
+    } = body;
 
     const adminClient = createAdminClient();
 
@@ -65,108 +71,69 @@ export async function POST(
       hasContext: !!context,
       skipped: !!skip,
       useMemory: useMemory !== undefined ? useMemory : true,
-      qcComplete: document.fields_qc_complete,
-      pregenerated: document.questions_pregenerated,
+      fieldsComplete: document.fields_qc_complete,
     });
 
-    // PRE-WARM PATH: Try to finalize pre-generated questions
-    // This is the fast path - questions appear instantly if pre-gen + QC are ready
-    const finalized = await checkAndFinalizeIfReady(documentId, user.id);
-
-    if (finalized) {
-      const totalDuration = Date.now() - contextStartTime;
-      console.log(`[AutoForm] ⏱️ CONTEXT ROUTE COMPLETE - INSTANT FINALIZATION (${(totalDuration / 1000).toFixed(1)}s):`, {
-        documentId,
-        durationMs: totalDuration,
-      });
-
-      return NextResponse.json({
-        success: true,
-        message: skip
-          ? "Skipped context, questions finalized"
-          : "Context saved, questions finalized",
-        finalized: true,
-        instant: true,
-      });
-    }
-
-    // Check fresh document state
+    // Check if questions were already generated (race condition)
     const freshDoc = await getDocument(documentId);
-
-    // If questions were already generated (race condition), we're done
     if (freshDoc?.questions_generated_at) {
       const totalDuration = Date.now() - contextStartTime;
-      console.log(`[AutoForm] ⏱️ CONTEXT ROUTE COMPLETE - ALREADY GENERATED (${(totalDuration / 1000).toFixed(1)}s):`, {
-        documentId,
-      });
+      console.log(`[AutoForm] ⏱️ CONTEXT ROUTE COMPLETE - ALREADY GENERATED (${(totalDuration / 1000).toFixed(1)}s)`);
 
       return NextResponse.json({
         success: true,
         message: "Context saved, questions already generated",
-        finalized: true,
       });
     }
 
-    // FALLBACK PATH: Pre-generation didn't run or failed
-    // Generate questions directly if needed
-    if (!freshDoc?.questions_pregenerated) {
-      console.log("[AutoForm] Pre-generation not complete, falling back to direct generation:", {
-        documentId,
-        qcComplete: freshDoc?.fields_qc_complete,
-        pregenerated: freshDoc?.questions_pregenerated,
-      });
+    // Generate questions if field extraction is complete
+    const pageImages = freshDoc?.page_images || [];
 
-      // Get page images for question generation
-      const pageImages = freshDoc?.page_images || [];
+    if (pageImages.length > 0 && freshDoc?.fields_qc_complete) {
+      const pageImagesWithBase64 = await Promise.all(
+        pageImages.map(async (p: { page: number; storage_path: string }) => ({
+          pageNumber: p.page,
+          imageBase64: await getPageImageBase64(p.storage_path).catch(() => ""),
+        }))
+      );
 
-      if (pageImages.length > 0) {
-        const pageImagesWithBase64 = await Promise.all(
-          pageImages.map(async (p: { page: number; storage_path: string }) => ({
-            pageNumber: p.page,
-            imageBase64: await getPageImageBase64(p.storage_path).catch(() => ""),
-          }))
-        );
+      const validPageImages = pageImagesWithBase64.filter((p) => p.imageBase64);
 
-        const validPageImages = pageImagesWithBase64.filter((p) => p.imageBase64);
+      if (validPageImages.length > 0) {
+        const result = await generateQuestions({
+          documentId,
+          userId: user.id,
+          pageImages: validPageImages,
+          useMemory: useMemory !== undefined ? useMemory : true,
+          clientDateTime,
+          clientTimeZone,
+          clientTimeZoneOffsetMinutes,
+        });
 
-        if (validPageImages.length > 0) {
-          const result = await generateQuestions({
-            documentId,
-            userId: user.id,
-            pageImages: validPageImages,
-            useMemory: useMemory !== undefined ? useMemory : true,
-          });
+        const totalDuration = Date.now() - contextStartTime;
+        console.log(`[AutoForm] ⏱️ CONTEXT ROUTE COMPLETE - QUESTIONS GENERATED (${(totalDuration / 1000).toFixed(1)}s):`, {
+          documentId,
+          questionsGenerated: result.questionsGenerated,
+          entitiesDetected: result.entitiesDetected,
+        });
 
-          const totalDuration = Date.now() - contextStartTime;
-          console.log(`[AutoForm] ⏱️ CONTEXT ROUTE COMPLETE - FALLBACK GENERATION (${(totalDuration / 1000).toFixed(1)}s):`, {
-            documentId,
-            questionsGenerated: result.questionsGenerated,
-          });
-
-          return NextResponse.json({
-            success: true,
-            message: skip
-              ? "Skipped context, questions generated"
-              : "Context saved, questions generated",
-            questionsGenerated: result.questionsGenerated,
-            fallback: true,
-          });
-        }
+        return NextResponse.json({
+          success: true,
+          message: skip ? "Skipped context, questions generated" : "Context saved, questions generated",
+          questionsGenerated: result.questionsGenerated,
+          entitiesDetected: result.entitiesDetected,
+        });
       }
     }
 
-    // WAITING PATH: Pre-gen exists but QC not complete
-    // Finalization will be triggered by QC completion (field-refinement.ts)
-    console.log("[AutoForm] Context saved, waiting for QC to complete:", {
+    // Field extraction not complete - questions will be generated when it finishes
+    console.log("[AutoForm] Context saved, waiting for field extraction:", {
       documentId,
-      qcComplete: freshDoc?.fields_qc_complete,
-      pregenerated: freshDoc?.questions_pregenerated,
+      fieldsComplete: freshDoc?.fields_qc_complete,
     });
 
     const totalDuration = Date.now() - contextStartTime;
-    console.log(`[AutoForm] ⏱️ CONTEXT ROUTE COMPLETE - WAITING (${(totalDuration / 1000).toFixed(1)}s):`, {
-      documentId,
-    });
+    console.log(`[AutoForm] ⏱️ CONTEXT ROUTE COMPLETE - WAITING (${(totalDuration / 1000).toFixed(1)}s)`);
 
     return NextResponse.json({
       success: true,

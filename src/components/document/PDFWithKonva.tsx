@@ -107,6 +107,7 @@ export function PDFWithKonva({
   const [expectingNewField, setExpectingNewField] = useState(false);
   // Track actual page dimensions from rendered canvas (not hardcoded)
   const [pageDimensions, setPageDimensions] = useState<Map<number, { width: number; height: number }>>(new Map());
+  const [localCoords, setLocalCoords] = useState<Record<string, NormalizedCoordinates>>({});
 
   // Calculate scaled dimensions from actual page dimensions
   const scaledWidth = containerWidth * scale;
@@ -160,6 +161,35 @@ export function PDFWithKonva({
   // Clear deleted fields when fields update
   useEffect(() => {
     setDeletedFieldIds(new Set());
+  }, [fields]);
+
+  useEffect(() => {
+    if (fields.length === 0) return;
+
+    setLocalCoords((prev) => {
+      const next: Record<string, NormalizedCoordinates> = { ...prev };
+      const fieldMap = new Map(fields.map((f) => [f.id, f.coordinates]));
+
+      for (const [fieldId, coords] of Object.entries(prev)) {
+        const serverCoords = fieldMap.get(fieldId);
+        if (!serverCoords) {
+          delete next[fieldId];
+          continue;
+        }
+
+        const isClose =
+          Math.abs(coords.left - serverCoords.left) < 0.1 &&
+          Math.abs(coords.top - serverCoords.top) < 0.1 &&
+          Math.abs(coords.width - serverCoords.width) < 0.1 &&
+          Math.abs(coords.height - serverCoords.height) < 0.1;
+
+        if (isClose) {
+          delete next[fieldId];
+        }
+      }
+
+      return next;
+    });
   }, [fields]);
 
   // Track when a new field is created (activeFieldId changes while expecting)
@@ -222,6 +252,9 @@ export function PDFWithKonva({
   const pageFields = fields.filter(
     (f) => f.page_number === currentPage && !deletedFieldIds.has(f.id)
   );
+  const mergedPageFields = pageFields.map((field) =>
+    localCoords[field.id] ? { ...field, coordinates: localCoords[field.id] } : field
+  );
 
   // Field interaction handlers
   const handleFieldClick = useCallback((fieldId: string | null) => {
@@ -248,6 +281,14 @@ export function PDFWithKonva({
 
     onFieldChange(fieldId, selected.join(","));
   }, [fieldValues, onFieldChange]);
+
+  const handleFieldCoordinatesChange = useCallback(
+    (fieldId: string, coords: NormalizedCoordinates) => {
+      setLocalCoords((prev) => ({ ...prev, [fieldId]: coords }));
+      onFieldCoordinatesChange?.(fieldId, coords);
+    },
+    [onFieldCoordinatesChange]
+  );
 
   // Signature handlers
   const handleSignatureClick = useCallback((fieldId: string, type: SignatureType) => {
@@ -410,7 +451,7 @@ export function PDFWithKonva({
                   pageWidth={scaledWidth}
                   pageHeight={scaledHeight}
                   scale={1} // Scale already applied to dimensions
-                  fields={pageFields}
+                  fields={mergedPageFields}
                   fieldValues={fieldValues}
                   activeFieldId={activeFieldId || null}
                   newFieldId={newFieldId}
@@ -420,13 +461,14 @@ export function PDFWithKonva({
                   hideFieldColors={hideFieldColors}
                   onFieldClick={handleFieldClick}
                   onFieldValueChange={onFieldChange}
-                  onFieldCoordinatesChange={onFieldCoordinatesChange}
+                  onFieldCoordinatesChange={handleFieldCoordinatesChange}
                   onChoiceToggle={handleChoiceToggle}
                   onStageBackgroundClick={handleStageBackgroundClick}
                   onDeleteActiveField={(fieldId) => {
                     setDeletedFieldIds((prev) => new Set([...prev, fieldId]));
                     onFieldDelete?.(fieldId);
                   }}
+                  onSignatureClick={handleSignatureClick}
                   stageRef={stageRef}
                 />
               </div>

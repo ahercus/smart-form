@@ -190,10 +190,12 @@ export interface Document {
   context_submitted: boolean;
   fields_qc_complete: boolean; // True when field extraction is complete
   questions_generated_at: string | null; // When questions were generated (prevents duplicate)
-  questions_pregenerated: boolean; // True when questions pre-generated (before context submission)
   tailored_context_question: string | null; // AI-generated context question based on document
   use_memory: boolean; // Whether to use saved memories for auto-fill
   page_images: PageImage[];
+  // OCR text extracted via Azure Document Intelligence (for question generation context)
+  ocr_text: string | null;
+  ocr_completed_at: string | null;
   created_at: string;
   updated_at: string;
   // Optional field completion stats (populated on dashboard)

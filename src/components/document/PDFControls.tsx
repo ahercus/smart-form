@@ -11,8 +11,7 @@ import {
   Plus,
   Trash2,
   PenTool,
-  Eye,
-  EyeOff,
+  Layers2,
 } from "lucide-react";
 
 interface PDFControlsProps {
@@ -140,7 +139,7 @@ export function PDFControls({
           onClick={onToggleFieldColors}
           title={hideFieldColors ? "Show field highlights" : "Hide field highlights"}
         >
-          {hideFieldColors ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          <Layers2 className="h-4 w-4" />
         </Button>
       </div>
 

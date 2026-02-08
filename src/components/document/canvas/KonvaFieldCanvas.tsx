@@ -17,7 +17,7 @@ import type Konva from "konva";
 import { GridLayer } from "./GridLayer";
 import { FieldShape } from "./FieldShape";
 import { FloatingInput } from "./FloatingInput";
-import type { ExtractedField, NormalizedCoordinates } from "@/lib/types";
+import type { ExtractedField, NormalizedCoordinates, SignatureType } from "@/lib/types";
 
 interface KonvaFieldCanvasProps {
   /** PDF page rendered as image (data URL or HTMLImageElement) */
@@ -52,6 +52,8 @@ interface KonvaFieldCanvasProps {
   onStageBackgroundClick?: () => void;
   /** Called when user presses delete on a selected field */
   onDeleteActiveField?: (fieldId: string) => void;
+  /** Called when a signature/initials field is clicked */
+  onSignatureClick?: (fieldId: string, type: SignatureType) => void;
   /** Ref to access stage for export */
   stageRef?: React.RefObject<StageType | null>;
 }
@@ -75,6 +77,7 @@ export function KonvaFieldCanvas({
   onChoiceToggle,
   onStageBackgroundClick,
   onDeleteActiveField,
+  onSignatureClick,
   stageRef: externalStageRef,
 }: KonvaFieldCanvasProps) {
   const internalStageRef = useRef<StageType>(null);
@@ -165,6 +168,12 @@ export function KonvaFieldCanvas({
         return;
       }
 
+      if (field.field_type === "signature" || field.field_type === "initials") {
+        onFieldClick(field.id);
+        onSignatureClick?.(field.id, field.field_type as SignatureType);
+        return;
+      }
+
       // Checkbox: toggle immediately (no selection state)
       if (field.field_type === "checkbox") {
         const currentValue = fieldValues[field.id] || "";
@@ -199,6 +208,12 @@ export function KonvaFieldCanvas({
         onStageBackgroundClick?.();
       }
 
+      if (field.field_type === "signature" || field.field_type === "initials") {
+        onFieldClick(field.id);
+        onSignatureClick?.(field.id, field.field_type as SignatureType);
+        return;
+      }
+
       if (field.field_type === "checkbox") {
         const currentValue = fieldValues[field.id] || "";
         const newValue = currentValue === "yes" || currentValue === "true" ? "" : "yes";
@@ -212,7 +227,7 @@ export function KonvaFieldCanvas({
         startEditing(field);
       }
     },
-    [fieldValues, isTextType, layoutMode, onFieldClick, onFieldValueChange, onStageBackgroundClick, startEditing]
+    [fieldValues, isTextType, layoutMode, onFieldClick, onFieldValueChange, onSignatureClick, onStageBackgroundClick, startEditing]
   );
 
   // Handle field drag end - update coordinates
@@ -384,7 +399,11 @@ export function KonvaFieldCanvas({
         return;
       }
 
-      if ((e.key === "Delete" || e.key === "Backspace") && layoutMode && activeFieldId) {
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        activeFieldId &&
+        !editingFieldId
+      ) {
         e.preventDefault();
         onDeleteActiveField?.(activeFieldId);
         return;

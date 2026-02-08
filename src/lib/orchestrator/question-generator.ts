@@ -1,17 +1,23 @@
-// Question generation orchestrator
-//
-// This runs AFTER field QC is complete (triggered by /context route).
-// The /context route waits for fields_qc_complete before calling this.
-//
-// Flow:
-// 1. Set phase to "displaying" - fields visible, questions being generated
-// 2. Generate questions for each page (one Gemini call per page)
-// 3. Set phase to "ready" - all done
+/**
+ * Question generation orchestrator
+ *
+ * NEW ARCHITECTURE: Single consolidated question writer
+ *
+ * This runs AFTER field extraction is complete.
+ * Receives full document context:
+ * - All fields from all pages
+ * - Full document OCR text (from Azure)
+ * - User's saved memory context
+ *
+ * Generates questions that can span multiple pages,
+ * with intelligent entity detection and field grouping.
+ */
 
-import { updateProcessingProgress } from "./state";
-import { processPages } from "./page-processor";
+import { updateProcessingProgress, saveQuestion, batchUpdateFieldValues } from "./state";
 import { createAdminClient } from "../supabase/admin";
-import { StepTimer, formatDuration } from "../timing";
+import { waitForOcr } from "../azure/ocr";
+import { getEntityMemoryContext } from "../memory/context";
+import { generateDocumentQuestions } from "../gemini/vision/document-questions";
 import type { ExtractedField } from "../types";
 
 interface QuestionGeneratorParams {
@@ -22,25 +28,37 @@ interface QuestionGeneratorParams {
     imageBase64: string;
   }>;
   useMemory?: boolean;
+  clientDateTime?: string;
+  clientTimeZone?: string;
+  clientTimeZoneOffsetMinutes?: number;
 }
 
 export interface QuestionGeneratorResult {
   success: boolean;
   questionsGenerated: number;
+  entitiesDetected: number;
   error?: string;
 }
 
 export async function generateQuestions(
   params: QuestionGeneratorParams
 ): Promise<QuestionGeneratorResult> {
-  const { documentId, userId, pageImages, useMemory = true } = params;
+  const {
+    documentId,
+    userId,
+    pageImages,
+    useMemory = true,
+    clientDateTime,
+    clientTimeZone,
+    clientTimeZoneOffsetMinutes,
+  } = params;
 
   const supabase = createAdminClient();
 
   // Check for existing processing lock and questions_generated_at to prevent duplicate runs
   const { data: doc } = await supabase
     .from("documents")
-    .select("status, processing_lock, questions_generated_at")
+    .select("status, processing_lock, questions_generated_at, context_notes")
     .eq("id", documentId)
     .single();
 
@@ -57,6 +75,7 @@ export async function generateQuestions(
     return {
       success: true,
       questionsGenerated: 0,
+      entitiesDetected: 0,
     };
   }
 
@@ -69,6 +88,7 @@ export async function generateQuestions(
     return {
       success: true,
       questionsGenerated: 0,
+      entitiesDetected: 0,
     };
   }
 
@@ -84,16 +104,25 @@ export async function generateQuestions(
 
   const questionGenStartTime = Date.now();
   console.log("[AutoForm] ==========================================");
-  console.log("[AutoForm] ⏱️ QUESTION GENERATION START:", {
+  console.log("[AutoForm] ⏱️ QUESTION GENERATION START (Document-Wide):", {
     documentId,
     userId,
-    pageImageCount: pageImages.length,
-    pageNumbers: pageImages.map((p) => p.pageNumber),
+    pageCount: pageImages.length,
   });
   console.log("[AutoForm] ==========================================");
 
   try {
-    // Get existing fields from database
+    // Phase: DISPLAYING - Fields visible, questions being generated
+    await updateProcessingProgress(documentId, {
+      phase: "displaying",
+      pagesTotal: pageImages.length,
+      pagesComplete: 0,
+      questionsDelivered: 0,
+    });
+
+    await updateDocumentStatus(documentId, "extracting");
+
+    // Get ALL fields from database
     const { data: fields, error: fieldsError } = await supabase
       .from("extracted_fields")
       .select("*")
@@ -106,84 +135,114 @@ export async function generateQuestions(
       throw new Error(`Failed to get fields: ${fieldsError.message}`);
     }
 
-    console.log("[AutoForm] Fields fetched from database:", {
+    console.log("[AutoForm] All fields fetched:", {
       documentId,
       fieldCount: fields?.length || 0,
     });
 
-    // If no fields were extracted yet, Gemini will analyze pages directly
     if (!fields || fields.length === 0) {
-      console.log("[AutoForm] No fields found, Gemini Vision will analyze pages directly:", {
-        documentId,
-      });
+      console.log("[AutoForm] No fields found, skipping question generation");
+      await finalize(documentId, 0, pageImages.length);
+      return {
+        success: true,
+        questionsGenerated: 0,
+        entitiesDetected: 0,
+      };
     }
 
-    // Phase: DISPLAYING - Fields visible, questions being generated
-    await updateProcessingProgress(documentId, {
-      phase: "displaying",
-      pagesTotal: pageImages.length,
-      pagesComplete: 0,
-      questionsDelivered: 0,
+    // Wait for OCR to complete (runs in parallel with field extraction)
+    console.log("[AutoForm] Waiting for OCR to complete...");
+    const ocrText = await waitForOcr(documentId, 45000); // 45 second max wait
+    console.log("[AutoForm] OCR text received:", {
+      documentId,
+      textLength: ocrText.length,
+      preview: ocrText.slice(0, 200),
     });
 
-    await updateDocumentStatus(documentId, "extracting");
+    // Get user's memory context
+    const memoryContext = useMemory ? await getEntityMemoryContext(userId) : "";
+    console.log("[AutoForm] Memory context:", {
+      documentId,
+      hasMemory: !!memoryContext,
+      memoryLength: memoryContext.length,
+    });
 
-    // Group fields by page
-    const fieldsByPage = new Map<number, ExtractedField[]>();
-    for (const field of fields) {
-      const pageFields = fieldsByPage.get(field.page_number) || [];
-      pageFields.push(field as ExtractedField);
-      fieldsByPage.set(field.page_number, pageFields);
+    // Generate questions with full document context
+    const result = await generateDocumentQuestions({
+      documentId,
+      fields: fields as ExtractedField[],
+      ocrText,
+      memoryContext,
+      contextNotes: doc?.context_notes || undefined,
+      clientDateTime,
+      clientTimeZone,
+      clientTimeZoneOffsetMinutes,
+    });
+
+    // Save questions to database
+    let savedCount = 0;
+    for (const q of result.questions) {
+      try {
+        // Determine page number from first field (for sorting/display purposes)
+        const firstFieldId = q.fieldIds[0];
+        const firstField = fields.find((f) => f.id === firstFieldId);
+        const pageNumber = firstField?.page_number || 1;
+
+        await saveQuestion(documentId, {
+          question: q.question,
+          fieldIds: q.fieldIds,
+          inputType: q.inputType as ExtractedField["field_type"],
+          profileKey: q.profileKey,
+          pageNumber,
+          choices: q.choices,
+        });
+        savedCount++;
+      } catch (error) {
+        console.error("[AutoForm] Failed to save question, continuing:", {
+          documentId,
+          question: q.question.slice(0, 50),
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
     }
 
-    // Process pages with images
-    // Note: Field QC is already complete at this point (context route waits for it)
-    const pagesToProcess = pageImages.map((img) => ({
-      pageNumber: img.pageNumber,
-      imageBase64: img.imageBase64,
-      fields: fieldsByPage.get(img.pageNumber) || [],
-    }));
-
-    const pageResults = await processPages(documentId, userId, pagesToProcess, useMemory);
-
-    const totalQuestions = pageResults.reduce((sum, r) => sum + r.questionsGenerated, 0);
-    const totalAutoAnswered = pageResults.reduce((sum, r) => sum + r.autoAnswered, 0);
-    const totalTime = pageResults.reduce((sum, r) => sum + r.timings.total, 0);
+    // Apply auto-answered fields
+    let autoAnsweredCount = 0;
+    if (result.autoAnswered.length > 0) {
+      try {
+        await batchUpdateFieldValues(
+          result.autoAnswered.map((a) => ({
+            fieldId: a.fieldId,
+            value: a.value,
+          }))
+        );
+        autoAnsweredCount = result.autoAnswered.length;
+      } catch (error) {
+        console.error("[AutoForm] Failed to apply auto-answers, continuing:", {
+          documentId,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
 
     const questionGenDuration = Date.now() - questionGenStartTime;
     console.log("[AutoForm] ==========================================");
     console.log(`[AutoForm] ⏱️ QUESTION GENERATION COMPLETE (${(questionGenDuration / 1000).toFixed(1)}s):`, {
       documentId,
-      totalQuestions,
-      totalAutoAnswered,
-      pagesProcessed: pageResults.length,
-      wallClockTime: `${(questionGenDuration / 1000).toFixed(1)}s`,
-      perPageSumTime: formatDuration(totalTime),
+      entitiesDetected: result.entities.length,
+      questionsGenerated: savedCount,
+      autoAnswered: autoAnsweredCount,
+      skipped: result.skippedFields.length,
+      entities: result.entities.map((e) => e.label),
     });
     console.log("[AutoForm] ==========================================");
 
-    // Phase: READY - All done
-    await updateProcessingProgress(documentId, {
-      phase: "ready",
-      pagesComplete: pageImages.length,
-      questionsDelivered: totalQuestions,
-    });
-
-    await updateDocumentStatus(documentId, "ready");
-
-    // Clear processing lock and mark questions as generated (only if we actually generated some)
-    // If 0 questions generated (e.g., fields not ready yet), don't set timestamp so retry can happen
-    await supabase
-      .from("documents")
-      .update({
-        processing_lock: null,
-        questions_generated_at: totalQuestions > 0 ? new Date().toISOString() : null,
-      })
-      .eq("id", documentId);
+    await finalize(documentId, savedCount, pageImages.length);
 
     return {
       success: true,
-      questionsGenerated: totalQuestions,
+      questionsGenerated: savedCount,
+      entitiesDetected: result.entities.length,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -193,13 +252,11 @@ export async function generateQuestions(
     });
 
     // GRACEFUL DEGRADATION: Set status to "ready" so user can still fill form manually
-    // The AI assistant won't have questions, but fields are still usable
     await updateProcessingProgress(documentId, {
       phase: "ready",
       error: `AI assistant unavailable: ${errorMessage}`,
     });
 
-    // Document is still usable - just without AI questions
     await updateDocumentStatus(documentId, "ready");
 
     // Clear processing lock
@@ -216,9 +273,36 @@ export async function generateQuestions(
     return {
       success: false,
       questionsGenerated: 0,
+      entitiesDetected: 0,
       error: errorMessage,
     };
   }
+}
+
+async function finalize(
+  documentId: string,
+  questionsGenerated: number,
+  pageCount: number
+): Promise<void> {
+  const supabase = createAdminClient();
+
+  // Phase: READY - All done
+  await updateProcessingProgress(documentId, {
+    phase: "ready",
+    pagesComplete: pageCount,
+    questionsDelivered: questionsGenerated,
+  });
+
+  await updateDocumentStatus(documentId, "ready");
+
+  // Clear processing lock and mark questions as generated
+  await supabase
+    .from("documents")
+    .update({
+      processing_lock: null,
+      questions_generated_at: questionsGenerated > 0 ? new Date().toISOString() : null,
+    })
+    .eq("id", documentId);
 }
 
 async function updateDocumentStatus(

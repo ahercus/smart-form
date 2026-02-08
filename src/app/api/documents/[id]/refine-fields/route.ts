@@ -30,6 +30,19 @@ export async function POST(
   const { id: documentId } = await params;
 
   try {
+    let clientDateTime: string | undefined;
+    let clientTimeZone: string | undefined;
+    let clientTimeZoneOffsetMinutes: number | undefined;
+
+    try {
+      const body = await request.json();
+      clientDateTime = body?.clientDateTime;
+      clientTimeZone = body?.clientTimeZone;
+      clientTimeZoneOffsetMinutes = body?.clientTimeZoneOffsetMinutes;
+    } catch {
+      // No JSON body provided
+    }
+
     const document = await getDocument(documentId);
     if (!document) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 });
@@ -137,6 +150,9 @@ export async function POST(
           userId: user.id,
           pageImages: validPageImages,
           useMemory: freshDoc.use_memory ?? true,
+          clientDateTime,
+          clientTimeZone,
+          clientTimeZoneOffsetMinutes,
         });
         questionsGenerated = result.questionsGenerated;
 

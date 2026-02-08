@@ -38,8 +38,16 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { pages } = body as {
+    const {
+      pages,
+      clientDateTime,
+      clientTimeZone,
+      clientTimeZoneOffsetMinutes,
+    } = body as {
       pages: Array<{ pageNumber: number; imageData: string }>;
+      clientDateTime?: string;
+      clientTimeZone?: string;
+      clientTimeZoneOffsetMinutes?: number;
     };
 
     if (!pages || !Array.isArray(pages) || pages.length === 0) {
@@ -109,8 +117,14 @@ export async function POST(
       fetch(`${baseUrl}/api/documents/${documentId}/refine-fields`, {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           Cookie: request.headers.get("cookie") || "",
         },
+        body: JSON.stringify({
+          clientDateTime,
+          clientTimeZone,
+          clientTimeZoneOffsetMinutes,
+        }),
       })
         .then(async (res) => {
           const data = await res.json().catch(() => ({}));
@@ -180,6 +194,9 @@ export async function POST(
           documentId,
           userId: user.id,
           pageImages,
+          clientDateTime,
+          clientTimeZone,
+          clientTimeZoneOffsetMinutes,
         });
 
         return NextResponse.json({

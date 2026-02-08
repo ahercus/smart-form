@@ -3,8 +3,15 @@ import type { ExtractedField } from "../../types";
 export function buildAnswerParsingPrompt(
   question: string,
   answer: string,
-  fields: Array<{ id: string; label: string; fieldType: string }>
+  fields: Array<{ id: string; label: string; fieldType: string }>,
+  clientDateTime?: string,
+  clientTimeZone?: string,
+  clientTimeZoneOffsetMinutes?: number
 ): string {
+  const timeSection = clientDateTime
+    ? `\n## Current Client Date/Time\nLocal time: ${clientDateTime}${clientTimeZone ? `\nTime zone: ${clientTimeZone}` : ""}${clientTimeZoneOffsetMinutes !== undefined ? `\nUTC offset (minutes): ${clientTimeZoneOffsetMinutes}` : ""}\n\nUse this when the answer references relative dates like "today" or "next Friday".\n`
+    : "";
+
   return `The user answered a form question. Parse their answer and distribute the correct values to each field.
 
 ## Question Asked
@@ -15,6 +22,7 @@ export function buildAnswerParsingPrompt(
 
 ## Fields to Fill
 ${JSON.stringify(fields, null, 2)}
+${timeSection}
 
 ## Your Task
 Parse the user's natural language answer and extract the appropriate value for EACH field based on its label and type.
@@ -114,8 +122,15 @@ Return ONLY the JSON object, nothing else.`;
 
 export function buildSingleFieldFormattingPrompt(
   answer: string,
-  field: { label: string; fieldType: string }
+  field: { label: string; fieldType: string },
+  clientDateTime?: string,
+  clientTimeZone?: string,
+  clientTimeZoneOffsetMinutes?: number
 ): string {
+  const timeSection = clientDateTime
+    ? `\n## Current Client Date/Time\nLocal time: ${clientDateTime}${clientTimeZone ? `\nTime zone: ${clientTimeZone}` : ""}${clientTimeZoneOffsetMinutes !== undefined ? `\nUTC offset (minutes): ${clientTimeZoneOffsetMinutes}` : ""}\n\nUse this when the input references relative dates like "today" or "tomorrow".\n`
+    : "";
+
   return `Format this form field value for professional output.
 
 ## Field
@@ -124,6 +139,7 @@ Type: "${field.fieldType}"
 
 ## User's Input
 "${answer}"
+${timeSection}
 
 ## Formatting Rules
 Clean up the user's rough input for a professional form. Apply these rules:
@@ -156,7 +172,10 @@ Return ONLY the JSON object.`;
 export function buildAnswerReevaluationPrompt(
   newAnswer: { question: string; answer: string },
   pendingQuestions: Array<{ id: string; question: string; fieldIds: string[] }>,
-  fields: ExtractedField[]
+  fields: ExtractedField[],
+  clientDateTime?: string,
+  clientTimeZone?: string,
+  clientTimeZoneOffsetMinutes?: number
 ): string {
   const fieldsMap = Object.fromEntries(fields.map((f) => [f.id, f]));
   const formattedPending = pendingQuestions.map((q) => ({
@@ -165,11 +184,16 @@ export function buildAnswerReevaluationPrompt(
     targetFields: q.fieldIds.map((id) => fieldsMap[id]?.label).filter(Boolean),
   }));
 
+  const timeSection = clientDateTime
+    ? `\n## Current Client Date/Time\nLocal time: ${clientDateTime}${clientTimeZone ? `\nTime zone: ${clientTimeZone}` : ""}${clientTimeZoneOffsetMinutes !== undefined ? `\nUTC offset (minutes): ${clientTimeZoneOffsetMinutes}` : ""}\n\nUse this when the answer references relative dates like "today".\n`
+    : "";
+
   return `The user just answered a question. Check if this answer provides EXPLICIT, DIRECT information that can auto-answer other pending questions.
 
 ## User's Answer
 QUESTION ANSWERED: "${newAnswer.question}"
 USER'S RESPONSE: "${newAnswer.answer}"
+${timeSection}
 
 ## Pending Questions (READ THE QUESTION TEXT CAREFULLY)
 Each pending question has a "questionText" that specifies EXACTLY what information it's asking for and WHO it's about.

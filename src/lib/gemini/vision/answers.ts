@@ -30,12 +30,16 @@ interface ParseAnswerParams {
     fieldType: string;
     choiceOptions?: ChoiceOption[];
   }>;
+  clientDateTime?: string;
+  clientTimeZone?: string;
+  clientTimeZoneOffsetMinutes?: number;
 }
 
 export async function parseAnswerForFields(
   params: ParseAnswerParams
 ): Promise<ParseAnswerResult> {
   const { question, answer, fields } = params;
+  const { clientDateTime, clientTimeZone, clientTimeZoneOffsetMinutes } = params;
 
   if (fields.length === 1) {
     const field = fields[0];
@@ -89,10 +93,10 @@ export async function parseAnswerForFields(
 
     try {
       const model = getFastModel();
-      const prompt = buildSingleFieldFormattingPrompt(answer, {
+    const prompt = buildSingleFieldFormattingPrompt(answer, {
         label: field.label,
         fieldType: field.fieldType,
-      });
+      }, clientDateTime, clientTimeZone, clientTimeZoneOffsetMinutes);
 
       const result = await model.generateContent(prompt);
       const text = result.response.text();
@@ -133,7 +137,14 @@ export async function parseAnswerForFields(
 
   try {
     const model = getFastModel(answerParsingSchema);
-    const prompt = buildAnswerParsingPrompt(question, answer, fields);
+    const prompt = buildAnswerParsingPrompt(
+      question,
+      answer,
+      fields,
+      clientDateTime,
+      clientTimeZone,
+      clientTimeZoneOffsetMinutes
+    );
 
     const result = await model.generateContent(prompt);
     const response = result.response;
@@ -199,12 +210,15 @@ interface ReevaluateParams {
   newAnswer: { question: string; answer: string };
   pendingQuestions: Array<{ id: string; question: string; fieldIds: string[] }>;
   fields: ExtractedField[];
+  clientDateTime?: string;
+  clientTimeZone?: string;
+  clientTimeZoneOffsetMinutes?: number;
 }
 
 export async function reevaluatePendingQuestions(
   params: ReevaluateParams
 ): Promise<Array<{ questionId: string; answer: string; reasoning: string }>> {
-  const { newAnswer, pendingQuestions, fields } = params;
+  const { newAnswer, pendingQuestions, fields, clientDateTime, clientTimeZone, clientTimeZoneOffsetMinutes } = params;
 
   if (pendingQuestions.length === 0) {
     return [];
@@ -217,7 +231,14 @@ export async function reevaluatePendingQuestions(
 
   const model = getFastModel();
 
-  const prompt = buildAnswerReevaluationPrompt(newAnswer, pendingQuestions, fields);
+  const prompt = buildAnswerReevaluationPrompt(
+    newAnswer,
+    pendingQuestions,
+    fields,
+    clientDateTime,
+    clientTimeZone,
+    clientTimeZoneOffsetMinutes
+  );
 
   const result = await model.generateContent(prompt);
   const response = result.response;

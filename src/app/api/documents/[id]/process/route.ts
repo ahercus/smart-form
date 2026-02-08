@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
   getDocument,
+  getFile,
   updateDocumentStatus,
 } from "@/lib/storage";
+import { runOcrAndSave } from "@/lib/azure/ocr";
 import type { DocumentStatus } from "@/lib/types";
 
 /**
@@ -67,6 +69,22 @@ export async function POST(
 
     // Mark as extracting - field extraction will happen via /refine-fields
     await updateDocumentStatus(id, "extracting" as DocumentStatus);
+
+    // Start Azure OCR in parallel (fire and forget)
+    // This runs alongside field extraction to provide document context for question generation
+    if (document.storage_path) {
+      getFile(document.storage_path)
+        .then((pdfBuffer) => {
+          console.log("[AutoForm] Starting Azure OCR in parallel:", { documentId: id });
+          return runOcrAndSave(id, pdfBuffer);
+        })
+        .catch((err) => {
+          console.error("[AutoForm] Failed to start OCR:", {
+            documentId: id,
+            error: err instanceof Error ? err.message : "Unknown error",
+          });
+        });
+    }
 
     const totalProcessDuration = Date.now() - processStartTime;
     console.log("[AutoForm] ⏱️ PROCESS ROUTE COMPLETE:", {

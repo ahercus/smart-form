@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
+import { getClientDateTimePayload } from "@/lib/client-time";
 import type { QuestionGroup, MemoryChoice } from "@/lib/types";
 
 interface UseQuestionsParams {
@@ -41,7 +42,7 @@ export function useQuestions({ questions, documentId }: UseQuestionsParams) {
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ questionId, answer }),
+            body: JSON.stringify({ questionId, answer, ...getClientDateTimePayload() }),
           }
         );
 
@@ -83,7 +84,11 @@ export function useQuestions({ questions, documentId }: UseQuestionsParams) {
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ questionId, memoryChoice: choice }),
+            body: JSON.stringify({
+              questionId,
+              memoryChoice: choice,
+              ...getClientDateTimePayload(),
+            }),
           }
         );
 

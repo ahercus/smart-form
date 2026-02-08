@@ -540,22 +540,20 @@ export function DocumentPageContent({ documentId }: DocumentPageContentProps) {
   // - context: show context input (context not submitted yet)
   // - analyzing: context submitted, waiting for page 1 fields
   // - ready: page 1 fields arrived, document is editable
-  const getSetupCardState = (): SetupCardState | "ready" => {
-    if (!document) return "context";
+  const getSetupCardState = (): SetupCardState | "ready" | "loading" => {
+    if (!document) return loading ? "loading" : "context";
     if (!contextSubmitted) return "context";
     if (!hasPage1Fields) return "analyzing";
     return "ready";
   };
 
   const setupCardState = getSetupCardState();
-  const showSetupCard = setupCardState !== "ready";
+  const showSetupCard = setupCardState !== "ready" && setupCardState !== "loading";
 
   // Progress for SetupCard
   const setupProgress = progress
     ? { current: progress.pagesComplete, total: progress.pagesTotal }
     : undefined;
-
-  // No loading guard - fall through to main render so context card shows immediately
 
   if (error && !document) {
     return (

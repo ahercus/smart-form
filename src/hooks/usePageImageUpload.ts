@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { getClientDateTimePayload } from "@/lib/client-time";
 
 interface PageImage {
   pageNumber: number;
@@ -85,7 +86,10 @@ export function usePageImageUpload({
       const response = await fetch(`/api/documents/${documentId}/pages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pages: pagesToUpload }),
+        body: JSON.stringify({
+          pages: pagesToUpload,
+          ...getClientDateTimePayload(),
+        }),
       });
 
       if (!response.ok) {

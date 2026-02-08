@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getClientDateTimePayload } from "@/lib/client-time";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MicrophoneButton } from "@/components/ui/microphone-button";
@@ -86,7 +87,11 @@ export function ContextInputPanel({
       const response = await fetch(`/api/documents/${documentId}/context`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ context: context.trim(), useMemory }),
+        body: JSON.stringify({
+          context: context.trim(),
+          useMemory,
+          ...getClientDateTimePayload(),
+        }),
       });
 
       if (!response.ok) {
@@ -108,7 +113,12 @@ export function ContextInputPanel({
       const response = await fetch(`/api/documents/${documentId}/context`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ context: "", skip: true, useMemory }),
+        body: JSON.stringify({
+          context: "",
+          skip: true,
+          useMemory,
+          ...getClientDateTimePayload(),
+        }),
       });
 
       if (!response.ok) {

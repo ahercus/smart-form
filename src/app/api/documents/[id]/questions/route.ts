@@ -85,7 +85,14 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { questionId, answer, memoryChoice } = body;
+    const {
+      questionId,
+      answer,
+      memoryChoice,
+      clientDateTime,
+      clientTimeZone,
+      clientTimeZoneOffsetMinutes,
+    } = body;
 
     if (!questionId || (answer === undefined && !memoryChoice)) {
       return NextResponse.json(
@@ -183,6 +190,9 @@ export async function PATCH(
         question: question.question,
         answer,
         fields: fieldsForParsing,
+        clientDateTime,
+        clientTimeZone,
+        clientTimeZoneOffsetMinutes,
       });
 
       // Fill fields that have values (even if partial)
@@ -276,7 +286,12 @@ export async function PATCH(
           questionId,
           { question: question.question, answer },
           questions,
-          allFields
+          allFields,
+          {
+            clientDateTime,
+            clientTimeZone,
+            clientTimeZoneOffsetMinutes,
+          }
         );
 
         // Trigger memory extraction in background (if enabled)
@@ -306,7 +321,12 @@ export async function PATCH(
         questionId,
         { question: question.question, answer },
         questions,
-        allFields
+        allFields,
+        {
+          clientDateTime,
+          clientTimeZone,
+          clientTimeZoneOffsetMinutes,
+        }
       );
 
       // Trigger memory extraction in background (if enabled)
@@ -338,7 +358,12 @@ function triggerCrossQuestionAutoFill(
   answeredQuestionId: string,
   newAnswer: { question: string; answer: string },
   allQuestions: QuestionGroup[],
-  allFields: ExtractedField[]
+  allFields: ExtractedField[],
+  clientTime?: {
+    clientDateTime?: string;
+    clientTimeZone?: string;
+    clientTimeZoneOffsetMinutes?: number;
+  }
 ) {
   // Find other visible questions (excluding the one we just answered)
   const pendingQuestions = allQuestions.filter(
@@ -366,6 +391,9 @@ function triggerCrossQuestionAutoFill(
           fieldIds: q.field_ids,
         })),
         fields: allFields,
+        clientDateTime: clientTime?.clientDateTime,
+        clientTimeZone: clientTime?.clientTimeZone,
+        clientTimeZoneOffsetMinutes: clientTime?.clientTimeZoneOffsetMinutes,
       });
 
       if (autoAnswers.length === 0) {

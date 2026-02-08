@@ -1,4 +1,3 @@
-export { buildQuestionGenerationPrompt } from "./questions";
 export {
   buildAnswerParsingPrompt,
   buildSingleFieldFormattingPrompt,
@@ -8,3 +7,7 @@ export {
   buildSinglePageExtractionPrompt,
   SINGLE_PAGE_EXTRACTION_SCHEMA,
 } from "./single-page-extract";
+export {
+  buildDocumentQuestionsPrompt,
+  DOCUMENT_QUESTIONS_SCHEMA,
+} from "./document-questions";
