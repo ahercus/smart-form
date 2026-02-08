@@ -110,6 +110,9 @@ export default function LoginPage() {
               <UserRound className="size-4" />
               {guestLoading ? "Entering demo..." : "Try as Guest"}
             </Button>
+            <p className="text-xs text-muted-foreground text-center -mt-2">
+              No login required. Pre-loaded with demo data.
+            </p>
 
             <p className="text-sm text-muted-foreground text-center">
               Don&apos;t have an account?{" "}

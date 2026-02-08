@@ -12,75 +12,76 @@ import {
   Zap,
   Download,
   Mic,
-  Shield,
+  Camera,
   Upload,
   ScanSearch,
-  PenTool,
+  MessageSquare,
   ArrowRight,
   Github,
   UserRound,
   Sparkles,
+  Repeat,
 } from "lucide-react";
 
 const features = [
   {
-    icon: ScanSearch,
-    title: "AI Field Detection",
+    icon: Camera,
+    title: "PDF or Paper",
     description:
-      "Automatically identifies every form field — text inputs, checkboxes, dates, signatures — with pixel-perfect accuracy.",
+      "Drop a PDF or snap a photo of a paper form. Gemini sees the page, finds every field, and understands what it's actually asking.",
   },
   {
-    icon: Zap,
-    title: "Smart Auto-Fill",
+    icon: MessageSquare,
+    title: "Just Brain Dump",
     description:
-      "Gemini AI matches your saved profile to form fields, filling out entire documents in seconds.",
+      "Say what you know. \"This is for my son Jack, he's six, here's our address.\" AI takes the mess, cleans it up, and maps it to the right fields.",
   },
   {
     icon: Brain,
-    title: "Memory System",
+    title: "It Remembers You",
     description:
-      "Learns about you and your family over time. The more forms you fill, the smarter it gets.",
+      "How many times have you typed your address this year? Fit Form learns your people, places, and facts — so you never repeat yourself.",
   },
   {
-    icon: Download,
-    title: "One-Click Export",
+    icon: Repeat,
+    title: "Different Form, Already Done",
     description:
-      "Download perfectly filled PDFs ready to print or submit. Your data, precisely placed.",
+      "New school, new doctor, new insurance claim. Same family. Memory pre-fills instantly. The more you use it, the less you do.",
   },
   {
     icon: Mic,
-    title: "Voice Input",
+    title: "Talk, Don't Type",
     description:
-      "Speak your answers naturally. AI transcribes and places them in the right fields.",
+      "Speak your answers naturally. AI transcribes and drops them into the right fields. Perfect for when your hands are full — or you just can't be bothered.",
   },
   {
-    icon: Shield,
-    title: "Secure & Private",
+    icon: Download,
+    title: "Fit to Print",
     description:
-      "Your data stays yours. Row-level security ensures only you can access your information.",
+      "Export a perfectly filled PDF, ready to submit. Your answers placed exactly where they belong. Print it, email it, done.",
   },
 ];
 
 const steps = [
   {
     icon: Upload,
-    title: "Upload",
-    description: "Drop any PDF form",
+    title: "Drop It In",
+    description: "PDF or photo of a paper form",
   },
   {
     icon: ScanSearch,
-    title: "AI Extracts",
-    description: "Fields detected automatically",
+    title: "AI Reads It",
+    description: "Every field found and understood",
   },
   {
     icon: Zap,
-    title: "Auto-Fill",
-    description: "Answers populated instantly",
+    title: "Brain Dump",
+    description: "Say what you know, AI maps it",
   },
   {
-    icon: PenTool,
-    title: "Export",
-    description: "Download the finished PDF",
+    icon: Download,
+    title: "Done",
+    description: "Download the finished document",
   },
 ];
 
@@ -159,37 +160,41 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
               Powered by Gemini 3
             </div>
             <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-              PDF Forms, Filled by{" "}
-              <span className="text-primary">AI</span>
+              Any Form.{" "}
+              <span className="text-primary">Perfect Fit.</span>
             </h1>
             <p className="mt-6 text-lg text-muted-foreground sm:text-xl">
-              Upload any PDF form. AI detects fields, auto-fills your answers,
-              and exports a ready-to-submit document — in seconds.
+              Drop a PDF or snap a photo. Brain dump what you know. AI finds
+              every field, fills in the answers, and remembers it all for next
+              time. Forms so simple your mum could do it.
             </p>
             <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-              <Button
-                size="lg"
-                onClick={handleGuestLogin}
-                disabled={guestLoading}
-                className="w-full sm:w-auto"
-              >
-                <UserRound className="size-4" />
-                {guestLoading ? "Loading demo..." : "Try as Guest"}
-              </Button>
+              <div className="flex flex-col items-center gap-1.5">
+                <Button
+                  size="lg"
+                  onClick={handleGuestLogin}
+                  disabled={guestLoading}
+                  className="w-full sm:w-auto"
+                >
+                  <UserRound className="size-4" />
+                  {guestLoading ? "Loading demo..." : "Try It — No Sign Up"}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  No login required. Pre-loaded with demo data.
+                </p>
+              </div>
               {!isAuthenticated && (
-                <>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    asChild
-                    className="w-full sm:w-auto"
-                  >
-                    <Link href="/signup">
-                      Create Account
-                      <ArrowRight className="size-4" />
-                    </Link>
-                  </Button>
-                </>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  asChild
+                  className="w-full sm:w-auto"
+                >
+                  <Link href="/signup">
+                    Create Account
+                    <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
               )}
             </div>
           </div>
@@ -198,11 +203,10 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
         {/* Features */}
         <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
           <h2 className="text-center text-3xl font-bold sm:text-4xl">
-            Everything You Need
+            A Perfect Fit
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-center text-muted-foreground">
-            From detection to export, Fit Form handles the entire form-filling
-            workflow.
+            One brain dump. Dozens of fields. And it keeps getting smarter.
           </p>
           <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {features.map((feature) => (
@@ -225,10 +229,11 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
         {/* How It Works */}
         <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
           <h2 className="text-center text-3xl font-bold sm:text-4xl">
-            How It Works
+            Four Steps. That&apos;s It.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-center text-muted-foreground">
-            Four simple steps from PDF to done.
+            No dragging text boxes around pixel by pixel. No printing and
+            scanning. Just done.
           </p>
           <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {steps.map((step, i) => (
@@ -254,7 +259,7 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
             See It In Action
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-center text-muted-foreground">
-            Watch Fit Form turn a blank PDF into a completed form.
+            Watch a blank form go from zero to done in under a minute.
           </p>
           <div className="mt-10 mx-auto max-w-3xl">
             <div className="glass rounded-2xl aspect-video flex items-center justify-center">
@@ -290,10 +295,11 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
         <footer className="border-t border-border/40 py-10">
           <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-4 sm:flex-row sm:justify-between sm:px-6">
             <p className="text-sm text-muted-foreground">
-              Built for the{" "}
+              Mum approved. Built for the{" "}
               <span className="font-medium text-foreground">
                 Gemini 3 Hackathon
               </span>
+              .
             </p>
             <div className="flex items-center gap-4">
               <a
