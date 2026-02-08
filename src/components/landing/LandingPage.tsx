@@ -168,32 +168,29 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
               every field, fills in the answers, and remembers it all for next
               time. Forms so simple your mum could do it.
             </p>
-            <div className="mt-10 flex flex-col items-center gap-3">
-              <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-                <Button
-                  size="lg"
-                  onClick={handleGuestLogin}
-                  disabled={guestLoading}
-                  className="w-full sm:w-auto"
-                >
-                  <UserRound className="size-4" />
-                  {guestLoading ? "Loading demo..." : "Try It — No Sign Up"}
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  asChild
-                  className="w-full sm:w-auto"
-                >
-                  <Link href="/signup">
-                    Create Account
-                    <ArrowRight className="size-4" />
-                  </Link>
-                </Button>
-              </div>
+            <div className="mt-10 flex flex-col items-center gap-2">
+              <Button
+                size="lg"
+                onClick={handleGuestLogin}
+                disabled={guestLoading}
+                className="w-full sm:w-auto"
+              >
+                <UserRound className="size-4" />
+                {guestLoading ? "Loading demo..." : "Try It — No Sign Up"}
+              </Button>
               <p className="text-xs text-muted-foreground">
                 No login required. Pre-loaded with demo data.
               </p>
+              <Button
+                variant="link"
+                asChild
+                className="text-muted-foreground"
+              >
+                <Link href="/signup">
+                  Create an account instead
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
             </div>
           </div>
         </section>
