@@ -108,10 +108,7 @@ export async function POST(
     }
 
     // FALLBACK PATH: Pre-generation didn't run or failed
-    // This handles edge cases like:
-    // - Azure returned 0 fields
-    // - Pre-generation crashed
-    // - Very old documents without pre-gen
+    // Generate questions directly if needed
     if (!freshDoc?.questions_pregenerated) {
       console.log("[AutoForm] Pre-generation not complete, falling back to direct generation:", {
         documentId,
