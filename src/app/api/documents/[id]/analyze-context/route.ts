@@ -167,28 +167,29 @@ function buildContextQuestionPrompt(isMultiPage: boolean, totalPages: number): s
     ? `\n\nNOTE: This is a ${totalPages}-page document. You are only seeing the FIRST page. Base your question on what you can see, but keep in mind there may be more form fields on subsequent pages.`
     : "";
 
-  return `You are helping a user fill out a PDF form. Look at this form page and craft a single, concise question to help understand who this form is for and gather important context.
+  return `You are helping a user fill out a PDF form. Look at this form page and craft a single, broad question to gather general context about who this form is for.
 
 ## Your Task
 
 1. Analyze the visible form to understand what type of form this is
-2. Determine if this page has enough context to ask a specific question
+2. Determine if this page has enough context to ask a relevant question
 3. If this appears to be a cover page, title page, or page with no form fields, indicate that
-4. If there ARE form fields visible, craft a specific question about who this form is for
+4. If there ARE form fields visible, craft a GENERAL question about the overall context
 
 ## Response Format
 Return ONLY valid JSON:
 {
-  "question": "Your tailored question here",
+  "question": "Your general context question here",
   "hasUsefulContext": true,
   "formType": "school enrollment"
 }
 
 ## Guidelines
-- Keep the question under 2 sentences
-- Use neutral, third-person language - do NOT use "I", "me", "my", or similar first-person pronouns
-- Focus on the most important context that would help fill out this specific form
-- If asking about a person the form is for (student, patient, child, etc.), ask about them specifically
+- Keep it to ONE short sentence
+- Ask a BROAD, open-ended question — NOT specific field details like names, dates, or addresses
+- The goal is to understand the general situation (e.g. "Tell us about the child this enrolment is for" NOT "What is the child's name and date of birth?")
+- Specific field values will be collected later — this question is just for general context
+- Use neutral, third-person language — no "I", "me", "my"
 - hasUsefulContext should be false if this appears to be a cover page or has no form fields${multiPageContext}
 
 Return ONLY the JSON object, nothing else.`;
