@@ -85,22 +85,26 @@ export async function extractFieldsFromSinglePage(
   ]);
   onProgress?.(`Extracted ${extraction.fields.length} raw fields`);
 
-  // Step 3: Process special fields (tables, linkedDate, checkboxes)
-  let processedFields = processExtractedFields(extraction.fields);
-  onProgress?.(`Processed to ${processedFields.length} fields`);
-
-  // Step 3.5: Filter out header cells and prefilled text (requires OCR words)
+  // Step 3: Filter out prefilled text BEFORE table expansion
+  // Must run before processExtractedFields so table cells (which are "text" after
+  // expansion) aren't incorrectly filtered by OCR text from the header row.
+  // Table fields have fieldType "table" and are naturally skipped by the filter.
+  let rawFields = extraction.fields;
   if (ocrWords && ocrWords.length > 0) {
-    const filterResult = filterPrefilledFields(processedFields, ocrWords);
+    const filterResult = filterPrefilledFields(rawFields, ocrWords);
     if (filterResult.filteredCount > 0) {
       console.log("[AutoForm] Filtered prefilled fields:", {
         page: pageNumber,
         removed: filterResult.filteredCount,
         remaining: filterResult.fields.length,
       });
-      processedFields = filterResult.fields;
+      rawFields = filterResult.fields;
     }
   }
+
+  // Step 3.5: Process special fields (tables, linkedDate, checkboxes)
+  let processedFields = processExtractedFields(rawFields);
+  onProgress?.(`Processed to ${processedFields.length} fields`);
 
   // Step 4: Apply coordinate snapping (AcroForm → OCR → CV → Vector → Checkbox rect → Textarea rect)
   if (geometry) {
