@@ -15,7 +15,7 @@ import { resizeForGemini } from "../../image-compositor";
 import { extractFieldsFromPage, type RawExtractedField } from "../../gemini/vision/single-page-extract";
 import type { NormalizedCoordinates, DateSegment, FieldType, TableConfig } from "../../types";
 import { prepareGeometry, snapWithPrecomputedGeometry, filterPrefilledFields } from "../../coordinate-snapping";
-import type { OcrWordWithCoords } from "../../coordinate-snapping";
+import type { OcrWordWithCoords, AcroFormField } from "../../coordinate-snapping";
 
 // Standard page aspect ratio (height / width) for checkbox adjustment
 // Most forms are Letter (11/8.5 = 1.29) or A4 (297/210 = 1.414)
@@ -44,6 +44,7 @@ export interface ExtractionOptions {
   imageBase64: string;
   pdfBuffer?: Buffer;
   ocrWords?: OcrWordWithCoords[];
+  acroFormFields?: AcroFormField[];
   onProgress?: (message: string) => void;
 }
 
@@ -52,6 +53,7 @@ export interface MultiPageExtractionOptions {
   pageImages: Array<{ pageNumber: number; imageBase64: string }>;
   pdfBuffer?: Buffer;
   ocrWordsByPage?: Map<number, OcrWordWithCoords[]>;
+  acroFormFieldsByPage?: Map<number, AcroFormField[]>;
   onPageComplete?: (result: PageExtractionResult) => void;
   onProgress?: (message: string) => void;
 }
@@ -100,7 +102,7 @@ export async function extractFieldsFromSinglePage(
     }
   }
 
-  // Step 4: Apply coordinate snapping (OCR → CV → Vector → Checkbox rect → Textarea rect)
+  // Step 4: Apply coordinate snapping (AcroForm → OCR → CV → Vector → Checkbox rect → Textarea rect)
   if (geometry) {
     const snapResult = snapWithPrecomputedGeometry(
       processedFields,
@@ -109,11 +111,13 @@ export async function extractFieldsFromSinglePage(
       geometry.vectorRects,
       geometry.pageAspectRatio,
       ocrWords,
+      options.acroFormFields,
     );
 
     console.log("[AutoForm] Coordinate snapping:", {
       page: pageNumber,
       snapped: `${snapResult.result.snappedCount}/${snapResult.result.totalEligible}`,
+      acroForm: snapResult.result.acroFormSnapped,
       cv: snapResult.result.cvSnapped,
       vector: snapResult.result.vectorSnapped,
       ocr: snapResult.result.ocrSnapped,
@@ -142,7 +146,7 @@ export async function extractFieldsFromSinglePage(
 export async function extractFieldsFromAllPages(
   options: MultiPageExtractionOptions
 ): Promise<PageExtractionResult[]> {
-  const { pageImages, pdfBuffer, ocrWordsByPage, onPageComplete, onProgress } = options;
+  const { pageImages, pdfBuffer, ocrWordsByPage, acroFormFieldsByPage, onPageComplete, onProgress } = options;
 
   onProgress?.(`Starting extraction for ${pageImages.length} pages...`);
 
@@ -155,6 +159,7 @@ export async function extractFieldsFromAllPages(
         imageBase64,
         pdfBuffer,
         ocrWords: ocrWordsByPage?.get(pageNumber),
+        acroFormFields: acroFormFieldsByPage?.get(pageNumber),
         onProgress: (msg) => onProgress?.(`[Page ${pageNumber}] ${msg}`),
       });
 

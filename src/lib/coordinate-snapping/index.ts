@@ -20,9 +20,11 @@ import { extractVectorGeometry, applyVectorSnap } from "./vector-snap";
 import { applyOcrSnap, ocrPageDataToWords } from "./ocr-snap";
 import { applyCheckboxRectSnap, applyTextareaRectSnap } from "./rect-snap";
 import { filterPrefilledFields } from "./header-filter";
+import { extractAcroFormFields, applyAcroFormSnap } from "./acroform-snap";
+import type { AcroFormField, AcroFormExtractionResult } from "./acroform-snap";
 
-export type { OcrWordWithCoords, OcrPageData, SnapResult };
-export { ocrPageDataToWords, filterPrefilledFields };
+export type { OcrWordWithCoords, OcrPageData, SnapResult, AcroFormField, AcroFormExtractionResult };
+export { ocrPageDataToWords, filterPrefilledFields, extractAcroFormFields, applyAcroFormSnap };
 
 interface SnappableField {
   label: string;
@@ -107,6 +109,7 @@ export async function snapFieldCoordinates<T extends SnappableField>(
     ocrSnapped,
     checkboxRectSnapped,
     textareaRectSnapped,
+    acroFormSnapped: 0,
     durationMs: Date.now() - startTime,
   };
 
@@ -166,14 +169,27 @@ export function snapWithPrecomputedGeometry<T extends SnappableField>(
   vectorRects: VectorRect[],
   pageAspectRatio: number,
   ocrWords?: OcrWordWithCoords[],
+  acroFormFields?: AcroFormField[],
 ): { fields: T[]; result: SnapResult } {
   const startTime = Date.now();
   let current = fields;
+  let acroFormSnapped = 0;
   let ocrSnapped = 0;
   let cvSnapped = 0;
   let vectorSnapped = 0;
   let checkboxRectSnapped = 0;
   let textareaRectSnapped = 0;
+
+  // Step 0: AcroForm snap (highest confidence — exact PDF coordinates)
+  if (acroFormFields && acroFormFields.length > 0) {
+    try {
+      const afResult = applyAcroFormSnap(current, acroFormFields);
+      current = afResult.fields;
+      acroFormSnapped = afResult.result.snappedCount;
+    } catch (err) {
+      console.warn("[AutoForm] AcroForm snap failed, continuing:", err instanceof Error ? err.message : err);
+    }
+  }
 
   // Step 1: OCR snap
   if (ocrWords && ocrWords.length > 0) {
@@ -226,7 +242,7 @@ export function snapWithPrecomputedGeometry<T extends SnappableField>(
     }
   }
 
-  const totalSnapped = Math.max(ocrSnapped, cvSnapped, vectorSnapped) + checkboxRectSnapped + textareaRectSnapped;
+  const totalSnapped = Math.max(ocrSnapped, cvSnapped, vectorSnapped) + checkboxRectSnapped + textareaRectSnapped + acroFormSnapped;
   const totalEligible = fields.filter((f) =>
     ["text", "date", "linkedDate", "checkbox", "radio", "textarea"].includes(f.fieldType)
   ).length;
@@ -239,6 +255,7 @@ export function snapWithPrecomputedGeometry<T extends SnappableField>(
     ocrSnapped,
     checkboxRectSnapped,
     textareaRectSnapped,
+    acroFormSnapped,
     durationMs: Date.now() - startTime,
   };
 

@@ -4,8 +4,8 @@ import { getDocument, getFile, getPageImageBase64, setPageFields, updateDocument
 import { extractFieldsFromAllPages } from "@/lib/orchestrator/single-page-extraction";
 import { generateQuestions } from "@/lib/orchestrator/question-generator";
 import { getOcrPagesData } from "@/lib/azure/ocr";
-import { ocrPageDataToWords } from "@/lib/coordinate-snapping";
-import type { OcrWordWithCoords } from "@/lib/coordinate-snapping";
+import { ocrPageDataToWords, extractAcroFormFields } from "@/lib/coordinate-snapping";
+import type { OcrWordWithCoords, AcroFormField } from "@/lib/coordinate-snapping";
 
 /**
  * POST /api/documents/[id]/refine-fields
@@ -127,11 +127,33 @@ export async function POST(
       console.warn("[AutoForm] Failed to load snapping data, continuing without:", err instanceof Error ? err.message : err);
     }
 
+    // Extract AcroForm fields from PDF (if available)
+    // These provide mathematically exact coordinates for embedded form fields
+    let acroFormFieldsByPage: Map<number, AcroFormField[]> | undefined;
+
+    if (pdfBuffer) {
+      try {
+        const acroFormResult = await extractAcroFormFields(pdfBuffer);
+        if (acroFormResult.hasAcroForm) {
+          acroFormFieldsByPage = acroFormResult.fieldsByPage;
+          console.log("[AutoForm] AcroForm fields extracted:", {
+            documentId,
+            fieldCount: acroFormResult.fields.length,
+            pages: acroFormResult.fieldsByPage.size,
+            durationMs: acroFormResult.durationMs,
+          });
+        }
+      } catch (err) {
+        console.warn("[AutoForm] AcroForm extraction failed, continuing without:", err instanceof Error ? err.message : err);
+      }
+    }
+
     console.log("[AutoForm] Starting field extraction:", {
       documentId,
       pageCount: validPageImages.length,
       hasSnapping: !!pdfBuffer,
       hasOcrWords: !!ocrWordsByPage,
+      hasAcroForm: !!acroFormFieldsByPage,
     });
 
     let pagesCompleted = 0;
@@ -143,6 +165,7 @@ export async function POST(
       pageImages: validPageImages,
       pdfBuffer,
       ocrWordsByPage,
+      acroFormFieldsByPage,
       // Progressive reveal: save fields as each page completes
       onPageComplete: async (pageResult) => {
         pagesCompleted++;

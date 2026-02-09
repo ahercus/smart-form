@@ -65,5 +65,6 @@ export interface SnapResult {
   ocrSnapped: number;
   checkboxRectSnapped: number;
   textareaRectSnapped: number;
+  acroFormSnapped: number;
   durationMs: number;
 }
