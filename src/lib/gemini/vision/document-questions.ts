@@ -87,6 +87,11 @@ function parseGeminiResponse(text: string): DocumentQuestionsResult {
   }
 }
 
+/**
+ * Generates conversational questions from extracted fields.
+ * Groups related fields by detected entity (e.g., Student, Parent, Emergency Contact),
+ * incorporates saved memory as choice options, and auto-answers fields with direct matches.
+ */
 export async function generateDocumentQuestions(
   params: GenerateDocumentQuestionsParams
 ): Promise<DocumentQuestionsResult> {

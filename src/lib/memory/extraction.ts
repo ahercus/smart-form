@@ -1,6 +1,7 @@
 // Entity extraction from form answers using Gemini 3 Pro
-// Extracts people, places, organizations and their attributes/relationships
-// NOTE: Sensitive data (SSN, credit cards, etc.) is explicitly excluded
+// Uses Pro model (not Flash) because entity/relationship reasoning requires
+// deeper inference. Extracts people, places, organizations and their attributes.
+// Sensitive data (SSN, credit cards, etc.) is explicitly filtered post-extraction.
 
 import { ThinkingLevel } from "@google/genai";
 import { generateWithVision } from "@/lib/gemini/client";
@@ -135,8 +136,9 @@ const extractionSchema = {
 };
 
 /**
- * Extract entities, facts, and relationships from a form Q&A
- * Uses Gemini 3 Pro with LOW thinking for complex reasoning
+ * Extracts entities, facts, and relationships from a question-answer pair.
+ * Uses Gemini Pro with LOW thinking for entity reasoning.
+ * Filters sensitive data (SSN, credit cards) before returning results.
  */
 export async function extractFromAnswer(
   question: string,

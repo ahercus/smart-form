@@ -67,7 +67,7 @@ export function AppSidebar({ userEmail, isAnonymous }: AppSidebarProps) {
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">Fit Form</span>
                   <span className="truncate text-xs text-muted-foreground">
-                    Smart PDF Forms
+                    Any Form. Perfect Fit.
                   </span>
                 </div>
               </Link>

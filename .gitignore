@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -40,3 +41,15 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .next-dev.log
+
+# python
+**/venv/
+**/.venv/
+__pycache__/
+
+# benchmark output (regenerable from scripts)
+/tests/extraction-benchmark/results/
+!/tests/extraction-benchmark/results/report.md
+
+#Planning
+/docs

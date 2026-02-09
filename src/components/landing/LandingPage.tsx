@@ -22,7 +22,6 @@ import {
   ArrowRight,
   Github,
   UserRound,
-  Sparkles,
   Repeat,
 } from "lucide-react";
 
@@ -159,7 +158,7 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
         <section className="mx-auto max-w-6xl px-4 pt-20 pb-16 text-center sm:px-6 sm:pt-28 sm:pb-24">
           <div className="mx-auto max-w-3xl">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full glass-light px-4 py-1.5 text-sm font-medium">
-              <Sparkles className="size-4 text-primary" />
+              <img src="/gemini-logo.png" alt="Gemini" className="size-5" />
               Powered by Gemini 3
             </div>
             <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">

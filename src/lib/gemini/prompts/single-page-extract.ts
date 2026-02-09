@@ -1,14 +1,11 @@
 /**
  * Single-page extraction prompt (full_rails_no_rulers)
  *
- * Optimized through 74 tests across 48 configurations.
- * Winner: flash_minimal + single_page + full_rails_no_rulers
- * Results: 94% detection, 69% IoU (35% better than Azure OCR)
- *
- * Key optimizations:
- * - No ruler references (rulers hurt accuracy by ~14%)
+ * Key design:
+ * - No ruler references (rulers hurt accuracy in testing)
  * - Exhaustive field type specifications
  * - Clear coordinate system explanation
+ * - Generic examples (no form-specific coordinates)
  * - Validation checklist
  */
 
@@ -71,10 +68,10 @@ Typical dimensions: height 2-4%, width varies by field
 
 Example:
 {
-  "label": "Child's Name",
+  "label": "Full Name",
   "fieldType": "text",
-  "coordinates": {"left": 20, "top": 24.5, "width": 30, "height": 2.5},
-  "groupLabel": "Student Information"
+  "coordinates": {"left": 18, "top": 12, "width": 35, "height": 2.5},
+  "groupLabel": "Personal Details"
 }
 
 TEXTAREA (multi-line input)
@@ -84,9 +81,9 @@ MUST include "rows" property = count of visible lines
 
 Example:
 {
-  "label": "How will child settle into Prep?",
+  "label": "Additional Comments",
   "fieldType": "textarea",
-  "coordinates": {"left": 6, "top": 68, "width": 88, "height": 7},
+  "coordinates": {"left": 5, "top": 45, "width": 90, "height": 8},
   "rows": 4,
   "groupLabel": null
 }
@@ -98,10 +95,10 @@ Typical dimensions: 1.5-2.5% width, 1-1.5% height (aspect-ratio adjusted)
 
 Example:
 {
-  "label": "Kindergarten",
+  "label": "Option A",
   "fieldType": "checkbox",
-  "coordinates": {"left": 6.19, "top": 58.36, "width": 1.5, "height": 1.06},
-  "groupLabel": "What Pre-Prep experiences has your child had?"
+  "coordinates": {"left": 5, "top": 32, "width": 2, "height": 1.2},
+  "groupLabel": "Select all that apply"
 }
 
 DATE (simple date field)
@@ -111,9 +108,9 @@ NOT for segmented dates (use linkedDate instead)
 
 Example:
 {
-  "label": "Start Date",
+  "label": "Effective Date",
   "fieldType": "date",
-  "coordinates": {"left": 45, "top": 30, "width": 20, "height": 2.5}
+  "coordinates": {"left": 60, "top": 15, "width": 22, "height": 2.5}
 }
 
 SIGNATURE (signature capture area)
@@ -123,10 +120,45 @@ Typical dimensions: height 5-8%, width 25-40%
 
 Example:
 {
-  "label": "Parent Signature",
+  "label": "Applicant Signature",
   "fieldType": "signature",
-  "coordinates": {"left": 10, "top": 85, "width": 35, "height": 6}
+  "coordinates": {"left": 8, "top": 88, "width": 30, "height": 5}
 }
+
+INITIALS (initials capture area)
+─────────────────────────────────
+Use for: Small boxes labeled "initials" or "initial here"
+Typical dimensions: height 3-5%, width 10-20% (smaller than signature)
+
+Example:
+{
+  "label": "Applicant Initials",
+  "fieldType": "initials",
+  "coordinates": {"left": 70, "top": 92, "width": 12, "height": 3}
+}
+
+CIRCLE_CHOICE (circle/select one of printed options)
+────────────────────────────────────────────────────
+Use for: Printed text options where the user circles their answer (e.g., "Yes / No", "Male / Female / Other")
+⚠️ MUST include choiceOptions - fields without them WILL BE REJECTED
+⚠️ NOT for checkboxes (small squares) — use checkbox instead
+
+When to use: Text like "Yes/No", "Circle one: A / B / C", or printed options separated by slashes
+When NOT to use: Checkbox squares, radio buttons, or fill-in-the-blank fields
+
+Required structure:
+{
+  "label": "Do you have your own equipment?",
+  "fieldType": "circle_choice",
+  "coordinates": {"left": 5, "top": 60, "width": 15, "height": 2.5},
+  "choiceOptions": [
+    {"label": "Yes", "coordinates": {"left": 5, "top": 60, "width": 5, "height": 2.5}},
+    {"label": "No", "coordinates": {"left": 12, "top": 60, "width": 5, "height": 2.5}}
+  ]
+}
+
+- coordinates: Bounding box encompassing ALL options
+- choiceOptions: Array of individual option positions (where each printed word appears)
 
 ═══════════════════════════════════════════════════════════════════════════════
 SPECIAL FIELD TYPES (USE WITH CARE)
@@ -142,14 +174,14 @@ When NOT to use: Simple lists, single columns, bullet points
 
 Required structure:
 {
-  "label": "Siblings",
+  "label": "Employee List",
   "fieldType": "table",
-  "groupLabel": "Names and ages of siblings in the family",
+  "groupLabel": "Team Members",
   "tableConfig": {
-    "columnHeaders": ["Name", "Age", "Class Teacher", "Comments"],
-    "coordinates": {"left": 6.19, "top": 39.1, "width": 88.12, "height": 10.85},
-    "dataRows": 4,
-    "columnPositions": [0, 19.2, 38.5, 69.5, 100]
+    "columnHeaders": ["Name", "Role", "Start Date"],
+    "coordinates": {"left": 5, "top": 35, "width": 90, "height": 12},
+    "dataRows": 5,
+    "columnPositions": [0, 40, 70, 100]
   }
 }
 
@@ -168,15 +200,15 @@ When NOT to use: Single date input field
 
 Required structure:
 {
-  "label": "D.O.B",
+  "label": "Date of Birth",
   "fieldType": "linkedDate",
-  "coordinates": {"left": 56.38, "top": 24.5, "width": 26.12, "height": 2.0},
+  "coordinates": {"left": 50, "top": 18, "width": 28, "height": 2.5},
   "dateSegments": [
-    {"left": 56.38, "top": 24.5, "width": 6.06, "height": 2.0, "part": "day"},
-    {"left": 63.59, "top": 24.5, "width": 5.88, "height": 2.0, "part": "month"},
-    {"left": 70.83, "top": 24.5, "width": 11.67, "height": 2.0, "part": "year"}
+    {"left": 50, "top": 18, "width": 7, "height": 2.5, "part": "day"},
+    {"left": 58, "top": 18, "width": 7, "height": 2.5, "part": "month"},
+    {"left": 66, "top": 18, "width": 12, "height": 2.5, "part": "year"}
   ],
-  "groupLabel": "Student Information"
+  "groupLabel": "Personal Details"
 }
 
 - coordinates: Bounding box encompassing ALL segments
@@ -208,12 +240,12 @@ GROUPLABEL - CONTEXTUAL INFORMATION
 
 Include groupLabel when a field needs context from a parent question/section:
 
-- "Kindergarten" checkbox → groupLabel: "What Pre-Prep experiences has your child had?"
-- "Name of Centre" text → groupLabel: "What Pre-Prep experiences has your child had?"
-- "Child's Name" text → groupLabel: "Student Information"
+- "Yes" checkbox → groupLabel: "Do you have a driver's license?"
+- "Policy Number" text → groupLabel: "Insurance Information"
+- "First Name" text → groupLabel: "Applicant Details"
 
 Do NOT include groupLabel for standalone questions:
-- "What is your child good at?" → No groupLabel needed (question IS the label context)
+- "What is your occupation?" → No groupLabel needed (question IS the label context)
 
 ═══════════════════════════════════════════════════════════════════════════════
 OUTPUT FORMAT
@@ -289,6 +321,7 @@ export const SINGLE_PAGE_EXTRACTION_SCHEMA = {
           tableConfig: { type: "object" },
           dateSegments: { type: "array" },
           segments: { type: "array" },
+          choiceOptions: { type: "array" },
         },
         required: ["label", "fieldType", "coordinates"],
       },

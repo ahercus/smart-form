@@ -145,3 +145,30 @@ After running, check `results/report.md` for:
 - Full results table
 - Analysis by architecture, prompt style, thinking level
 - Recommended configuration
+
+## Coordinate Snapping Benchmarks
+
+Separate from the Python extraction benchmarks, a TypeScript benchmark suite tests the coordinate snapping pipeline that corrects Gemini's field coordinates against deterministic geometry sources.
+
+These scripts import production code directly from `src/lib/coordinate-snapping/` — they test the actual pipeline, not copies.
+
+### Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `test_full_pipeline.ts` | End-to-end: Gemini extraction → snapping → scoring against ground truth |
+| `test_combined.ts` | Tests all snap stage ordering permutations to find optimal chain |
+| `test_cv_snap.ts` | Isolates CV (pixel-level) line detection accuracy |
+| `test_ocr_snap.ts` | Isolates OCR-based label alignment accuracy |
+| `test_pdf_vectors.ts` | Isolates PDF vector geometry extraction accuracy |
+| `test_acroform.ts` | Tests AcroForm field matching for PDFs with embedded form definitions |
+| `render_production.ts` | Generates visual overlays (green = ground truth, blue = production) |
+| `test_utils.ts` | Shared IoU scoring and field matching utilities |
+
+### Pipeline Results
+
+| Stage | IoU |
+|-------|-----|
+| Gemini only (baseline) | 67.8% |
+| + Coordinate snapping | 79.1% |
+| **Improvement** | **+11.3%, zero regressions** |

@@ -1,7 +1,8 @@
 {
-  "name": "autoform-ai",
+  "name": "fit-form",
   "version": "0.1.0",
   "private": true,
+  "description": "Transform static PDF forms into intelligent, interactive experiences using Gemini AI",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

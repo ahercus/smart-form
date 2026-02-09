@@ -1,7 +1,7 @@
 // Supabase storage service for documents and fields
 
 import { createAdminClient } from "./supabase/admin";
-import type { Document, ExtractedField, DocumentStatus, FieldType, NormalizedCoordinates, DateSegment, TableConfig } from "./types";
+import type { Document, ExtractedField, DocumentStatus, FieldType, NormalizedCoordinates, DateSegment, TableConfig, ChoiceOption } from "./types";
 
 // Type for inserting new fields (without auto-generated fields)
 export type InsertableField = Omit<ExtractedField, "id" | "created_at" | "updated_at" | "deleted_at" | "field_index">;
@@ -16,6 +16,7 @@ export interface ExtractionField {
   tableConfig?: TableConfig | null;
   dateSegments?: DateSegment[] | null;
   segments?: NormalizedCoordinates[] | null;
+  choiceOptions?: ChoiceOption[] | null;
 }
 
 const DOCUMENTS_BUCKET = "documents";
@@ -399,7 +400,7 @@ export async function setPageFields(
     detection_source: "gemini_vision" as const,
     confidence_score: null,
     manually_adjusted: false,
-    choice_options: null,
+    choice_options: f.choiceOptions ?? null,
     segments: f.segments ?? null,
     date_segments: f.dateSegments ?? null,
     table_config: f.tableConfig ?? null,

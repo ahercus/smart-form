@@ -2,6 +2,8 @@
  * AcroForm Coordinate Snapping
  *
  * Extracts embedded interactive form fields (AcroFields) from PDFs using pdf-lib,
+ * Zero-cost fast path: when a PDF contains embedded form field definitions,
+ * their coordinates are exact. This bypasses all heuristic snapping.
  * then matches them to Gemini-extracted fields by coordinate overlap (IoU).
  * Matched fields get their coordinates replaced with the mathematically exact
  * AcroForm coordinates.

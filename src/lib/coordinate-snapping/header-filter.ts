@@ -5,6 +5,8 @@
  * section titles, instruction areas misidentified as inputs).
  *
  * Uses OCR word positions to measure text coverage inside each field.
+ * Coverage threshold is 25% (raised from 15% after false positives on
+ * fields whose labels partially overlap the input area).
  * Header cells like "Siblings Names" are packed with text (high coverage),
  * while empty input cells have near-zero coverage.
  */
@@ -28,14 +30,9 @@ function isWordInsideField(word: OcrWordWithCoords, field: NormalizedCoordinates
 }
 
 /**
- * Filter out fields that are already full of printed text.
- *
- * For each text/textarea field, count how much OCR text overlaps with the
- * field area. If text coverage exceeds the threshold, the field is a header
- * or label — not an empty input — and gets removed.
- *
- * Only filters text and textarea fields. Checkboxes, signatures, dates, etc.
- * are kept regardless (they have different fill patterns).
+ * Removes fields where OCR text covers >25% of the field area,
+ * indicating pre-printed text rather than an input field.
+ * Must run before table expansion to avoid filtering table header cells.
  */
 export function filterPrefilledFields<T extends { fieldType: string; label: string; coordinates: NormalizedCoordinates }>(
   fields: T[],

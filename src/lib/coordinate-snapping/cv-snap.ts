@@ -3,6 +3,8 @@
  *
  * Detects horizontal lines in page images using pixel-level grayscale analysis,
  * then snaps field bottom edges to the nearest detected line.
+ * Complements vector-snap: catches horizontal lines in scanned forms
+ * where no PDF vector drawing data exists.
  *
  * +9.8% IoU improvement in benchmarks.
  */

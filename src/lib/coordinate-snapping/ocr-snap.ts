@@ -3,6 +3,8 @@
  *
  * Matches Gemini field labels to Azure OCR word-level positions, then
  * pushes the field's left edge past the label's right edge to fix
+ * Most conservative snap in the pipeline: only adjusts the left coordinate.
+ * Labels are the most reliable OCR anchor for horizontal positioning.
  * Gemini's tendency to overlap labels with input areas.
  *
  * Conservative: only snaps LEFT boundary, only inline text fields.

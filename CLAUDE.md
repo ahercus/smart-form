@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**AutoForm AI** transforms static PDF forms into intelligent, interactive experiences. Users upload PDF forms, the system identifies input fields via AI, presents them in a wizard interface, and auto-populates values from saved profiles.
+**Fit Form** transforms static PDF forms into intelligent, interactive experiences. Users upload PDF forms, the system identifies input fields via AI, presents them in a wizard interface, and auto-populates values from saved profiles.
 
 ## Tech Stack
 

@@ -1,3 +1,12 @@
+/**
+ * Answer parsing and cross-question auto-fill
+ *
+ * Two Gemini Flash calls:
+ * 1. parseAnswerForFields: maps a natural language answer to structured field values
+ * 2. reevaluatePendingQuestions: after each answer, checks if any pending questions
+ *    can now be auto-answered from the information just provided
+ */
+
 import { getFastModel } from "../client";
 import { buildAnswerParsingPrompt, buildSingleFieldFormattingPrompt, buildAnswerReevaluationPrompt } from "../prompts/answers";
 import { answerParsingSchema } from "../schemas";
@@ -35,6 +44,11 @@ interface ParseAnswerParams {
   clientTimeZoneOffsetMinutes?: number;
 }
 
+/**
+ * Maps a natural language answer to structured field values.
+ * Handles special cases: data URIs (signatures), circle_choice (local matching),
+ * and single-field formatting (no Gemini call needed).
+ */
 export async function parseAnswerForFields(
   params: ParseAnswerParams
 ): Promise<ParseAnswerResult> {
@@ -215,6 +229,11 @@ interface ReevaluateParams {
   clientTimeZoneOffsetMinutes?: number;
 }
 
+/**
+ * Cross-question auto-fill: re-evaluates all pending questions after a new answer.
+ * If the user's answer to question A contains information relevant to question B,
+ * this fills question B automatically without prompting.
+ */
 export async function reevaluatePendingQuestions(
   params: ReevaluateParams
 ): Promise<Array<{ questionId: string; answer: string; reasoning: string }>> {

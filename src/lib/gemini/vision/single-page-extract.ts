@@ -16,7 +16,7 @@ import {
   buildSinglePageExtractionPrompt,
   SINGLE_PAGE_EXTRACTION_SCHEMA,
 } from "../prompts/single-page-extract";
-import type { NormalizedCoordinates, DateSegment } from "../../types";
+import type { NormalizedCoordinates, DateSegment, ChoiceOption } from "../../types";
 
 // Raw field structure from Gemini extraction
 export interface RawExtractedField {
@@ -34,6 +34,7 @@ export interface RawExtractedField {
   };
   dateSegments?: DateSegment[];
   segments?: NormalizedCoordinates[];
+  choiceOptions?: ChoiceOption[];
 }
 
 export interface SinglePageExtractionResult {
@@ -117,6 +118,11 @@ export async function extractFieldsFromPage(
       return false;
     }
 
+    if (field.fieldType === "circle_choice" && (!field.choiceOptions || field.choiceOptions.length === 0)) {
+      console.warn("[AutoForm] Skipping circle_choice field without choiceOptions:", field.label);
+      return false;
+    }
+
     return true;
   });
 
@@ -138,79 +144,68 @@ export async function extractFieldsFromPage(
 /**
  * Detect if Gemini returned coordinates in wrong scale and normalize them.
  *
- * Sometimes Gemini returns position values (top/left) that are ~10x the correct
- * percentage (e.g., top=200 instead of top=20) while dimensions (width/height)
- * remain correct. This detects the issue by checking if positions exceed the
- * valid 0-100 range and rescales only the affected components.
+ * Gemini sometimes returns coordinates in a ~0-1000 pixel scale instead of
+ * 0-100 percentages. We detect this by finding the max right/bottom extent
+ * (left+width, top+height) across all fields. If either axis exceeds 105,
+ * we uniformly rescale ALL coordinate components on that axis.
  */
 function normalizeCoordinateScale(fields: RawExtractedField[]): RawExtractedField[] {
   if (fields.length === 0) return fields;
 
-  // Collect all position and dimension values to detect which axis is off
-  let maxTop = 0;
-  let maxLeft = 0;
-  let maxHeight = 0;
-  let maxWidth = 0;
+  // Find the actual page extent by computing max(pos + dim) per axis
+  // This must use the SAME field's left+width (not max left + max width from different fields)
+  let maxRight = 0;
+  let maxBottom = 0;
+
+  function trackCoords(coords: NormalizedCoordinates) {
+    const right = coords.left + coords.width;
+    const bottom = coords.top + coords.height;
+    // Guard against NaN from malformed sub-coordinates (Gemini schema is loosely typed)
+    if (Number.isFinite(right)) maxRight = Math.max(maxRight, right);
+    if (Number.isFinite(bottom)) maxBottom = Math.max(maxBottom, bottom);
+  }
 
   for (const field of fields) {
-    const { left, top, width, height } = field.coordinates;
-    maxTop = Math.max(maxTop, top);
-    maxLeft = Math.max(maxLeft, left);
-    maxHeight = Math.max(maxHeight, height);
-    maxWidth = Math.max(maxWidth, width);
+    trackCoords(field.coordinates);
 
     if (field.dateSegments) {
-      for (const seg of field.dateSegments) {
-        maxTop = Math.max(maxTop, seg.top);
-        maxLeft = Math.max(maxLeft, seg.left);
-      }
+      for (const seg of field.dateSegments) trackCoords(seg);
     }
     if (field.segments) {
-      for (const seg of field.segments) {
-        maxTop = Math.max(maxTop, seg.top);
-        maxLeft = Math.max(maxLeft, seg.left);
-      }
+      for (const seg of field.segments) trackCoords(seg);
+    }
+    if (field.choiceOptions) {
+      for (const opt of field.choiceOptions) trackCoords(opt.coordinates);
     }
     if (field.tableConfig?.coordinates) {
-      const tc = field.tableConfig.coordinates;
-      maxTop = Math.max(maxTop, tc.top);
-      maxLeft = Math.max(maxLeft, tc.left);
+      trackCoords(field.tableConfig.coordinates);
     }
   }
 
-  // Detect if positions are out of range (>110%) while dimensions are normal (<50%)
-  // This pattern indicates Gemini used a different scale for position values
-  const topOutOfRange = maxTop > 110;
-  const leftOutOfRange = maxLeft > 110;
+  // If extents are within valid percentage range, no rescaling needed
+  const xOutOfRange = maxRight > 105;
+  const yOutOfRange = maxBottom > 105;
 
-  if (!topOutOfRange && !leftOutOfRange) return fields;
+  if (!xOutOfRange && !yOutOfRange) return fields;
 
-  // Calculate scale factors from position values only
-  // Use the max position + a reasonable dimension estimate to find the true page extent
-  const yScale = topOutOfRange ? (maxTop + maxHeight) / 100 : 1;
-  const xScale = leftOutOfRange ? (maxLeft + maxWidth) / 100 : 1;
+  // Scale factor = actual extent / 100, applied uniformly to ALL components on that axis
+  const xScale = xOutOfRange ? maxRight / 100 : 1;
+  const yScale = yOutOfRange ? maxBottom / 100 : 1;
 
   console.warn("[AutoForm] Coordinate scale correction:", {
-    maxTop: maxTop.toFixed(1),
-    maxLeft: maxLeft.toFixed(1),
-    maxHeight: maxHeight.toFixed(1),
-    maxWidth: maxWidth.toFixed(1),
-    yScale: yScale.toFixed(2),
+    maxRight: maxRight.toFixed(1),
+    maxBottom: maxBottom.toFixed(1),
     xScale: xScale.toFixed(2),
+    yScale: yScale.toFixed(2),
     fieldCount: fields.length,
   });
 
-  // Only rescale position components (top/left), leave dimensions (width/height) alone
-  // unless dimensions are also out of range
-  const scaleHeight = maxHeight > 50;
-  const scaleWidth = maxWidth > 50;
-
   function rescaleCoords(coords: NormalizedCoordinates): NormalizedCoordinates {
     return {
-      left: leftOutOfRange ? coords.left / xScale : coords.left,
-      top: topOutOfRange ? coords.top / yScale : coords.top,
-      width: scaleWidth ? coords.width / xScale : coords.width,
-      height: scaleHeight ? coords.height / yScale : coords.height,
+      left: coords.left / xScale,
+      top: coords.top / yScale,
+      width: coords.width / xScale,
+      height: coords.height / yScale,
     };
   }
 
@@ -222,6 +217,10 @@ function normalizeCoordinateScale(fields: RawExtractedField[]): RawExtractedFiel
       ...rescaleCoords(seg),
     })),
     segments: field.segments?.map((seg) => rescaleCoords(seg)),
+    choiceOptions: field.choiceOptions?.map((opt) => ({
+      ...opt,
+      coordinates: rescaleCoords(opt.coordinates),
+    })),
     tableConfig: field.tableConfig
       ? {
           ...field.tableConfig,

@@ -1,5 +1,8 @@
 /**
  * PDF Vector Snapping
+ * PDF drawing commands provide the most precise geometry source for
+ * digitally-created forms. More reliable than pixel-level CV detection
+ * but unavailable in scanned documents.
  *
  * Extracts horizontal lines and rectangles from PDF drawing commands via
  * pdfjs-dist operator list. Lines snap text/date field bottom edges;
@@ -26,6 +29,13 @@ export async function extractVectorGeometry(
   pageNumber: number,
 ): Promise<VectorGeometry> {
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const path = await import("path");
+
+  // Point worker to actual file path — Turbopack can't resolve it automatically
+  pdfjsLib.GlobalWorkerOptions.workerSrc = path.join(
+    process.cwd(),
+    "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs"
+  );
 
   const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) });
   const doc = await loadingTask.promise;

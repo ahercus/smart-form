@@ -13,7 +13,7 @@
 
 import { resizeForGemini } from "../../image-compositor";
 import { extractFieldsFromPage, type RawExtractedField } from "../../gemini/vision/single-page-extract";
-import type { NormalizedCoordinates, DateSegment, FieldType, TableConfig } from "../../types";
+import type { NormalizedCoordinates, DateSegment, FieldType, TableConfig, ChoiceOption } from "../../types";
 import { prepareGeometry, snapWithPrecomputedGeometry, filterPrefilledFields } from "../../coordinate-snapping";
 import type { OcrWordWithCoords, AcroFormField } from "../../coordinate-snapping";
 import type { VectorLine } from "../../coordinate-snapping/types";
@@ -37,6 +37,7 @@ export interface ProcessedField {
   tableConfig?: TableConfig | null;
   dateSegments?: DateSegment[] | null;
   segments?: NormalizedCoordinates[] | null;
+  choiceOptions?: ChoiceOption[] | null;
   fromTableExpansion?: boolean;
 }
 
@@ -61,7 +62,9 @@ export interface MultiPageExtractionOptions {
 }
 
 /**
- * Extract fields from a single page
+ * Extract fields from a single page using parallel Gemini + geometry processing.
+ * Orchestrates: resize → parallel(Gemini, geometry) → filter → snap → expand.
+ * Returns fields ready for database insertion.
  */
 export async function extractFieldsFromSinglePage(
   options: ExtractionOptions
@@ -71,74 +74,98 @@ export async function extractFieldsFromSinglePage(
   onProgress?.(`Processing page ${pageNumber}...`);
 
   // Step 1: Resize image for Gemini
-  const resized = await resizeForGemini(imageBase64, 1600);
-  onProgress?.(`Resized to ${resized.width}x${resized.height}`);
-
-  // Step 2: Run Gemini extraction + geometry prep in parallel
-  // Gemini takes ~10s; CV detection (~200ms) and vector extraction (~1s) run during that wait
-  const imageBuffer = Buffer.from(imageBase64, "base64");
-  const geometryPromise = pdfBuffer
-    ? prepareGeometry(imageBuffer, pdfBuffer, pageNumber)
-    : null;
-
-  const [extraction, geometry] = await Promise.all([
-    extractFieldsFromPage(resized.imageBase64),
-    geometryPromise,
-  ]);
-  onProgress?.(`Extracted ${extraction.fields.length} raw fields`);
-
-  // Step 3: Filter out prefilled text BEFORE table expansion
-  // Must run before processExtractedFields so table cells (which are "text" after
-  // expansion) aren't incorrectly filtered by OCR text from the header row.
-  // Table fields have fieldType "table" and are naturally skipped by the filter.
-  let rawFields = extraction.fields;
-  if (ocrWords && ocrWords.length > 0) {
-    const filterResult = filterPrefilledFields(rawFields, ocrWords);
-    if (filterResult.filteredCount > 0) {
-      console.log("[AutoForm] Filtered prefilled fields:", {
-        page: pageNumber,
-        removed: filterResult.filteredCount,
-        remaining: filterResult.fields.length,
-      });
-      rawFields = filterResult.fields;
-    }
+  let resized: { imageBase64: string; width: number; height: number };
+  try {
+    resized = await resizeForGemini(imageBase64, 1600);
+    onProgress?.(`Resized to ${resized.width}x${resized.height}`);
+  } catch (err) {
+    console.error(`[AutoForm] Page ${pageNumber} FAILED at step 1 (resize):`, err);
+    throw err;
   }
 
-  // Step 3.5: Process special fields (tables, linkedDate, checkboxes)
-  // Pass vector lines so table column positions can be snapped to actual PDF grid lines
-  const vectorLines = geometry?.vectorLines;
-  let processedFields = processExtractedFields(rawFields, vectorLines);
-  onProgress?.(`Processed to ${processedFields.length} fields`);
+  // Step 2: Run Gemini extraction + geometry prep in parallel
+  let extraction: Awaited<ReturnType<typeof extractFieldsFromPage>>;
+  let geometry: Awaited<ReturnType<typeof prepareGeometry>> | null = null;
+  try {
+    const imageBuffer = Buffer.from(imageBase64, "base64");
+    const geometryPromise = pdfBuffer
+      ? prepareGeometry(imageBuffer, pdfBuffer, pageNumber)
+      : null;
 
-  // Step 4: Apply coordinate snapping (AcroForm → OCR → CV → Vector → Checkbox rect → Textarea rect)
+    [extraction, geometry] = await Promise.all([
+      extractFieldsFromPage(resized.imageBase64),
+      geometryPromise,
+    ]);
+    console.log(`[AutoForm] Page ${pageNumber} step 2 (Gemini+geometry) OK: ${extraction.fields.length} raw fields`);
+  } catch (err) {
+    console.error(`[AutoForm] Page ${pageNumber} FAILED at step 2 (Gemini+geometry):`, err);
+    throw err;
+  }
+
+  // Step 3: Filter out prefilled text
+  let rawFields = extraction.fields;
+  try {
+    if (ocrWords && ocrWords.length > 0) {
+      const filterResult = filterPrefilledFields(rawFields, ocrWords);
+      if (filterResult.filteredCount > 0) {
+        console.log("[AutoForm] Filtered prefilled fields:", {
+          page: pageNumber,
+          removed: filterResult.filteredCount,
+          remaining: filterResult.fields.length,
+        });
+        rawFields = filterResult.fields;
+      }
+    }
+  } catch (err) {
+    console.error(`[AutoForm] Page ${pageNumber} FAILED at step 3 (filter prefilled):`, err);
+    throw err;
+  }
+
+  // Step 4: Process special fields (tables, linkedDate, checkboxes)
+  let processedFields: ProcessedField[];
+  try {
+    const vectorLines = geometry?.vectorLines;
+    processedFields = processExtractedFields(rawFields, vectorLines);
+    onProgress?.(`Processed to ${processedFields.length} fields`);
+  } catch (err) {
+    console.error(`[AutoForm] Page ${pageNumber} FAILED at step 4 (process fields):`, err);
+    throw err;
+  }
+
+  // Step 5: Apply coordinate snapping
   if (geometry) {
-    const snapResult = snapWithPrecomputedGeometry(
-      processedFields,
-      geometry.cvLines,
-      geometry.vectorLines,
-      geometry.vectorRects,
-      geometry.pageAspectRatio,
-      ocrWords,
-      options.acroFormFields,
-    );
+    try {
+      const snapResult = snapWithPrecomputedGeometry(
+        processedFields,
+        geometry.cvLines,
+        geometry.vectorLines,
+        geometry.vectorRects,
+        geometry.pageAspectRatio,
+        ocrWords,
+        options.acroFormFields,
+      );
 
-    console.log("[AutoForm] Coordinate snapping:", {
-      page: pageNumber,
-      snapped: `${snapResult.result.snappedCount}/${snapResult.result.totalEligible}`,
-      acroForm: snapResult.result.acroFormSnapped,
-      cv: snapResult.result.cvSnapped,
-      vector: snapResult.result.vectorSnapped,
-      ocr: snapResult.result.ocrSnapped,
-      checkboxRect: snapResult.result.checkboxRectSnapped,
-      textareaRect: snapResult.result.textareaRectSnapped,
-      durationMs: snapResult.result.durationMs,
-    });
+      console.log("[AutoForm] Coordinate snapping:", {
+        page: pageNumber,
+        snapped: `${snapResult.result.snappedCount}/${snapResult.result.totalEligible}`,
+        acroForm: snapResult.result.acroFormSnapped,
+        cv: snapResult.result.cvSnapped,
+        vector: snapResult.result.vectorSnapped,
+        ocr: snapResult.result.ocrSnapped,
+        checkboxRect: snapResult.result.checkboxRectSnapped,
+        textareaRect: snapResult.result.textareaRectSnapped,
+        durationMs: snapResult.result.durationMs,
+      });
 
-    return {
-      pageNumber,
-      fields: snapResult.fields,
-      durationMs: extraction.durationMs,
-    };
+      return {
+        pageNumber,
+        fields: snapResult.fields,
+        durationMs: extraction.durationMs,
+      };
+    } catch (err) {
+      console.error(`[AutoForm] Page ${pageNumber} FAILED at step 5 (coordinate snapping):`, err);
+      throw err;
+    }
   }
 
   return {
@@ -149,7 +176,8 @@ export async function extractFieldsFromSinglePage(
 }
 
 /**
- * Extract fields from multiple pages in parallel
+ * Extract fields from all pages, processing pages in parallel.
+ * Each page runs its own Gemini + geometry pipeline concurrently.
  */
 export async function extractFieldsFromAllPages(
   options: MultiPageExtractionOptions
@@ -158,8 +186,8 @@ export async function extractFieldsFromAllPages(
 
   onProgress?.(`Starting extraction for ${pageImages.length} pages...`);
 
-  // Process all pages in parallel
-  const results = await Promise.all(
+  // Process all pages in parallel, isolating failures per page
+  const settled = await Promise.allSettled(
     pageImages.map(async ({ pageNumber, imageBase64 }) => {
       const result = await extractFieldsFromSinglePage({
         documentId: options.documentId,
@@ -175,6 +203,43 @@ export async function extractFieldsFromAllPages(
       return result;
     })
   );
+
+  // Collect successful results and track failures for retry
+  const results: PageExtractionResult[] = [];
+  const failedPages: Array<{ pageNumber: number; imageBase64: string; error: unknown }> = [];
+
+  for (let i = 0; i < settled.length; i++) {
+    const outcome = settled[i];
+    const pageNumber = pageImages[i].pageNumber;
+    if (outcome.status === "fulfilled") {
+      results.push(outcome.value);
+    } else {
+      console.error(`[AutoForm] Page ${pageNumber} extraction FAILED:`, outcome.reason);
+      failedPages.push({ pageNumber, imageBase64: pageImages[i].imageBase64, error: outcome.reason });
+    }
+  }
+
+  // Retry failed pages sequentially (rate-limit/timeout recovery)
+  for (const { pageNumber, imageBase64, error } of failedPages) {
+    console.log(`[AutoForm] Retrying page ${pageNumber} extraction (original error: ${error instanceof Error ? error.message : error})`);
+    try {
+      const result = await extractFieldsFromSinglePage({
+        documentId: options.documentId,
+        pageNumber,
+        imageBase64,
+        pdfBuffer,
+        ocrWords: ocrWordsByPage?.get(pageNumber),
+        acroFormFields: acroFormFieldsByPage?.get(pageNumber),
+        onProgress: (msg) => onProgress?.(`[Page ${pageNumber} retry] ${msg}`),
+      });
+      onPageComplete?.(result);
+      results.push(result);
+      console.log(`[AutoForm] Page ${pageNumber} retry succeeded: ${result.fields.length} fields`);
+    } catch (retryErr) {
+      console.error(`[AutoForm] Page ${pageNumber} retry also FAILED:`, retryErr);
+      results.push({ pageNumber, fields: [], durationMs: 0 });
+    }
+  }
 
   // Sort by page number
   results.sort((a, b) => a.pageNumber - b.pageNumber);
@@ -244,6 +309,7 @@ function normalizeField(field: RawExtractedField): ProcessedField {
     groupLabel: field.groupLabel ?? null,
     rows: field.rows ?? null,
     tableConfig: null,
+    choiceOptions: field.choiceOptions ?? null,
     dateSegments: null,
     segments: field.segments ?? null,
   };
