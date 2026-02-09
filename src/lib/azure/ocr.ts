@@ -1,12 +1,14 @@
 /**
  * Azure Document Intelligence OCR
  *
- * Extracts full text from PDF documents using the Read API.
- * Runs in parallel with field extraction to provide document context
- * for the question writer agent.
+ * Extracts full text and word-level polygons from PDF documents using the Read API.
+ * Runs in parallel with field extraction to provide:
+ * - Document context for question generation (ocr_text)
+ * - Word-level positions for coordinate snapping (ocr_pages_data)
  */
 
 import { createAdminClient } from "../supabase/admin";
+import type { OcrPageData } from "../coordinate-snapping/types";
 
 const AZURE_ENDPOINT = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
 const AZURE_KEY = process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY;
@@ -15,6 +17,7 @@ interface OcrResult {
   success: boolean;
   text: string;
   pageCount: number;
+  pagesData: OcrPageData[];
   error?: string;
   durationMs: number;
 }
@@ -25,6 +28,14 @@ interface AnalyzeResponse {
     content: string;
     pages: Array<{
       pageNumber: number;
+      width: number;
+      height: number;
+      unit: string;
+      words?: Array<{
+        content: string;
+        polygon: number[];
+        confidence: number;
+      }>;
       lines: Array<{
         content: string;
       }>;
@@ -33,7 +44,7 @@ interface AnalyzeResponse {
 }
 
 /**
- * Extract text from a PDF using Azure Document Intelligence Read API
+ * Extract text and word-level polygons from a PDF using Azure Document Intelligence Read API
  */
 export async function extractDocumentText(pdfBuffer: ArrayBuffer): Promise<OcrResult> {
   const startTime = Date.now();
@@ -43,6 +54,7 @@ export async function extractDocumentText(pdfBuffer: ArrayBuffer): Promise<OcrRe
       success: false,
       text: "",
       pageCount: 0,
+      pagesData: [],
       error: "Azure Document Intelligence not configured",
       durationMs: Date.now() - startTime,
     };
@@ -107,12 +119,27 @@ export async function extractDocumentText(pdfBuffer: ArrayBuffer): Promise<OcrRe
 
     // Extract full text content
     const text = result.analyzeResult.content || "";
-    const pageCount = result.analyzeResult.pages?.length || 0;
+    const pages = result.analyzeResult.pages || [];
+    const pageCount = pages.length;
+
+    // Extract word-level polygon data for coordinate snapping
+    const pagesData: OcrPageData[] = pages.map((page) => ({
+      pageNumber: page.pageNumber,
+      width: page.width,
+      height: page.height,
+      unit: page.unit || "inch",
+      words: (page.words || []).map((word) => ({
+        content: word.content,
+        polygon: word.polygon || [],
+        confidence: word.confidence ?? 0,
+      })),
+    }));
 
     return {
       success: true,
       text,
       pageCount,
+      pagesData,
       durationMs: Date.now() - startTime,
     };
   } catch (error) {
@@ -121,6 +148,7 @@ export async function extractDocumentText(pdfBuffer: ArrayBuffer): Promise<OcrRe
       success: false,
       text: "",
       pageCount: 0,
+      pagesData: [],
       error: error instanceof Error ? error.message : "Unknown error",
       durationMs: Date.now() - startTime,
     };
@@ -143,14 +171,16 @@ export async function runOcrAndSave(documentId: string, pdfBuffer: ArrayBuffer):
       documentId,
       textLength: result.text.length,
       pageCount: result.pageCount,
+      wordsPerPage: result.pagesData.map((p) => p.words.length),
       durationMs: result.durationMs,
     });
 
-    // Save OCR text to database
+    // Save OCR text and word-level data to database
     await supabase
       .from("documents")
       .update({
         ocr_text: result.text,
+        ocr_pages_data: result.pagesData,
         ocr_completed_at: new Date().toISOString(),
       })
       .eq("id", documentId);
@@ -166,6 +196,7 @@ export async function runOcrAndSave(documentId: string, pdfBuffer: ArrayBuffer):
       .from("documents")
       .update({
         ocr_text: "",
+        ocr_pages_data: null,
         ocr_completed_at: new Date().toISOString(),
       })
       .eq("id", documentId);
@@ -197,4 +228,24 @@ export async function waitForOcr(documentId: string, maxWaitMs: number = 30000):
 
   console.warn("[AutoForm] OCR wait timeout:", { documentId, maxWaitMs });
   return "";
+}
+
+/**
+ * Try to get OCR word-level data if available (non-blocking).
+ * Returns null if OCR hasn't completed yet.
+ */
+export async function getOcrPagesData(documentId: string): Promise<OcrPageData[] | null> {
+  const supabase = createAdminClient();
+
+  const { data } = await supabase
+    .from("documents")
+    .select("ocr_pages_data, ocr_completed_at")
+    .eq("id", documentId)
+    .single();
+
+  if (!data?.ocr_completed_at || !data.ocr_pages_data) {
+    return null;
+  }
+
+  return data.ocr_pages_data as OcrPageData[];
 }

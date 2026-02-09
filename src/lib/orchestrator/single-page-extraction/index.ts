@@ -14,6 +14,8 @@
 import { resizeForGemini } from "../../image-compositor";
 import { extractFieldsFromPage, type RawExtractedField } from "../../gemini/vision/single-page-extract";
 import type { NormalizedCoordinates, DateSegment, FieldType, TableConfig } from "../../types";
+import { prepareGeometry, snapWithPrecomputedGeometry, filterPrefilledFields } from "../../coordinate-snapping";
+import type { OcrWordWithCoords } from "../../coordinate-snapping";
 
 // Standard page aspect ratio (height / width) for checkbox adjustment
 // Most forms are Letter (11/8.5 = 1.29) or A4 (297/210 = 1.414)
@@ -40,12 +42,16 @@ export interface ExtractionOptions {
   documentId: string;
   pageNumber: number;
   imageBase64: string;
+  pdfBuffer?: Buffer;
+  ocrWords?: OcrWordWithCoords[];
   onProgress?: (message: string) => void;
 }
 
 export interface MultiPageExtractionOptions {
   documentId: string;
   pageImages: Array<{ pageNumber: number; imageBase64: string }>;
+  pdfBuffer?: Buffer;
+  ocrWordsByPage?: Map<number, OcrWordWithCoords[]>;
   onPageComplete?: (result: PageExtractionResult) => void;
   onProgress?: (message: string) => void;
 }
@@ -56,7 +62,7 @@ export interface MultiPageExtractionOptions {
 export async function extractFieldsFromSinglePage(
   options: ExtractionOptions
 ): Promise<PageExtractionResult> {
-  const { pageNumber, imageBase64, onProgress } = options;
+  const { pageNumber, imageBase64, pdfBuffer, ocrWords, onProgress } = options;
 
   onProgress?.(`Processing page ${pageNumber}...`);
 
@@ -64,13 +70,64 @@ export async function extractFieldsFromSinglePage(
   const resized = await resizeForGemini(imageBase64, 1600);
   onProgress?.(`Resized to ${resized.width}x${resized.height}`);
 
-  // Step 2: Extract fields with Gemini
-  const extraction = await extractFieldsFromPage(resized.imageBase64);
+  // Step 2: Run Gemini extraction + geometry prep in parallel
+  // Gemini takes ~10s; CV detection (~200ms) and vector extraction (~1s) run during that wait
+  const imageBuffer = Buffer.from(imageBase64, "base64");
+  const geometryPromise = pdfBuffer
+    ? prepareGeometry(imageBuffer, pdfBuffer, pageNumber)
+    : null;
+
+  const [extraction, geometry] = await Promise.all([
+    extractFieldsFromPage(resized.imageBase64),
+    geometryPromise,
+  ]);
   onProgress?.(`Extracted ${extraction.fields.length} raw fields`);
 
   // Step 3: Process special fields (tables, linkedDate, checkboxes)
-  const processedFields = processExtractedFields(extraction.fields);
+  let processedFields = processExtractedFields(extraction.fields);
   onProgress?.(`Processed to ${processedFields.length} fields`);
+
+  // Step 3.5: Filter out header cells and prefilled text (requires OCR words)
+  if (ocrWords && ocrWords.length > 0) {
+    const filterResult = filterPrefilledFields(processedFields, ocrWords);
+    if (filterResult.filteredCount > 0) {
+      console.log("[AutoForm] Filtered prefilled fields:", {
+        page: pageNumber,
+        removed: filterResult.filteredCount,
+        remaining: filterResult.fields.length,
+      });
+      processedFields = filterResult.fields;
+    }
+  }
+
+  // Step 4: Apply coordinate snapping (OCR → CV → Vector → Checkbox rect → Textarea rect)
+  if (geometry) {
+    const snapResult = snapWithPrecomputedGeometry(
+      processedFields,
+      geometry.cvLines,
+      geometry.vectorLines,
+      geometry.vectorRects,
+      geometry.pageAspectRatio,
+      ocrWords,
+    );
+
+    console.log("[AutoForm] Coordinate snapping:", {
+      page: pageNumber,
+      snapped: `${snapResult.result.snappedCount}/${snapResult.result.totalEligible}`,
+      cv: snapResult.result.cvSnapped,
+      vector: snapResult.result.vectorSnapped,
+      ocr: snapResult.result.ocrSnapped,
+      checkboxRect: snapResult.result.checkboxRectSnapped,
+      textareaRect: snapResult.result.textareaRectSnapped,
+      durationMs: snapResult.result.durationMs,
+    });
+
+    return {
+      pageNumber,
+      fields: snapResult.fields,
+      durationMs: extraction.durationMs,
+    };
+  }
 
   return {
     pageNumber,
@@ -85,7 +142,7 @@ export async function extractFieldsFromSinglePage(
 export async function extractFieldsFromAllPages(
   options: MultiPageExtractionOptions
 ): Promise<PageExtractionResult[]> {
-  const { pageImages, onPageComplete, onProgress } = options;
+  const { pageImages, pdfBuffer, ocrWordsByPage, onPageComplete, onProgress } = options;
 
   onProgress?.(`Starting extraction for ${pageImages.length} pages...`);
 
@@ -96,6 +153,8 @@ export async function extractFieldsFromAllPages(
         documentId: options.documentId,
         pageNumber,
         imageBase64,
+        pdfBuffer,
+        ocrWords: ocrWordsByPage?.get(pageNumber),
         onProgress: (msg) => onProgress?.(`[Page ${pageNumber}] ${msg}`),
       });
 

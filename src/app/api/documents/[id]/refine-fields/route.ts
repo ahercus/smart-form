@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getDocument, getPageImageBase64, setPageFields, updateDocument } from "@/lib/storage";
+import { getDocument, getFile, getPageImageBase64, setPageFields, updateDocument } from "@/lib/storage";
 import { extractFieldsFromAllPages } from "@/lib/orchestrator/single-page-extraction";
 import { generateQuestions } from "@/lib/orchestrator/question-generator";
+import { getOcrPagesData } from "@/lib/azure/ocr";
+import { ocrPageDataToWords } from "@/lib/coordinate-snapping";
+import type { OcrWordWithCoords } from "@/lib/coordinate-snapping";
 
 /**
  * POST /api/documents/[id]/refine-fields
@@ -91,9 +94,44 @@ export async function POST(
       }, { status: 500 });
     }
 
+    // Load PDF buffer and OCR data in parallel for coordinate snapping
+    // PDF buffer is needed for vector line extraction; OCR data for label-based snapping
+    // Both run during Gemini's ~10s extraction, adding ~0ms net latency
+    let pdfBuffer: Buffer | undefined;
+    let ocrWordsByPage: Map<number, OcrWordWithCoords[]> | undefined;
+
+    try {
+      const [pdfArrayBuffer, ocrPagesData] = await Promise.all([
+        document.storage_path
+          ? getFile(document.storage_path)
+          : Promise.resolve(null),
+        getOcrPagesData(documentId),
+      ]);
+
+      if (pdfArrayBuffer) {
+        pdfBuffer = Buffer.from(pdfArrayBuffer);
+      }
+
+      if (ocrPagesData && ocrPagesData.length > 0) {
+        ocrWordsByPage = new Map();
+        for (const pageData of ocrPagesData) {
+          ocrWordsByPage.set(pageData.pageNumber, ocrPageDataToWords(pageData));
+        }
+        console.log("[AutoForm] OCR data loaded for snapping:", {
+          documentId,
+          pages: ocrPagesData.length,
+          wordsPerPage: ocrPagesData.map((p) => p.words.length),
+        });
+      }
+    } catch (err) {
+      console.warn("[AutoForm] Failed to load snapping data, continuing without:", err instanceof Error ? err.message : err);
+    }
+
     console.log("[AutoForm] Starting field extraction:", {
       documentId,
       pageCount: validPageImages.length,
+      hasSnapping: !!pdfBuffer,
+      hasOcrWords: !!ocrWordsByPage,
     });
 
     let pagesCompleted = 0;
@@ -103,6 +141,8 @@ export async function POST(
     const extractionResults = await extractFieldsFromAllPages({
       documentId,
       pageImages: validPageImages,
+      pdfBuffer,
+      ocrWordsByPage,
       // Progressive reveal: save fields as each page completes
       onPageComplete: async (pageResult) => {
         pagesCompleted++;
