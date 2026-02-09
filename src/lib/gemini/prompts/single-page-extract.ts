@@ -154,7 +154,7 @@ Required structure:
 }
 
 - columnHeaders: Array of header labels (must match visible headers)
-- coordinates: Bounding box of ENTIRE table (headers + all data rows)
+- coordinates: Bounding box of the DATA ROWS ONLY (EXCLUDE the header row). Top should be where the first blank data row starts.
 - dataRows: Number of BLANK rows (excluding header row)
 - columnPositions: Optional - % boundaries for non-uniform columns
 

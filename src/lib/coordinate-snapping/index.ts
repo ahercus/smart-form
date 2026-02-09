@@ -30,6 +30,7 @@ interface SnappableField {
   label: string;
   fieldType: string;
   coordinates: NormalizedCoordinates;
+  fromTableExpansion?: boolean;
 }
 
 /**
@@ -172,7 +173,25 @@ export function snapWithPrecomputedGeometry<T extends SnappableField>(
   acroFormFields?: AcroFormField[],
 ): { fields: T[]; result: SnapResult } {
   const startTime = Date.now();
-  let current = fields;
+
+  // Separate table-expanded cells from snapping — their coordinates are
+  // computed from tableConfig and should not be individually moved.
+  const tableFields: { index: number; field: T }[] = [];
+  const snappableFields: T[] = [];
+
+  fields.forEach((f, i) => {
+    if (f.fromTableExpansion) {
+      tableFields.push({ index: i, field: f });
+    } else {
+      snappableFields.push(f);
+    }
+  });
+
+  if (tableFields.length > 0) {
+    console.log("[AutoForm] Skipping snapping for", tableFields.length, "table-expanded cells");
+  }
+
+  let current = snappableFields;
   let acroFormSnapped = 0;
   let ocrSnapped = 0;
   let cvSnapped = 0;
@@ -242,8 +261,22 @@ export function snapWithPrecomputedGeometry<T extends SnappableField>(
     }
   }
 
+  // Merge table-expanded cells back into the result at their original positions
+  const merged: T[] = [];
+  let snappedIdx = 0;
+  let tableIdx = 0;
+  for (let i = 0; i < fields.length; i++) {
+    if (tableIdx < tableFields.length && tableFields[tableIdx].index === i) {
+      merged.push(tableFields[tableIdx].field);
+      tableIdx++;
+    } else {
+      merged.push(current[snappedIdx]);
+      snappedIdx++;
+    }
+  }
+
   const totalSnapped = Math.max(ocrSnapped, cvSnapped, vectorSnapped) + checkboxRectSnapped + textareaRectSnapped + acroFormSnapped;
-  const totalEligible = fields.filter((f) =>
+  const totalEligible = snappableFields.filter((f) =>
     ["text", "date", "linkedDate", "checkbox", "radio", "textarea"].includes(f.fieldType)
   ).length;
 
@@ -259,5 +292,5 @@ export function snapWithPrecomputedGeometry<T extends SnappableField>(
     durationMs: Date.now() - startTime,
   };
 
-  return { fields: current, result };
+  return { fields: merged, result };
 }

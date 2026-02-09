@@ -36,6 +36,7 @@ export interface ProcessedField {
   tableConfig?: TableConfig | null;
   dateSegments?: DateSegment[] | null;
   segments?: NormalizedCoordinates[] | null;
+  fromTableExpansion?: boolean;
 }
 
 export interface ExtractionOptions {
@@ -332,6 +333,7 @@ function expandTableToFields(tableField: RawExtractedField): ProcessedField[] {
         tableConfig: null,
         dateSegments: null,
         segments: null,
+        fromTableExpansion: true,
       });
     }
 
