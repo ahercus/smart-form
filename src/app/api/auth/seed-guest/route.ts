@@ -60,8 +60,6 @@ export async function POST() {
               country: "United States",
             },
           },
-          extended_context:
-            "Software engineer at TechFlow Inc. Married to Jordan Thompson. One daughter, Maya (age 7). Lives in San Francisco.",
           subscription_tier: "free",
         },
         { onConflict: "user_id" }
