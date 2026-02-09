@@ -3,10 +3,17 @@
  *
  * Renders fields to a Konva stage exactly as they appear on screen,
  * then exports to PNG. This ensures what you see = what you export.
+ *
+ * Each render function here mirrors its on-screen counterpart:
+ * - renderCheckboxX       ↔ CheckboxFieldShape
+ * - renderTextValue       ↔ TextFieldShape
+ * - renderSignatureImage  ↔ SignatureFieldShape
+ * - renderCircleChoices   ↔ ChoiceFieldShape
+ * - renderLinkedDate      ↔ LinkedDateFieldShape
  */
 
 import Konva from "konva";
-import type { ExtractedField } from "@/lib/types";
+import type { ExtractedField, DatePart } from "@/lib/types";
 
 export interface PageOverlayCapture {
   pageNumber: number;
@@ -15,17 +22,83 @@ export interface PageOverlayCapture {
   height: number;
 }
 
-// Field type colors (matching the React components)
-const FIELD_COLORS: Record<string, string> = {
-  text: "#3b82f6",
-  textarea: "#8b5cf6",
-  date: "#f59e0b",
-  checkbox: "#10b981",
-  signature: "#ef4444",
-  initials: "#ec4899",
-  circle_choice: "#f97316",
-  default: "#6b7280",
-};
+/**
+ * Calculate consistent page font size (matches KonvaFieldCanvas logic)
+ *
+ * Uses 75% of the smallest text field height on the page, clamped 10-24px.
+ * This ensures all text fields on a page share the same font size.
+ */
+function calculatePageFontSize(
+  fields: ExtractedField[],
+  pageHeight: number
+): number | null {
+  const textFields = fields.filter((f) =>
+    ["text", "textarea", "date"].includes(f.field_type)
+  );
+  if (textFields.length === 0) return null;
+
+  const minHeightPx = Math.min(
+    ...textFields.map((f) => (f.coordinates.height / 100) * pageHeight)
+  );
+  return Math.min(Math.max(minHeightPx * 0.75, 10), 24);
+}
+
+/**
+ * Check if a value represents a checked checkbox
+ */
+function isCheckboxChecked(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return (
+    normalized === "yes" ||
+    normalized === "true" ||
+    normalized === "checked" ||
+    normalized === "on" ||
+    normalized === "1" ||
+    normalized === "x"
+  );
+}
+
+/**
+ * Parse a date value into day, month, year parts
+ * Accepts ISO (YYYY-MM-DD), AU/UK (DD/MM/YYYY), or US (MM/DD/YYYY) formats
+ */
+function parseDateValue(
+  value: string
+): Record<DatePart, string> | null {
+  if (!value) return null;
+
+  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return { day, month, year, year2: year.slice(-2) };
+  }
+
+  const dmyMatch = value.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})$/);
+  if (dmyMatch) {
+    const [, day, month, year] = dmyMatch;
+    return {
+      day: day.padStart(2, "0"),
+      month: month.padStart(2, "0"),
+      year,
+      year2: year.slice(-2),
+    };
+  }
+
+  const parts = value.split(/[/\-]/);
+  if (parts.length === 3) {
+    const [first, second, third] = parts;
+    if (third.length === 4) {
+      return {
+        day: first.padStart(2, "0"),
+        month: second.padStart(2, "0"),
+        year: third,
+        year2: third.slice(-2),
+      };
+    }
+  }
+
+  return null;
+}
 
 /**
  * Render a single page's fields to a Konva stage and export as PNG
@@ -44,6 +117,9 @@ async function renderPageToKonva(
     return null;
   }
 
+  // Calculate consistent font size for this page (matches KonvaFieldCanvas)
+  const pageFontSize = calculatePageFontSize(pageFields, pageHeight);
+
   // Create off-screen container
   const container = document.createElement("div");
   container.style.position = "absolute";
@@ -52,7 +128,6 @@ async function renderPageToKonva(
   document.body.appendChild(container);
 
   try {
-    // Create Konva stage
     const stage = new Konva.Stage({
       container,
       width: pageWidth,
@@ -62,20 +137,24 @@ async function renderPageToKonva(
     const layer = new Konva.Layer();
     stage.add(layer);
 
-    // Render each field
+    // Render each field with a value
     for (const field of pageFields) {
       const value = fieldValues[field.id] || "";
       if (!value) continue;
 
-      await renderFieldToLayer(layer, field, value, pageWidth, pageHeight);
+      await renderFieldToLayer(
+        layer,
+        field,
+        value,
+        pageWidth,
+        pageHeight,
+        pageFontSize
+      );
     }
 
     layer.draw();
 
-    // Export to data URL
     const dataUrl = stage.toDataURL({ pixelRatio });
-
-    // Cleanup
     stage.destroy();
 
     return {
@@ -90,14 +169,15 @@ async function renderPageToKonva(
 }
 
 /**
- * Render a field to a Konva layer
+ * Render a field to a Konva layer (matches FieldShape routing)
  */
 async function renderFieldToLayer(
   layer: Konva.Layer,
   field: ExtractedField,
   value: string,
   pageWidth: number,
-  pageHeight: number
+  pageHeight: number,
+  pageFontSize: number | null
 ): Promise<void> {
   const coords = field.coordinates;
   const x = (coords.left / 100) * pageWidth;
@@ -107,7 +187,7 @@ async function renderFieldToLayer(
 
   switch (field.field_type) {
     case "checkbox":
-      if (value === "yes" || value === "true") {
+      if (isCheckboxChecked(value)) {
         renderCheckboxX(layer, x, y, width, height);
       }
       break;
@@ -125,15 +205,28 @@ async function renderFieldToLayer(
       }
       break;
 
+    case "date":
+      // Segmented date fields render each box separately
+      if (field.date_segments && field.date_segments.length > 0) {
+        renderLinkedDate(layer, field, value, pageWidth, pageHeight, pageFontSize);
+      } else {
+        renderTextValue(layer, value, x, y, width, height, pageFontSize, false);
+      }
+      break;
+
+    case "textarea":
+      renderTextValue(layer, value, x, y, width, height, pageFontSize, true);
+      break;
+
     default:
-      // Text fields
-      renderTextValue(layer, value, x, y, width, height);
+      // text, unknown, and other types
+      renderTextValue(layer, value, x, y, width, height, pageFontSize, false);
       break;
   }
 }
 
 /**
- * Render checkbox X mark
+ * Render checkbox X mark (matches CheckboxFieldShape)
  */
 function renderCheckboxX(
   layer: Konva.Layer,
@@ -144,20 +237,30 @@ function renderCheckboxX(
 ): void {
   const padding = Math.min(width, height) * 0.15;
 
-  // First diagonal
+  // First diagonal (top-left to bottom-right)
   layer.add(
     new Konva.Line({
-      points: [x + padding, y + padding, x + width - padding, y + height - padding],
+      points: [
+        x + padding,
+        y + padding,
+        x + width - padding,
+        y + height - padding,
+      ],
       stroke: "#000000",
       strokeWidth: 2,
       lineCap: "round",
     })
   );
 
-  // Second diagonal
+  // Second diagonal (bottom-left to top-right)
   layer.add(
     new Konva.Line({
-      points: [x + padding, y + height - padding, x + width - padding, y + padding],
+      points: [
+        x + padding,
+        y + height - padding,
+        x + width - padding,
+        y + padding,
+      ],
       stroke: "#000000",
       strokeWidth: 2,
       lineCap: "round",
@@ -166,7 +269,7 @@ function renderCheckboxX(
 }
 
 /**
- * Render signature/initials image
+ * Render signature/initials image (matches SignatureFieldShape)
  */
 async function renderSignatureImage(
   layer: Konva.Layer,
@@ -181,7 +284,6 @@ async function renderSignatureImage(
     img.crossOrigin = "anonymous";
 
     img.onload = () => {
-      // Calculate dimensions maintaining aspect ratio
       const imgAspect = img.width / img.height;
       const fieldAspect = width / height;
       const padding = 4;
@@ -221,7 +323,7 @@ async function renderSignatureImage(
 }
 
 /**
- * Render circle choice selections
+ * Render circle choice selections (matches ChoiceFieldShape)
  */
 function renderCircleChoices(
   layer: Konva.Layer,
@@ -230,22 +332,25 @@ function renderCircleChoices(
   pageWidth: number,
   pageHeight: number
 ): void {
-  const selectedLabels = value.split(",").map((s) => s.trim()).filter(Boolean);
+  const selectedLabels = value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   const padding = 4;
 
   for (const label of selectedLabels) {
     const option = field.choice_options?.find((opt) => opt.label === label);
     if (!option) continue;
 
-    const x = (option.coordinates.left / 100) * pageWidth;
-    const y = (option.coordinates.top / 100) * pageHeight;
-    const w = (option.coordinates.width / 100) * pageWidth;
-    const h = (option.coordinates.height / 100) * pageHeight;
+    const ox = (option.coordinates.left / 100) * pageWidth;
+    const oy = (option.coordinates.top / 100) * pageHeight;
+    const ow = (option.coordinates.width / 100) * pageWidth;
+    const oh = (option.coordinates.height / 100) * pageHeight;
 
-    const centerX = x + w / 2;
-    const centerY = y + h / 2;
-    const radiusX = w / 2 + padding;
-    const radiusY = h / 2 + padding;
+    const centerX = ox + ow / 2;
+    const centerY = oy + oh / 2;
+    const radiusX = ow / 2 + padding;
+    const radiusY = oh / 2 + padding;
 
     layer.add(
       new Konva.Ellipse({
@@ -262,7 +367,58 @@ function renderCircleChoices(
 }
 
 /**
- * Render text value
+ * Render linked date segments (matches LinkedDateFieldShape)
+ *
+ * Each date segment (day, month, year) is rendered in its own box
+ * at the segment's specific coordinates.
+ */
+function renderLinkedDate(
+  layer: Konva.Layer,
+  field: ExtractedField,
+  value: string,
+  pageWidth: number,
+  pageHeight: number,
+  pageFontSize: number | null
+): void {
+  const dateSegments = field.date_segments;
+  if (!dateSegments || dateSegments.length === 0) return;
+
+  const dateParts = parseDateValue(value);
+  if (!dateParts) return;
+
+  for (const segment of dateSegments) {
+    const sx = (segment.left / 100) * pageWidth;
+    const sy = (segment.top / 100) * pageHeight;
+    const sw = (segment.width / 100) * pageWidth;
+    const sh = (segment.height / 100) * pageHeight;
+
+    const segmentValue = dateParts[segment.part];
+    if (!segmentValue) continue;
+
+    const fontSize =
+      pageFontSize ?? Math.min(Math.max(sh * 0.75, 10), 24);
+    const padding = 2;
+
+    layer.add(
+      new Konva.Text({
+        x: sx + padding,
+        y: sy + (sh - fontSize) / 2,
+        width: sw - padding * 2,
+        text: segmentValue,
+        fontSize,
+        fontFamily: "system-ui, -apple-system, sans-serif",
+        fill: "#374151",
+        align: "center",
+      })
+    );
+  }
+}
+
+/**
+ * Render text value (matches TextFieldShape)
+ *
+ * Uses Konva's built-in text layout for proper word wrapping,
+ * ellipsis, and vertical alignment - matching the on-screen display.
  */
 function renderTextValue(
   layer: Konva.Layer,
@@ -270,32 +426,29 @@ function renderTextValue(
   x: number,
   y: number,
   width: number,
-  height: number
+  height: number,
+  pageFontSize: number | null,
+  isTextarea: boolean
 ): void {
-  const fontSize = Math.min(Math.max(height * 0.5, 8), 12);
+  const fontSize =
+    pageFontSize ?? Math.min(Math.max(height * 0.75, 10), 24);
   const padding = 4;
 
-  // Handle multi-line text
-  const lines = value.split("\n");
-  const lineHeight = fontSize * 1.2;
-
-  for (let i = 0; i < lines.length; i++) {
-    const lineY = y + padding + i * lineHeight + (height - fontSize) / 2 - padding;
-    // Stop if we've gone past the field bottom
-    if (lineY + fontSize > y + height) break;
-
-    layer.add(
-      new Konva.Text({
-        x: x + padding,
-        y: y + (height - fontSize) / 2,
-        width: width - padding * 2,
-        text: lines[i],
-        fontSize,
-        fontFamily: "system-ui, -apple-system, sans-serif",
-        fill: "#374151",
-      })
-    );
-  }
+  layer.add(
+    new Konva.Text({
+      x: x + padding,
+      y: isTextarea ? y + padding : y + (height - fontSize) / 2,
+      width: width - padding * 2,
+      height: isTextarea ? height - padding * 2 : undefined,
+      text: value,
+      fontSize,
+      fontFamily: "system-ui, -apple-system, sans-serif",
+      fill: "#374151",
+      ellipsis: !isTextarea,
+      wrap: isTextarea ? "word" : "none",
+      verticalAlign: isTextarea ? "top" : "middle",
+    })
+  );
 }
 
 /**

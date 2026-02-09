@@ -168,7 +168,7 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
               every field, fills in the answers, and remembers it all for next
               time. Forms so simple your mum could do it.
             </p>
-            <div className="mt-10 flex flex-col items-center gap-2">
+            <div className="mt-10 flex flex-col items-center gap-4">
               <Button
                 size="lg"
                 onClick={handleGuestLogin}
@@ -181,16 +181,27 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
               <p className="text-xs text-muted-foreground">
                 No login required. Pre-loaded with demo data.
               </p>
+
+              <div className="flex w-full items-center gap-4 my-2">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs font-medium text-muted-foreground">OR</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+
               <Button
-                variant="link"
+                variant="outline"
+                size="lg"
                 asChild
-                className="text-muted-foreground"
+                className="w-full sm:w-auto"
               >
                 <Link href="/signup">
-                  Create an account instead
+                  Create an account
                   <ArrowRight className="size-4" />
                 </Link>
               </Button>
+              <p className="text-xs text-muted-foreground">
+                Supercharge your form-filling with curated memories.
+              </p>
             </div>
           </div>
         </section>
