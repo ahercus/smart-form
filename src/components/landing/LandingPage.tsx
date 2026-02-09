@@ -3,9 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Permanent_Marker } from "next/font/google";
 import { signInAsGuest } from "@/lib/auth/guest-login";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+
+const marker = Permanent_Marker({ weight: "400", subsets: ["latin"] });
 import {
   FileText,
   Brain,
@@ -169,15 +172,80 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
               time. Forms so simple your mum could do it.
             </p>
             <div className="mt-10 flex flex-col items-center gap-4">
-              <Button
-                size="lg"
-                onClick={handleGuestLogin}
-                disabled={guestLoading}
-                className="w-full sm:w-auto"
-              >
-                <UserRound className="size-4" />
-                {guestLoading ? "Loading demo..." : "Try It — No Sign Up"}
-              </Button>
+              {/* Judge annotation */}
+              <div className="relative w-full flex justify-center">
+                <div className="absolute -top-2 right-[5%] sm:right-[8%] md:top-1/2 md:right-auto md:left-[68%] md:-translate-y-1/2 pointer-events-none select-none">
+                  {/* Marker note */}
+                  <p
+                    className={`${marker.className} text-red-500 text-lg sm:text-xl md:text-2xl -rotate-3 md:rotate-[-6deg] whitespace-nowrap`}
+                  >
+                    Devpost judges,
+                    <br />
+                    start here!
+                  </p>
+                  {/* Hand-drawn arrow (mobile): curves down and hooks left */}
+                  <svg
+                    className="absolute -bottom-10 left-0 -translate-x-[60%] md:hidden"
+                    width="70"
+                    height="55"
+                    viewBox="0 0 70 55"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M55 3 C50 8, 42 18, 35 28 C28 38, 18 44, 8 42"
+                      stroke="#ef4444"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      fill="none"
+                    />
+                    <path
+                      d="M14 36 L7 42 L14 48"
+                      stroke="#ef4444"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      fill="none"
+                    />
+                  </svg>
+                  {/* Hand-drawn arrow (desktop): points left toward button */}
+                  <svg
+                    className="absolute -bottom-2 right-full top-1/2 -translate-y-1/2 mr-1 hidden md:block"
+                    width="60"
+                    height="50"
+                    viewBox="0 0 60 50"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M55 10 C45 12, 30 18, 15 25 C10 28, 6 30, 3 32"
+                      stroke="#ef4444"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      fill="none"
+                    />
+                    <path
+                      d="M10 26 L3 32 L10 37"
+                      stroke="#ef4444"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      fill="none"
+                    />
+                  </svg>
+                </div>
+                <div className="mt-12 md:mt-0">
+                  <Button
+                    size="lg"
+                    onClick={handleGuestLogin}
+                    disabled={guestLoading}
+                    className="w-full sm:w-auto"
+                  >
+                    <UserRound className="size-4" />
+                    {guestLoading ? "Loading demo..." : "Try It — No Sign Up"}
+                  </Button>
+                </div>
+              </div>
               <p className="text-xs text-muted-foreground">
                 No login required. Pre-loaded with demo data.
               </p>
