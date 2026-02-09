@@ -16,6 +16,7 @@ import { extractFieldsFromPage, type RawExtractedField } from "../../gemini/visi
 import type { NormalizedCoordinates, DateSegment, FieldType, TableConfig } from "../../types";
 import { prepareGeometry, snapWithPrecomputedGeometry, filterPrefilledFields } from "../../coordinate-snapping";
 import type { OcrWordWithCoords, AcroFormField } from "../../coordinate-snapping";
+import type { VectorLine } from "../../coordinate-snapping/types";
 
 // Standard page aspect ratio (height / width) for checkbox adjustment
 // Most forms are Letter (11/8.5 = 1.29) or A4 (297/210 = 1.414)
@@ -104,7 +105,9 @@ export async function extractFieldsFromSinglePage(
   }
 
   // Step 3.5: Process special fields (tables, linkedDate, checkboxes)
-  let processedFields = processExtractedFields(rawFields);
+  // Pass vector lines so table column positions can be snapped to actual PDF grid lines
+  const vectorLines = geometry?.vectorLines;
+  let processedFields = processExtractedFields(rawFields, vectorLines);
   onProgress?.(`Processed to ${processedFields.length} fields`);
 
   // Step 4: Apply coordinate snapping (AcroForm → OCR → CV → Vector → Checkbox rect → Textarea rect)
@@ -187,14 +190,14 @@ export async function extractFieldsFromAllPages(
 /**
  * Process all extracted fields, expanding tables and handling special types
  */
-function processExtractedFields(fields: RawExtractedField[]): ProcessedField[] {
+function processExtractedFields(fields: RawExtractedField[], vectorLines?: VectorLine[]): ProcessedField[] {
   const processed: ProcessedField[] = [];
 
   for (const field of fields) {
     switch (field.fieldType) {
       case "table":
-        // Expand table into individual cell fields
-        const expandedCells = expandTableToFields(field);
+        // Expand table into individual cell fields, snapping columns to vector lines
+        const expandedCells = expandTableToFields(field, vectorLines);
         processed.push(...expandedCells);
         break;
 
@@ -274,9 +277,10 @@ function normalizeFieldType(type: string): FieldType {
 }
 
 /**
- * Expand a table field into individual cell fields
+ * Expand a table field into individual cell fields.
+ * If vector lines are available, snaps column boundaries to actual PDF grid lines.
  */
-function expandTableToFields(tableField: RawExtractedField): ProcessedField[] {
+function expandTableToFields(tableField: RawExtractedField, vectorLines?: VectorLine[]): ProcessedField[] {
   const config = tableField.tableConfig;
   if (!config) {
     console.warn("[AutoForm] Table field missing tableConfig:", tableField.label);
@@ -299,25 +303,26 @@ function expandTableToFields(tableField: RawExtractedField): ProcessedField[] {
     return [];
   }
 
-  // Calculate column widths from positions (or use uniform)
-  const colPositions = columnPositions || generateUniformPositions(numColumns);
-  const colWidths = calculateWidthsFromPositions(colPositions);
+  // Snap table bounding box and column boundaries to vector lines if available
+  const snapped = snapTableToVectorLines(coordinates, numColumns, columnPositions, vectorLines);
+
+  const colWidths = calculateWidthsFromPositions(snapped.colPositions);
 
   // Calculate row heights (or use uniform)
   const rowHeightValues = rowHeights || Array(dataRows).fill(100 / dataRows);
 
   const expandedFields: ProcessedField[] = [];
-  let currentTop = coordinates.top;
+  let currentTop = snapped.coordinates.top;
 
   for (let row = 0; row < dataRows; row++) {
-    const rowHeight = (rowHeightValues[row] / 100) * coordinates.height;
+    const rowHeight = (rowHeightValues[row] / 100) * snapped.coordinates.height;
 
     for (let col = 0; col < numColumns; col++) {
-      const colStart = colPositions[col];
+      const colStart = snapped.colPositions[col];
       const colWidth = colWidths[col];
 
-      const cellLeft = coordinates.left + (colStart / 100) * coordinates.width;
-      const cellWidth = (colWidth / 100) * coordinates.width;
+      const cellLeft = snapped.coordinates.left + (colStart / 100) * snapped.coordinates.width;
+      const cellWidth = (colWidth / 100) * snapped.coordinates.width;
 
       expandedFields.push({
         label: `${columnHeaders[col]} - Row ${row + 1}`,
@@ -345,9 +350,126 @@ function expandTableToFields(tableField: RawExtractedField): ProcessedField[] {
     columns: numColumns,
     rows: dataRows,
     totalFields: expandedFields.length,
+    vectorSnapped: snapped.snappedColumns > 0,
+    snappedColumns: snapped.snappedColumns,
   });
 
   return expandedFields;
+}
+
+/**
+ * Snap table bounding box and column positions to vertical PDF vector lines.
+ *
+ * Finds vertical lines within the table's Y range, clusters them (PDF tables
+ * often draw the same line twice at slightly different x), then maps each
+ * Gemini-estimated column boundary to the nearest cluster.
+ */
+function snapTableToVectorLines(
+  coordinates: NormalizedCoordinates,
+  numColumns: number,
+  columnPositions: number[] | undefined,
+  vectorLines?: VectorLine[],
+): { coordinates: NormalizedCoordinates; colPositions: number[]; snappedColumns: number } {
+  const geminiColPositions = columnPositions || generateUniformPositions(numColumns);
+
+  if (!vectorLines || vectorLines.length === 0) {
+    return { coordinates, colPositions: geminiColPositions, snappedColumns: 0 };
+  }
+
+  // Find vertical lines that overlap with the table's vertical range
+  const tableTop = coordinates.top;
+  const tableBottom = coordinates.top + coordinates.height;
+  const tableLeft = coordinates.left;
+  const tableRight = coordinates.left + coordinates.width;
+
+  const vLines = vectorLines.filter((l) => {
+    if (!l.isVertical) return false;
+    // Line must overlap with table's Y range (at least 30% overlap)
+    const lineTop = Math.min(l.y1, l.y2);
+    const lineBottom = Math.max(l.y1, l.y2);
+    const overlapTop = Math.max(tableTop, lineTop);
+    const overlapBottom = Math.min(tableBottom, lineBottom);
+    const overlap = overlapBottom - overlapTop;
+    if (overlap <= 0) return false;
+    const lineHeight = lineBottom - lineTop;
+    if (lineHeight <= 0) return false;
+    // Line must be within extended table X range (allow 5% margin)
+    const lineX = l.x1;
+    return lineX >= tableLeft - 5 && lineX <= tableRight + 5;
+  });
+
+  if (vLines.length === 0) {
+    return { coordinates, colPositions: geminiColPositions, snappedColumns: 0 };
+  }
+
+  // Cluster nearby vertical lines (within 1.5% of each other)
+  const xPositions = vLines.map((l) => l.x1).sort((a, b) => a - b);
+  const clusters: number[] = [];
+  let clusterSum = xPositions[0];
+  let clusterCount = 1;
+
+  for (let i = 1; i < xPositions.length; i++) {
+    if (xPositions[i] - xPositions[i - 1] < 1.5) {
+      clusterSum += xPositions[i];
+      clusterCount++;
+    } else {
+      clusters.push(clusterSum / clusterCount);
+      clusterSum = xPositions[i];
+      clusterCount = 1;
+    }
+  }
+  clusters.push(clusterSum / clusterCount);
+
+  // We need numColumns + 1 boundaries (left edge, N-1 dividers, right edge)
+  // Convert Gemini's relative column positions to absolute x for matching
+  const geminiAbsolutePositions = geminiColPositions.map(
+    (p) => coordinates.left + (p / 100) * coordinates.width
+  );
+
+  // Snap each Gemini column boundary to the nearest vector cluster
+  const maxSnapDist = 5; // max 5% snap distance
+  let snappedColumns = 0;
+  const snappedAbsolute = geminiAbsolutePositions.map((geminiX) => {
+    let bestCluster: number | null = null;
+    let bestDist = maxSnapDist;
+    for (const cx of clusters) {
+      const dist = Math.abs(cx - geminiX);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestCluster = cx;
+      }
+    }
+    if (bestCluster !== null) {
+      snappedColumns++;
+      return bestCluster;
+    }
+    return geminiX;
+  });
+
+  // Derive snapped coordinates and relative column positions
+  const snappedLeft = snappedAbsolute[0];
+  const snappedRight = snappedAbsolute[snappedAbsolute.length - 1];
+  const snappedWidth = snappedRight - snappedLeft;
+
+  const snappedColPositions = snappedAbsolute.map((absX) =>
+    snappedWidth > 0 ? ((absX - snappedLeft) / snappedWidth) * 100 : 0
+  );
+
+  const snappedCoordinates: NormalizedCoordinates = {
+    left: snappedLeft,
+    top: coordinates.top,
+    width: snappedWidth,
+    height: coordinates.height,
+  };
+
+  console.log("[AutoForm] Table column snap:", {
+    geminiEdges: geminiAbsolutePositions.map((x) => x.toFixed(1)),
+    vectorClusters: clusters.map((x) => x.toFixed(1)),
+    snappedEdges: snappedAbsolute.map((x) => x.toFixed(1)),
+    snappedColumns,
+  });
+
+  return { coordinates: snappedCoordinates, colPositions: snappedColPositions, snappedColumns };
 }
 
 /**
