@@ -83,7 +83,7 @@ async function runAzureOcr(pdfBuffer: Buffer): Promise<OcrResult> {
       "Ocp-Apim-Subscription-Key": AZURE_KEY,
       "Content-Type": "application/pdf",
     },
-    body: pdfBuffer,
+    body: pdfBuffer as unknown as BodyInit,
   });
 
   if (!submitResponse.ok) {
