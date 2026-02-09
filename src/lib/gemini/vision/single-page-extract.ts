@@ -120,14 +120,115 @@ export async function extractFieldsFromPage(
     return true;
   });
 
+  // Detect and fix out-of-range coordinates (Gemini sometimes returns ~10x values)
+  const normalizedFields = normalizeCoordinateScale(validFields);
+
   console.log("[AutoForm] Single-page extraction complete:", {
-    totalFields: validFields.length,
+    totalFields: normalizedFields.length,
     invalidSkipped: parsed.fields.length - validFields.length,
     durationMs,
   });
 
   return {
-    fields: validFields,
+    fields: normalizedFields,
     durationMs,
   };
+}
+
+/**
+ * Detect if Gemini returned coordinates in wrong scale and normalize them.
+ *
+ * Sometimes Gemini returns position values (top/left) that are ~10x the correct
+ * percentage (e.g., top=200 instead of top=20) while dimensions (width/height)
+ * remain correct. This detects the issue by checking if positions exceed the
+ * valid 0-100 range and rescales only the affected components.
+ */
+function normalizeCoordinateScale(fields: RawExtractedField[]): RawExtractedField[] {
+  if (fields.length === 0) return fields;
+
+  // Collect all position and dimension values to detect which axis is off
+  let maxTop = 0;
+  let maxLeft = 0;
+  let maxHeight = 0;
+  let maxWidth = 0;
+
+  for (const field of fields) {
+    const { left, top, width, height } = field.coordinates;
+    maxTop = Math.max(maxTop, top);
+    maxLeft = Math.max(maxLeft, left);
+    maxHeight = Math.max(maxHeight, height);
+    maxWidth = Math.max(maxWidth, width);
+
+    if (field.dateSegments) {
+      for (const seg of field.dateSegments) {
+        maxTop = Math.max(maxTop, seg.top);
+        maxLeft = Math.max(maxLeft, seg.left);
+      }
+    }
+    if (field.segments) {
+      for (const seg of field.segments) {
+        maxTop = Math.max(maxTop, seg.top);
+        maxLeft = Math.max(maxLeft, seg.left);
+      }
+    }
+    if (field.tableConfig?.coordinates) {
+      const tc = field.tableConfig.coordinates;
+      maxTop = Math.max(maxTop, tc.top);
+      maxLeft = Math.max(maxLeft, tc.left);
+    }
+  }
+
+  // Detect if positions are out of range (>110%) while dimensions are normal (<50%)
+  // This pattern indicates Gemini used a different scale for position values
+  const topOutOfRange = maxTop > 110;
+  const leftOutOfRange = maxLeft > 110;
+
+  if (!topOutOfRange && !leftOutOfRange) return fields;
+
+  // Calculate scale factors from position values only
+  // Use the max position + a reasonable dimension estimate to find the true page extent
+  const yScale = topOutOfRange ? (maxTop + maxHeight) / 100 : 1;
+  const xScale = leftOutOfRange ? (maxLeft + maxWidth) / 100 : 1;
+
+  console.warn("[AutoForm] Coordinate scale correction:", {
+    maxTop: maxTop.toFixed(1),
+    maxLeft: maxLeft.toFixed(1),
+    maxHeight: maxHeight.toFixed(1),
+    maxWidth: maxWidth.toFixed(1),
+    yScale: yScale.toFixed(2),
+    xScale: xScale.toFixed(2),
+    fieldCount: fields.length,
+  });
+
+  // Only rescale position components (top/left), leave dimensions (width/height) alone
+  // unless dimensions are also out of range
+  const scaleHeight = maxHeight > 50;
+  const scaleWidth = maxWidth > 50;
+
+  function rescaleCoords(coords: NormalizedCoordinates): NormalizedCoordinates {
+    return {
+      left: leftOutOfRange ? coords.left / xScale : coords.left,
+      top: topOutOfRange ? coords.top / yScale : coords.top,
+      width: scaleWidth ? coords.width / xScale : coords.width,
+      height: scaleHeight ? coords.height / yScale : coords.height,
+    };
+  }
+
+  return fields.map((field) => ({
+    ...field,
+    coordinates: rescaleCoords(field.coordinates),
+    dateSegments: field.dateSegments?.map((seg) => ({
+      ...seg,
+      ...rescaleCoords(seg),
+    })),
+    segments: field.segments?.map((seg) => rescaleCoords(seg)),
+    tableConfig: field.tableConfig
+      ? {
+          ...field.tableConfig,
+          coordinates: field.tableConfig.coordinates
+            ? rescaleCoords(field.tableConfig.coordinates)
+            : field.tableConfig.coordinates,
+        }
+      : field.tableConfig,
+  }));
 }
