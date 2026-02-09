@@ -1,51 +1,50 @@
-// Admin endpoint to seed guest account with demo data
-// POST /api/admin/seed-guest - Requires admin secret
-
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const ADMIN_SECRET = process.env.ADMIN_SECRET;
+export async function POST() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-export async function POST(request: NextRequest) {
-  const adminSecret = request.headers.get("X-Admin-Secret");
-  if (!ADMIN_SECRET || adminSecret !== ADMIN_SECRET) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const guestEmail = process.env.NEXT_PUBLIC_GUEST_EMAIL;
-  if (!guestEmail) {
+  if (!user.is_anonymous) {
     return NextResponse.json(
-      { error: "NEXT_PUBLIC_GUEST_EMAIL not configured" },
-      { status: 400 }
+      { error: "Seed is only available for anonymous users" },
+      { status: 403 }
     );
   }
 
+  const userId = user.id;
   const adminClient = createAdminClient();
 
   try {
-    // Find guest user
-    const { data: users, error: usersError } =
-      await adminClient.auth.admin.listUsers();
-    if (usersError) throw new Error(`Failed to list users: ${usersError.message}`);
+    // Idempotency: skip if profile already exists
+    const { data: existingProfile } = await adminClient
+      .from("profiles")
+      .select("user_id")
+      .eq("user_id", userId)
+      .single();
 
-    const guestUser = users.users.find((u) => u.email === guestEmail);
-    if (!guestUser) {
-      return NextResponse.json(
-        { error: `Guest user not found: ${guestEmail}` },
-        { status: 404 }
-      );
+    if (existingProfile) {
+      return NextResponse.json({ status: "already_seeded" });
     }
 
-    const userId = guestUser.id;
-    console.log("[AutoForm] Seeding guest data for user:", userId);
+    console.log("[AutoForm] Seeding anonymous guest data for user:", userId);
 
-    // 1. Upsert profile
+    const placeholderEmail = `anonymous-${userId.slice(0, 8)}@guest.local`;
+
+    // 1. Insert profile
     const { error: profileError } = await adminClient
       .from("profiles")
       .upsert(
         {
           user_id: userId,
-          email: guestEmail,
+          email: placeholderEmail,
           core_data: {
             firstName: "Alex",
             middleInitial: "J",
@@ -68,27 +67,10 @@ export async function POST(request: NextRequest) {
         { onConflict: "user_id" }
       );
 
-    if (profileError) throw new Error(`Failed to seed profile: ${profileError.message}`);
+    if (profileError)
+      throw new Error(`Failed to seed profile: ${profileError.message}`);
 
-    // 2. Clean existing entities for this user (idempotent)
-    const { data: existingEntities } = await adminClient
-      .from("entities")
-      .select("id")
-      .eq("user_id", userId);
-
-    if (existingEntities && existingEntities.length > 0) {
-      const entityIds = existingEntities.map((e) => e.id);
-      await adminClient.from("entity_facts").delete().in("entity_id", entityIds);
-      await adminClient
-        .from("entity_relationships")
-        .delete()
-        .or(
-          `subject_entity_id.in.(${entityIds.join(",")}),object_entity_id.in.(${entityIds.join(",")})`
-        );
-      await adminClient.from("entities").delete().eq("user_id", userId);
-    }
-
-    // 3. Insert entities
+    // 2. Insert entities
     const entities = [
       {
         user_id: userId,
@@ -137,13 +119,14 @@ export async function POST(request: NextRequest) {
       .insert(entities)
       .select("id, canonical_name");
 
-    if (entitiesError) throw new Error(`Failed to seed entities: ${entitiesError.message}`);
+    if (entitiesError)
+      throw new Error(`Failed to seed entities: ${entitiesError.message}`);
 
     const entityMap = new Map(
       insertedEntities.map((e) => [e.canonical_name, e.id])
     );
 
-    // 4. Insert entity facts
+    // 3. Insert entity facts
     const alexId = entityMap.get("Alex Thompson")!;
     const jordanId = entityMap.get("Jordan Thompson")!;
     const mayaId = entityMap.get("Maya Thompson")!;
@@ -187,11 +170,14 @@ export async function POST(request: NextRequest) {
 
     const { error: factsError } = await adminClient
       .from("entity_facts")
-      .insert(facts.map((f) => ({ ...f, access_count: 1, has_conflict: false })));
+      .insert(
+        facts.map((f) => ({ ...f, access_count: 1, has_conflict: false }))
+      );
 
-    if (factsError) throw new Error(`Failed to seed facts: ${factsError.message}`);
+    if (factsError)
+      throw new Error(`Failed to seed facts: ${factsError.message}`);
 
-    // 5. Insert relationships
+    // 4. Insert relationships
     const relationships = [
       { subject_entity_id: alexId, predicate: "spouse_of", object_entity_id: jordanId, confidence: 0.95 },
       { subject_entity_id: alexId, predicate: "parent_of", object_entity_id: mayaId, confidence: 0.9 },
@@ -203,9 +189,10 @@ export async function POST(request: NextRequest) {
       .from("entity_relationships")
       .insert(relationships);
 
-    if (relError) throw new Error(`Failed to seed relationships: ${relError.message}`);
+    if (relError)
+      throw new Error(`Failed to seed relationships: ${relError.message}`);
 
-    console.log("[AutoForm] Guest data seeded successfully:", {
+    console.log("[AutoForm] Anonymous guest data seeded successfully:", {
       userId,
       entities: insertedEntities.length,
       facts: facts.length,
@@ -220,7 +207,7 @@ export async function POST(request: NextRequest) {
       relationships: relationships.length,
     });
   } catch (error) {
-    console.error("[AutoForm] Failed to seed guest data:", error);
+    console.error("[AutoForm] Failed to seed anonymous guest data:", error);
     return NextResponse.json(
       { error: "Seeding failed", details: String(error) },
       { status: 500 }

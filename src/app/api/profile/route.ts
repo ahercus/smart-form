@@ -90,7 +90,7 @@ export async function PATCH(request: NextRequest) {
       .upsert(
         {
           user_id: user.id,
-          email: user.email,
+          email: user.email || `anonymous-${user.id.slice(0, 8)}@guest.local`,
           core_data: coreData,
           updated_at: new Date().toISOString(),
         },

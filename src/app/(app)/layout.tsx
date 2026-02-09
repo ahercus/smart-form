@@ -19,7 +19,7 @@ export default async function AppLayout({
 
   return (
     <SidebarProvider>
-      <AppSidebar userEmail={user.email || "Unknown"} />
+      <AppSidebar userEmail={user.email || "Guest Demo"} isAnonymous={user.is_anonymous ?? false} />
       <SidebarInset className="app-bg relative h-svh overflow-hidden">
         <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
           <div className="absolute -top-[8%] right-[5%] h-[380px] w-[380px] rounded-full bg-[radial-gradient(circle,oklch(0.7_0.15_300/40%),transparent_65%)] blur-[30px]" />

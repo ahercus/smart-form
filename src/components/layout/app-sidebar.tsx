@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FileText, User, Brain, PenTool, LogOut, Eye } from "lucide-react";
-import { isGuestEmail } from "@/lib/auth/guest-login";
 import {
   Sidebar,
   SidebarContent,
@@ -21,6 +20,7 @@ import { Button } from "@/components/ui/button";
 
 interface AppSidebarProps {
   userEmail: string;
+  isAnonymous: boolean;
 }
 
 const navItems = [
@@ -46,7 +46,7 @@ const navItems = [
   },
 ];
 
-export function AppSidebar({ userEmail }: AppSidebarProps) {
+export function AppSidebar({ userEmail, isAnonymous }: AppSidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -106,15 +106,15 @@ export function AppSidebar({ userEmail }: AppSidebarProps) {
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip={userEmail}>
               <div className="cursor-default">
-                {isGuestEmail(userEmail) ? (
+                {isAnonymous ? (
                   <Eye className="size-4" />
                 ) : (
                   <User className="size-4" />
                 )}
                 <span className="truncate text-xs">
-                  {isGuestEmail(userEmail) ? "Guest Demo" : userEmail}
+                  {isAnonymous ? "Guest Demo" : userEmail}
                 </span>
-                {isGuestEmail(userEmail) && (
+                {isAnonymous && (
                   <span className="ml-auto rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
                     Guest
                   </span>

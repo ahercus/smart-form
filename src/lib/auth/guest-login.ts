@@ -1,27 +1,28 @@
 import { createClient } from "@/lib/supabase/client";
 
 export async function signInAsGuest(): Promise<{ error: string | null }> {
-  const guestEmail = process.env.NEXT_PUBLIC_GUEST_EMAIL;
-  const guestPassword = process.env.NEXT_PUBLIC_GUEST_PASSWORD;
-
-  if (!guestEmail || !guestPassword) {
-    return { error: "Guest login is not configured" };
-  }
-
   const supabase = createClient();
-  const { error } = await supabase.auth.signInWithPassword({
-    email: guestEmail,
-    password: guestPassword,
-  });
+
+  const { error } = await supabase.auth.signInAnonymously();
 
   if (error) {
-    console.error("[AutoForm] Guest login error:", error);
+    console.error("[AutoForm] Anonymous sign-in error:", error);
     return { error: "Guest login failed. Please try again." };
+  }
+
+  // Seed the new anonymous user with demo data
+  const seedResponse = await fetch("/api/auth/seed-guest", {
+    method: "POST",
+  });
+
+  if (!seedResponse.ok) {
+    console.error("[AutoForm] Guest seed error:", await seedResponse.text());
+    // Don't fail the login — user is signed in, just without demo data
   }
 
   return { error: null };
 }
 
-export function isGuestEmail(email: string): boolean {
-  return email === process.env.NEXT_PUBLIC_GUEST_EMAIL;
+export function isGuestUser(user: { is_anonymous?: boolean } | null): boolean {
+  return user?.is_anonymous === true;
 }
