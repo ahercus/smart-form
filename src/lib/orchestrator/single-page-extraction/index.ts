@@ -382,47 +382,91 @@ function expandTableToFields(tableField: RawExtractedField, vectorLines?: Vector
 
   const colWidths = calculateWidthsFromPositions(snapped.colPositions);
 
-  // Calculate row heights (or use uniform)
-  const rowHeightValues = rowHeights || Array(dataRows).fill(100 / dataRows);
+  // Count actual rows from horizontal vector lines inside the table
+  const vectorRowResult = countTableRowsFromVectorLines(snapped.coordinates, vectorLines);
+  const actualRows = vectorRowResult.rowCount > 0 ? vectorRowResult.rowCount : dataRows;
 
+  // Use vector-derived row tops for precise placement, or fall back to uniform
   const expandedFields: ProcessedField[] = [];
-  let currentTop = snapped.coordinates.top;
 
-  for (let row = 0; row < dataRows; row++) {
-    const rowHeight = (rowHeightValues[row] / 100) * snapped.coordinates.height;
+  if (vectorRowResult.rowTops.length > 0) {
+    // Vector-based row placement: use actual horizontal line positions
+    const rowTops = vectorRowResult.rowTops;
+    const tableBottom = snapped.coordinates.top + snapped.coordinates.height;
 
-    for (let col = 0; col < numColumns; col++) {
-      const colStart = snapped.colPositions[col];
-      const colWidth = colWidths[col];
+    for (let row = 0; row < actualRows; row++) {
+      const rowTop = rowTops[row];
+      const rowBottom = row + 1 < rowTops.length ? rowTops[row + 1] : tableBottom;
+      const rowHeight = rowBottom - rowTop;
 
-      const cellLeft = snapped.coordinates.left + (colStart / 100) * snapped.coordinates.width;
-      const cellWidth = (colWidth / 100) * snapped.coordinates.width;
+      for (let col = 0; col < numColumns; col++) {
+        const colStart = snapped.colPositions[col];
+        const colWidth = colWidths[col];
 
-      expandedFields.push({
-        label: `${columnHeaders[col]} - Row ${row + 1}`,
-        fieldType: "text",
-        coordinates: {
-          left: cellLeft,
-          top: currentTop,
-          width: cellWidth,
-          height: rowHeight,
-        },
-        groupLabel: tableField.groupLabel ?? tableField.label,
-        rows: null,
-        tableConfig: null,
-        dateSegments: null,
-        segments: null,
-        fromTableExpansion: true,
-      });
+        const cellLeft = snapped.coordinates.left + (colStart / 100) * snapped.coordinates.width;
+        const cellWidth = (colWidth / 100) * snapped.coordinates.width;
+
+        expandedFields.push({
+          label: `${columnHeaders[col]} - Row ${row + 1}`,
+          fieldType: "text",
+          coordinates: {
+            left: cellLeft,
+            top: rowTop,
+            width: cellWidth,
+            height: rowHeight,
+          },
+          groupLabel: tableField.groupLabel ?? tableField.label,
+          rows: null,
+          tableConfig: null,
+          dateSegments: null,
+          segments: null,
+          fromTableExpansion: true,
+        });
+      }
     }
+  } else {
+    // Fallback: uniform row heights from Gemini's dataRows
+    const rowHeightValues = rowHeights || Array(dataRows).fill(100 / dataRows);
+    let currentTop = snapped.coordinates.top;
 
-    currentTop += rowHeight;
+    for (let row = 0; row < dataRows; row++) {
+      const rowHeight = (rowHeightValues[row] / 100) * snapped.coordinates.height;
+
+      for (let col = 0; col < numColumns; col++) {
+        const colStart = snapped.colPositions[col];
+        const colWidth = colWidths[col];
+
+        const cellLeft = snapped.coordinates.left + (colStart / 100) * snapped.coordinates.width;
+        const cellWidth = (colWidth / 100) * snapped.coordinates.width;
+
+        expandedFields.push({
+          label: `${columnHeaders[col]} - Row ${row + 1}`,
+          fieldType: "text",
+          coordinates: {
+            left: cellLeft,
+            top: currentTop,
+            width: cellWidth,
+            height: rowHeight,
+          },
+          groupLabel: tableField.groupLabel ?? tableField.label,
+          rows: null,
+          tableConfig: null,
+          dateSegments: null,
+          segments: null,
+          fromTableExpansion: true,
+        });
+      }
+
+      currentTop += rowHeight;
+    }
   }
 
   console.log("[AutoForm] Expanded table:", {
     label: tableField.label,
     columns: numColumns,
-    rows: dataRows,
+    geminiRows: dataRows,
+    vectorRows: vectorRowResult.rowCount > 0 ? vectorRowResult.rowCount : "none",
+    actualRows,
     totalFields: expandedFields.length,
     vectorSnapped: snapped.snappedColumns > 0,
     snappedColumns: snapped.snappedColumns,
@@ -544,6 +588,88 @@ function snapTableToVectorLines(
   });
 
   return { coordinates: snappedCoordinates, colPositions: snappedColPositions, snappedColumns };
+}
+
+/**
+ * Count the actual number of data rows in a table by finding horizontal
+ * vector lines inside the table bounding box.
+ *
+ * Horizontal lines within the table define row boundaries. We cluster them
+ * by Y position (PDF tables often draw the same line twice), then the number
+ * of gaps between consecutive lines = number of rows.
+ *
+ * Returns the row count and the Y position of each row top for precise placement.
+ */
+function countTableRowsFromVectorLines(
+  coordinates: NormalizedCoordinates,
+  vectorLines?: VectorLine[],
+): { rowCount: number; rowTops: number[] } {
+  if (!vectorLines || vectorLines.length === 0) {
+    return { rowCount: 0, rowTops: [] };
+  }
+
+  const tableTop = coordinates.top;
+  const tableBottom = coordinates.top + coordinates.height;
+  const tableLeft = coordinates.left;
+  const tableRight = coordinates.left + coordinates.width;
+
+  // Find horizontal lines inside the table that span a significant portion of its width
+  const hLines = vectorLines.filter((l) => {
+    if (!l.isHorizontal) return false;
+    const lineY = l.y1;
+    // Line must be within the table's vertical range (with small tolerance)
+    if (lineY < tableTop - 0.5 || lineY > tableBottom + 0.5) return false;
+    // Line must overlap horizontally with the table (at least 50% of table width)
+    const lineLeft = Math.min(l.x1, l.x2);
+    const lineRight = Math.max(l.x1, l.x2);
+    const overlapLeft = Math.max(tableLeft, lineLeft);
+    const overlapRight = Math.min(tableRight, lineRight);
+    const overlap = overlapRight - overlapLeft;
+    return overlap > (tableRight - tableLeft) * 0.5;
+  });
+
+  if (hLines.length < 2) {
+    return { rowCount: 0, rowTops: [] };
+  }
+
+  // Cluster horizontal lines by Y position (within 1.0% of each other)
+  const yPositions = hLines.map((l) => l.y1).sort((a, b) => a - b);
+  const clusters: number[] = [];
+  let clusterSum = yPositions[0];
+  let clusterCount = 1;
+
+  for (let i = 1; i < yPositions.length; i++) {
+    if (yPositions[i] - yPositions[i - 1] < 1.0) {
+      clusterSum += yPositions[i];
+      clusterCount++;
+    } else {
+      clusters.push(clusterSum / clusterCount);
+      clusterSum = yPositions[i];
+      clusterCount = 1;
+    }
+  }
+  clusters.push(clusterSum / clusterCount);
+
+  // The number of rows = gaps between consecutive horizontal lines.
+  // The first cluster is the top border of the data area, subsequent ones are row dividers.
+  // Rows = clusters.length - 1 (top border + N-1 dividers + bottom border = N rows, but
+  // actually top border + bottom border + (N-1 interior dividers) gives N rows = clusters - 1)
+  const rowCount = clusters.length - 1;
+
+  if (rowCount <= 0) {
+    return { rowCount: 0, rowTops: [] };
+  }
+
+  // Row tops: each cluster except the last is the top of a row
+  const rowTops = clusters.slice(0, -1);
+
+  console.log("[AutoForm] Table row detection from vector lines:", {
+    horizontalLinesFound: hLines.length,
+    clusters: clusters.map((y) => y.toFixed(1)),
+    rowCount,
+  });
+
+  return { rowCount, rowTops };
 }
 
 /**
