@@ -17,6 +17,7 @@ import {
   SINGLE_PAGE_EXTRACTION_SCHEMA,
 } from "../prompts/single-page-extract";
 import type { NormalizedCoordinates, DateSegment, ChoiceOption } from "../../types";
+import type { VectorLine } from "../../coordinate-snapping/types";
 
 // Raw field structure from Gemini extraction
 export interface RawExtractedField {
@@ -72,6 +73,9 @@ export async function extractFieldsFromPage(
 
   const durationMs = Date.now() - startTime;
 
+  // Log full Gemini response for debugging
+  console.log("[AutoForm] Gemini extraction response:", responseText.slice(0, 3000));
+
   // Parse response
   let parsed: { fields: RawExtractedField[] };
   try {
@@ -126,108 +130,275 @@ export async function extractFieldsFromPage(
     return true;
   });
 
-  // Detect and fix out-of-range coordinates (Gemini sometimes returns ~10x values)
-  const normalizedFields = normalizeCoordinateScale(validFields);
-
   console.log("[AutoForm] Single-page extraction complete:", {
-    totalFields: normalizedFields.length,
+    totalFields: validFields.length,
     invalidSkipped: parsed.fields.length - validFields.length,
     durationMs,
   });
 
   return {
-    fields: normalizedFields,
+    fields: validFields,
     durationMs,
   };
 }
 
 /**
- * Detect if Gemini returned coordinates in wrong scale and normalize them.
+ * Normalize out-of-range Gemini coordinates using vector line calibration.
  *
- * Gemini sometimes returns coordinates in a ~0-1000 pixel scale instead of
- * 0-100 percentages. We detect this by finding the max right/bottom extent
- * (left+width, top+height) across all fields. If either axis exceeds 105,
- * we uniformly rescale ALL coordinate components on that axis.
+ * Gemini Vision sometimes returns coordinates in a non-percentage scale
+ * (commonly 0-1000), and often inconsistently — some fields on a page may
+ * use 0-100 while others use 0-1000. This function handles both cases:
+ *
+ * 1. **Page-wide rescale**: If the majority of fields on an axis are out of
+ *    range (>105), calibrate a scale factor against PDF vector lines.
+ * 2. **Per-field outlier fix**: If only a few fields are out of range on an
+ *    axis, individually fix those fields (divide by 10) without affecting
+ *    the correctly-scaled majority.
+ *
+ * Each axis (X/Y) is handled independently — Gemini may use different scales
+ * for horizontal vs vertical coordinates.
+ *
+ * Must be called AFTER vector geometry is available (from the orchestrator).
  */
-function normalizeCoordinateScale(fields: RawExtractedField[]): RawExtractedField[] {
+export function normalizeCoordinateScale(
+  fields: RawExtractedField[],
+  vectorLines?: VectorLine[],
+): RawExtractedField[] {
   if (fields.length === 0) return fields;
 
-  // Find the actual page extent by computing max(pos + dim) per axis
-  // This must use the SAME field's left+width (not max left + max width from different fields)
+  // Count per-axis how many fields have out-of-range main coordinates
+  let xOutCount = 0;
+  let yOutCount = 0;
   let maxRight = 0;
   let maxBottom = 0;
 
-  function trackCoords(coords: NormalizedCoordinates) {
+  function trackExtent(coords: NormalizedCoordinates | undefined | null) {
+    if (!coords || typeof coords.left !== "number" || typeof coords.width !== "number") return;
     const right = coords.left + coords.width;
     const bottom = coords.top + coords.height;
-    // Guard against NaN from malformed sub-coordinates (Gemini schema is loosely typed)
     if (Number.isFinite(right)) maxRight = Math.max(maxRight, right);
     if (Number.isFinite(bottom)) maxBottom = Math.max(maxBottom, bottom);
   }
 
-  for (const field of fields) {
-    trackCoords(field.coordinates);
+  // Also track max size values (width/height) separately from positions (left/top)
+  // Gemini often returns positions in 0-1000 but sizes in 0-100 within the same field
+  let maxWidth = 0;
+  let maxHeight = 0;
 
-    if (field.dateSegments) {
-      for (const seg of field.dateSegments) trackCoords(seg);
-    }
-    if (field.segments) {
-      for (const seg of field.segments) trackCoords(seg);
-    }
-    if (field.choiceOptions) {
-      for (const opt of field.choiceOptions) trackCoords(opt.coordinates);
-    }
-    if (field.tableConfig?.coordinates) {
-      trackCoords(field.tableConfig.coordinates);
-    }
+  for (const field of fields) {
+    const c = field.coordinates;
+    const right = c.left + c.width;
+    const bottom = c.top + c.height;
+    if (right > 105 || c.left > 105) xOutCount++;
+    if (bottom > 105 || c.top > 105) yOutCount++;
+    maxWidth = Math.max(maxWidth, c.width);
+    maxHeight = Math.max(maxHeight, c.height);
+    trackExtent(c);
+    if (field.dateSegments) for (const seg of field.dateSegments) trackExtent(seg);
+    if (field.segments) for (const seg of field.segments) trackExtent(seg);
+    if (field.choiceOptions) for (const opt of field.choiceOptions) trackExtent(opt.coordinates);
+    if (field.tableConfig?.coordinates) trackExtent(field.tableConfig.coordinates);
   }
 
-  // If extents are within valid percentage range, no rescaling needed
-  const xOutOfRange = maxRight > 105;
-  const yOutOfRange = maxBottom > 105;
+  // Majority threshold: if >30% of fields are out of range, it's a page-wide scale issue.
+  // Otherwise it's just a few outlier fields with wrong coordinates.
+  const majorityThreshold = Math.max(2, fields.length * 0.3);
+  const xPageRescale = xOutCount >= majorityThreshold && maxRight > 105;
+  const yPageRescale = yOutCount >= majorityThreshold && maxBottom > 105;
+  const xHasOutliers = xOutCount > 0 && !xPageRescale;
+  const yHasOutliers = yOutCount > 0 && !yPageRescale;
 
-  if (!xOutOfRange && !yOutOfRange) return fields;
+  // Detect mixed-scale: positions (left/top) in 0-1000 but sizes (width/height) in 0-100.
+  // If max size < 105 while positions are clearly out of range, only rescale positions.
+  const xPositionOnly = xPageRescale && maxWidth <= 105;
+  const yPositionOnly = yPageRescale && maxHeight <= 105;
 
-  // Scale factor = actual extent / 100, applied uniformly to ALL components on that axis
-  const xScale = xOutOfRange ? maxRight / 100 : 1;
-  const yScale = yOutOfRange ? maxBottom / 100 : 1;
+  if (!xPageRescale && !yPageRescale && !xHasOutliers && !yHasOutliers) return fields;
+
+  // Calibrate page-wide scales if needed
+  let xScale = 1;
+  let yScale = 1;
+  if (xPageRescale || yPageRescale) {
+    const calibrated = calibrateScale(
+      fields, maxRight, maxBottom, xPageRescale, yPageRescale, vectorLines,
+    );
+    xScale = calibrated.xScale;
+    yScale = calibrated.yScale;
+  }
 
   console.warn("[AutoForm] Coordinate scale correction:", {
-    maxRight: maxRight.toFixed(1),
-    maxBottom: maxBottom.toFixed(1),
-    xScale: xScale.toFixed(2),
-    yScale: yScale.toFixed(2),
-    fieldCount: fields.length,
+    xOutCount, yOutCount, totalFields: fields.length,
+    maxRight: maxRight.toFixed(1), maxBottom: maxBottom.toFixed(1),
+    maxWidth: maxWidth.toFixed(1), maxHeight: maxHeight.toFixed(1),
+    xPageRescale, yPageRescale, xPositionOnly, yPositionOnly,
+    xHasOutliers, yHasOutliers,
+    xScale: xScale.toFixed(2), yScale: yScale.toFixed(2),
+    method: (xPageRescale || yPageRescale)
+      ? (vectorLines && vectorLines.length > 0 ? "vector-calibrated" : "fallback")
+      : "outlier-only",
   });
 
-  function rescaleCoords(coords: NormalizedCoordinates): NormalizedCoordinates {
-    return {
-      left: coords.left / xScale,
-      top: coords.top / yScale,
-      width: coords.width / xScale,
-      height: coords.height / yScale,
-    };
+  /**
+   * Normalize a single coordinate set.
+   *
+   * Gemini may mix scales within a single field — e.g., top in 0-1000 but
+   * height in 0-100. When "positionOnly" is detected (positions out of range
+   * but sizes all ≤ 105), only left/top get divided by the scale.
+   *
+   * For outlier axes (minority of fields out of range), only individual
+   * VALUES > 105 get divided by 10.
+   */
+  function normalizeCoords(coords: NormalizedCoordinates): NormalizedCoordinates {
+    let { left, top, width, height } = coords;
+
+    // X axis
+    if (xPageRescale) {
+      left /= xScale;
+      if (!xPositionOnly) width /= xScale;
+      else if (width > 105) width /= xScale; // size is also out of range for this field
+    } else if (xHasOutliers) {
+      if (left > 105) left /= 10;
+      if (width > 105) width /= 10;
+    }
+
+    // Y axis
+    if (yPageRescale) {
+      top /= yScale;
+      if (!yPositionOnly) height /= yScale;
+      else if (height > 105) height /= yScale; // size is also out of range for this field
+    } else if (yHasOutliers) {
+      if (top > 105) top /= 10;
+      if (height > 105) height /= 10;
+    }
+
+    return { left, top, width, height };
   }
 
   return fields.map((field) => ({
     ...field,
-    coordinates: rescaleCoords(field.coordinates),
+    coordinates: normalizeCoords(field.coordinates),
     dateSegments: field.dateSegments?.map((seg) => ({
       ...seg,
-      ...rescaleCoords(seg),
+      ...normalizeCoords(seg),
     })),
-    segments: field.segments?.map((seg) => rescaleCoords(seg)),
+    segments: field.segments?.map((seg) => normalizeCoords(seg)),
     choiceOptions: field.choiceOptions?.map((opt) => ({
       ...opt,
-      coordinates: rescaleCoords(opt.coordinates),
+      coordinates: opt.coordinates && typeof opt.coordinates === "object" && "left" in opt.coordinates
+        ? normalizeCoords(opt.coordinates)
+        : opt.coordinates,
     })),
     tableConfig: field.tableConfig
       ? {
           ...field.tableConfig,
           coordinates: field.tableConfig.coordinates
-            ? rescaleCoords(field.tableConfig.coordinates)
+            ? normalizeCoords(field.tableConfig.coordinates)
             : field.tableConfig.coordinates,
+          // columnPositions are usually relative (0-100 within table).
+          // Only rescale if values themselves are out of range (>105).
+          columnPositions: field.tableConfig.columnPositions &&
+            field.tableConfig.columnPositions.some((p: number) => p > 105)
+            ? field.tableConfig.columnPositions.map((p: number) => p / (xPageRescale ? xScale : 10))
+            : field.tableConfig.columnPositions,
+          rowHeights: field.tableConfig.rowHeights &&
+            field.tableConfig.rowHeights.some((h: number) => h > 105)
+            ? field.tableConfig.rowHeights.map((h: number) => h / (yPageRescale ? yScale : 10))
+            : field.tableConfig.rowHeights,
         }
       : field.tableConfig,
   }));
+}
+
+/**
+ * Determine the optimal coordinate scale by testing candidate scales
+ * against PDF vector lines (ground truth).
+ *
+ * For each candidate scale, normalizes field coordinates and counts how many
+ * text/date field bottom edges align with horizontal PDF vector lines.
+ * The scale with the most alignments wins.
+ */
+function calibrateScale(
+  fields: RawExtractedField[],
+  maxRight: number,
+  maxBottom: number,
+  xOutOfRange: boolean,
+  yOutOfRange: boolean,
+  vectorLines?: VectorLine[],
+): { xScale: number; yScale: number } {
+  // Horizontal vector lines with significant length — our ground truth
+  const hLines = vectorLines?.filter(
+    (l) => l.isHorizontal && Math.abs(l.x2 - l.x1) > 5,
+  ) || [];
+
+  // Text/date/textarea fields for calibration (their bottom edges should sit on lines)
+  const calibrationFields = fields.filter((f) =>
+    ["text", "date", "textarea"].includes(f.fieldType),
+  );
+
+  // No ground truth or no suitable fields → fall back to 0-1000 system (most common)
+  if (hLines.length === 0 || calibrationFields.length === 0) {
+    return {
+      xScale: xOutOfRange ? 10 : 1,
+      yScale: yOutOfRange ? 10 : 1,
+    };
+  }
+
+  // Generate candidate scales from the data
+  const maxExtent = Math.max(maxRight, maxBottom);
+  const candidateSet = new Set<number>();
+  candidateSet.add(10);                                      // 0-1000 system
+  candidateSet.add(Number((maxExtent / 100).toFixed(2)));    // extent-based
+  candidateSet.add(Math.ceil(maxExtent / 100));              // rounded up
+  candidateSet.add(Math.round(maxExtent / 100));             // rounded
+  if (xOutOfRange) candidateSet.add(Number((maxRight / 100).toFixed(2)));
+  if (yOutOfRange) candidateSet.add(Number((maxBottom / 100).toFixed(2)));
+
+  const candidates = [...candidateSet].filter((c) => c >= 2 && c <= 30);
+
+  let bestScale = 10;
+  let bestAlignments = -1;
+
+  for (const scale of candidates) {
+    let alignments = 0;
+    const yS = yOutOfRange ? scale : 1;
+    const xS = xOutOfRange ? scale : 1;
+
+    for (const field of calibrationFields) {
+      const bottom = (field.coordinates.top + field.coordinates.height) / yS;
+      const left = field.coordinates.left / xS;
+      const right = (field.coordinates.left + field.coordinates.width) / xS;
+
+      for (const line of hLines) {
+        // Bottom edge within 2% of a horizontal line
+        if (Math.abs(line.y1 - bottom) < 2.0) {
+          // Require horizontal overlap (at least 30% of field width)
+          const fieldWidth = right - left;
+          if (fieldWidth <= 0) continue;
+          const overlapLeft = Math.max(left, line.x1);
+          const overlapRight = Math.min(right, line.x2);
+          if (overlapRight - overlapLeft > fieldWidth * 0.3) {
+            alignments++;
+            break;
+          }
+        }
+      }
+    }
+
+    if (alignments > bestAlignments) {
+      bestAlignments = alignments;
+      bestScale = scale;
+    }
+  }
+
+  console.log("[AutoForm] Scale calibration:", {
+    candidates: candidates.map((c) => c.toFixed(2)),
+    bestScale: bestScale.toFixed(2),
+    alignments: bestAlignments,
+    totalCalibrationFields: calibrationFields.length,
+  });
+
+  return {
+    xScale: xOutOfRange ? bestScale : 1,
+    yScale: yOutOfRange ? bestScale : 1,
+  };
 }

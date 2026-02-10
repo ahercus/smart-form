@@ -12,7 +12,7 @@
  */
 
 import { resizeForGemini } from "../../image-compositor";
-import { extractFieldsFromPage, type RawExtractedField } from "../../gemini/vision/single-page-extract";
+import { extractFieldsFromPage, normalizeCoordinateScale, type RawExtractedField } from "../../gemini/vision/single-page-extract";
 import type { NormalizedCoordinates, DateSegment, FieldType, TableConfig, ChoiceOption } from "../../types";
 import { prepareGeometry, snapWithPrecomputedGeometry, filterPrefilledFields } from "../../coordinate-snapping";
 import type { OcrWordWithCoords, AcroFormField } from "../../coordinate-snapping";
@@ -102,8 +102,14 @@ export async function extractFieldsFromSinglePage(
     throw err;
   }
 
+  // Step 2.5: Normalize coordinate scale (calibrated against PDF vector geometry)
+  const normalizedExtractionFields = normalizeCoordinateScale(
+    extraction.fields,
+    geometry?.vectorLines,
+  );
+
   // Step 3: Filter out prefilled text
-  let rawFields = extraction.fields;
+  let rawFields = normalizedExtractionFields;
   try {
     if (ocrWords && ocrWords.length > 0) {
       const filterResult = filterPrefilledFields(rawFields, ocrWords);
@@ -154,6 +160,8 @@ export async function extractFieldsFromSinglePage(
         ocr: snapResult.result.ocrSnapped,
         checkboxRect: snapResult.result.checkboxRectSnapped,
         textareaRect: snapResult.result.textareaRectSnapped,
+        vectorRects: geometry.vectorRects.length,
+        vectorLines: geometry.vectorLines.length,
         durationMs: snapResult.result.durationMs,
       });
 

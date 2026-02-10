@@ -24,7 +24,7 @@ export function applyCheckboxRectSnap<T extends { fieldType: string; coordinates
   fields: T[],
   rects: VectorRect[],
   pageAspectRatio: number,
-  maxCenterDist = 3.0,
+  maxCenterDist = 5.0,
   maxWidthPct = 5.0,
 ): { fields: T[]; snappedCount: number } {
   // Pre-filter: small, visually-square rectangles
@@ -35,7 +35,16 @@ export function applyCheckboxRectSnap<T extends { fieldType: string; coordinates
     return visualAR > 0.6 && visualAR < 1.67;
   });
 
-  if (checkboxRects.length === 0) return { fields, snappedCount: 0 };
+  const checkboxFields = fields.filter((f) => ["checkbox", "radio"].includes(f.fieldType));
+  if (checkboxRects.length === 0 || checkboxFields.length === 0) {
+    if (checkboxFields.length > 0) {
+      console.log("[AutoForm] Checkbox rect snap: no matching PDF rectangles found", {
+        totalRects: rects.length,
+        checkboxFields: checkboxFields.length,
+      });
+    }
+    return { fields, snappedCount: 0 };
+  }
 
   let snappedCount = 0;
 

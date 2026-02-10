@@ -16,14 +16,29 @@ You are analyzing a form document to identify ALL fillable input fields on this 
 Your task is to locate the EXACT coordinates of input areas where users would write/type/check.
 
 ═══════════════════════════════════════════════════════════════════════════════
-COORDINATE SYSTEM
+COORDINATE SYSTEM — PERCENTAGE SCALE (0 to 100)
 ═══════════════════════════════════════════════════════════════════════════════
 
-ALL coordinates must be specified as percentages (0-100) of the page dimensions:
-- left: Distance from left edge (0% = left edge, 100% = right edge)
-- top: Distance from top edge (0% = top edge, 100% = bottom edge)
+⚠️ CRITICAL: ALL coordinate values MUST be between 0 and 100. They are PERCENTAGES of the page.
+
+- left: Distance from left edge (0 = left edge, 50 = middle, 100 = right edge)
+- top: Distance from top edge (0 = top edge, 50 = middle, 100 = bottom edge)
 - width: Horizontal span as percentage of page width
 - height: Vertical span as percentage of page height
+
+SCALE CHECK — a field in the center of the page should have left ≈ 50, NOT 500.
+If any coordinate value exceeds 100, you are using the WRONG scale.
+
+Examples of CORRECT values:
+  - A field halfway across: left = 50
+  - A field near the bottom: top = 85
+  - A full-width field: width = 90
+  - A checkbox: width = 2, height = 1.5
+
+Examples of WRONG values (these use 0-1000, NOT percentages):
+  ✗ left = 500 (should be 50)
+  ✗ top = 850 (should be 85)
+  ✗ width = 900 (should be 90)
 
 Estimate coordinates visually based on the field's position within the page.
 
@@ -274,7 +289,8 @@ VALIDATION CHECKLIST
 
 Before returning, verify:
 □ Every field has coordinates with left, top, width, height
-□ Coordinates are percentages (0-100), not pixels
+□ ALL coordinate values are between 0 and 100 (percentages). NO value should exceed 100.
+  → If any left, top, width, or height value is > 100, DIVIDE IT by 10 to fix the scale.
 □ Labels do not overlap with coordinate boxes
 □ Table fields have tableConfig
 □ LinkedDate fields have dateSegments with part labels
