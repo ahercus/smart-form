@@ -335,10 +335,16 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
             Watch a blank form go from zero to done in under a minute.
           </p>
           <div className="mt-10 mx-auto max-w-3xl">
-            <div className="glass rounded-2xl aspect-video flex items-center justify-center">
-              <p className="text-muted-foreground text-sm">
-                Demo video coming soon
-              </p>
+            <div className="rounded-2xl aspect-video overflow-hidden">
+              <iframe
+                className="w-full h-full"
+                src="https://www.youtube.com/embed/yPkduXNYaYs?si=DgrJlEV4TEmgJeJa"
+                title="YouTube video player"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
             </div>
           </div>
         </section>
