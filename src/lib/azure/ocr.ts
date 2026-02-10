@@ -44,9 +44,69 @@ interface AnalyzeResponse {
 }
 
 /**
- * Extract text and word-level polygons from a PDF using Azure Document Intelligence Read API
+ * Analyze a specific page range with Azure Document Intelligence Read API.
+ * Returns the raw AnalyzeResponse result.
  */
-export async function extractDocumentText(pdfBuffer: ArrayBuffer): Promise<OcrResult> {
+async function analyzePageRange(
+  pdfBuffer: ArrayBuffer,
+  pageRange: string,
+): Promise<AnalyzeResponse> {
+  const analyzeUrl = `${AZURE_ENDPOINT}/documentintelligence/documentModels/prebuilt-read:analyze?api-version=2024-11-30&pages=${pageRange}`;
+
+  const submitResponse = await fetch(analyzeUrl, {
+    method: "POST",
+    headers: {
+      "Ocp-Apim-Subscription-Key": AZURE_KEY!,
+      "Content-Type": "application/pdf",
+    },
+    body: pdfBuffer,
+  });
+
+  if (!submitResponse.ok) {
+    const errorText = await submitResponse.text();
+    throw new Error(`Azure API error: ${submitResponse.status} - ${errorText}`);
+  }
+
+  const operationLocation = submitResponse.headers.get("Operation-Location");
+  if (!operationLocation) {
+    throw new Error("No Operation-Location header in Azure response");
+  }
+
+  // Poll for results
+  const maxAttempts = 60;
+  let attempts = 0;
+
+  while (attempts < maxAttempts) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    attempts++;
+
+    const pollResponse = await fetch(operationLocation, {
+      headers: { "Ocp-Apim-Subscription-Key": AZURE_KEY! },
+    });
+
+    if (!pollResponse.ok) {
+      throw new Error(`Poll failed: ${pollResponse.status}`);
+    }
+
+    const result: AnalyzeResponse = await pollResponse.json();
+
+    if (result.status === "succeeded") return result;
+    if (result.status === "failed") throw new Error("Azure analysis failed");
+  }
+
+  throw new Error("Analysis timed out");
+}
+
+/**
+ * Extract text and word-level polygons from a PDF using Azure Document Intelligence Read API.
+ *
+ * Azure free tier (F0) limits to 2 pages per transaction. For documents with
+ * more pages, we split into batches of 2 and run them in parallel, then merge.
+ */
+export async function extractDocumentText(
+  pdfBuffer: ArrayBuffer,
+  totalPages?: number,
+): Promise<OcrResult> {
   const startTime = Date.now();
 
   if (!AZURE_ENDPOINT || !AZURE_KEY) {
@@ -61,85 +121,63 @@ export async function extractDocumentText(pdfBuffer: ArrayBuffer): Promise<OcrRe
   }
 
   try {
-    // Submit document for analysis
-    const analyzeUrl = `${AZURE_ENDPOINT}/documentintelligence/documentModels/prebuilt-read:analyze?api-version=2024-11-30`;
-
-    const submitResponse = await fetch(analyzeUrl, {
-      method: "POST",
-      headers: {
-        "Ocp-Apim-Subscription-Key": AZURE_KEY,
-        "Content-Type": "application/pdf",
-      },
-      body: pdfBuffer,
-    });
-
-    if (!submitResponse.ok) {
-      const errorText = await submitResponse.text();
-      throw new Error(`Azure API error: ${submitResponse.status} - ${errorText}`);
+    // Build page ranges — 2 pages per batch (free tier limit)
+    const PAGES_PER_BATCH = 2;
+    const numPages = totalPages || 1;
+    const pageRanges: string[] = [];
+    for (let start = 1; start <= numPages; start += PAGES_PER_BATCH) {
+      const end = Math.min(start + PAGES_PER_BATCH - 1, numPages);
+      pageRanges.push(`${start}-${end}`);
     }
 
-    // Get the operation location from headers
-    const operationLocation = submitResponse.headers.get("Operation-Location");
-    if (!operationLocation) {
-      throw new Error("No Operation-Location header in Azure response");
-    }
+    console.log("[AutoForm] Azure OCR batches:", { pageRanges, totalPages: numPages });
 
-    // Poll for results
-    let result: AnalyzeResponse | null = null;
-    const maxAttempts = 60; // 60 seconds max wait
-    let attempts = 0;
+    // Run all batches in parallel
+    const batchResults = await Promise.allSettled(
+      pageRanges.map((range) => analyzePageRange(pdfBuffer, range)),
+    );
 
-    while (attempts < maxAttempts) {
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second
-      attempts++;
+    // Merge results from all batches
+    let allText = "";
+    const allPagesData: OcrPageData[] = [];
+    let totalPagesProcessed = 0;
 
-      const pollResponse = await fetch(operationLocation, {
-        headers: {
-          "Ocp-Apim-Subscription-Key": AZURE_KEY,
-        },
-      });
-
-      if (!pollResponse.ok) {
-        throw new Error(`Poll failed: ${pollResponse.status}`);
+    for (let i = 0; i < batchResults.length; i++) {
+      const result = batchResults[i];
+      if (result.status === "rejected") {
+        console.error(`[AutoForm] Azure OCR batch ${pageRanges[i]} failed:`, result.reason);
+        continue;
       }
+      const response = result.value;
+      if (!response.analyzeResult) continue;
 
-      result = await pollResponse.json();
+      allText += (allText ? "\n" : "") + (response.analyzeResult.content || "");
+      const pages = response.analyzeResult.pages || [];
+      totalPagesProcessed += pages.length;
 
-      if (result?.status === "succeeded") {
-        break;
-      } else if (result?.status === "failed") {
-        throw new Error("Azure analysis failed");
+      for (const page of pages) {
+        allPagesData.push({
+          pageNumber: page.pageNumber,
+          width: page.width,
+          height: page.height,
+          unit: page.unit || "inch",
+          words: (page.words || []).map((word) => ({
+            content: word.content,
+            polygon: word.polygon || [],
+            confidence: word.confidence ?? 0,
+          })),
+        });
       }
-      // Continue polling for "notStarted" and "running"
     }
 
-    if (!result?.analyzeResult) {
-      throw new Error("Analysis timed out or returned no results");
-    }
-
-    // Extract full text content
-    const text = result.analyzeResult.content || "";
-    const pages = result.analyzeResult.pages || [];
-    const pageCount = pages.length;
-
-    // Extract word-level polygon data for coordinate snapping
-    const pagesData: OcrPageData[] = pages.map((page) => ({
-      pageNumber: page.pageNumber,
-      width: page.width,
-      height: page.height,
-      unit: page.unit || "inch",
-      words: (page.words || []).map((word) => ({
-        content: word.content,
-        polygon: word.polygon || [],
-        confidence: word.confidence ?? 0,
-      })),
-    }));
+    // Sort by page number (batches may resolve out of order)
+    allPagesData.sort((a, b) => a.pageNumber - b.pageNumber);
 
     return {
       success: true,
-      text,
-      pageCount,
-      pagesData,
+      text: allText,
+      pageCount: totalPagesProcessed,
+      pagesData: allPagesData,
       durationMs: Date.now() - startTime,
     };
   } catch (error) {
@@ -164,7 +202,17 @@ export async function runOcrAndSave(documentId: string, pdfBuffer: ArrayBuffer):
 
   console.log("[AutoForm] Starting Azure OCR:", { documentId });
 
-  const result = await extractDocumentText(pdfBuffer);
+  // Get page count from PDF to request all pages explicitly
+  let totalPages = 1;
+  try {
+    const { PDFDocument } = await import("pdf-lib");
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+    totalPages = pdfDoc.getPageCount();
+  } catch (e) {
+    console.warn("[AutoForm] Could not read PDF page count, defaulting to 1:", e);
+  }
+
+  const result = await extractDocumentText(pdfBuffer, totalPages);
 
   if (result.success) {
     console.log("[AutoForm] Azure OCR complete:", {
