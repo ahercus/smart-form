@@ -10,7 +10,6 @@ import { toast } from "sonner";
 
 const marker = Permanent_Marker({ weight: "400", subsets: ["latin"] });
 import {
-  FileText,
   Brain,
   Zap,
   Download,
@@ -24,6 +23,8 @@ import {
   UserRound,
   Repeat,
 } from "lucide-react";
+import { FitFormLogo } from "@/components/icons/FitFormLogo";
+import { FitFormWordmark } from "@/components/icons/FitFormWordmark";
 
 const features = [
   {
@@ -130,10 +131,8 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
         <nav className="sticky top-0 z-50 glass">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
             <Link href="/" className="flex items-center gap-2">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <FileText className="size-4" />
-              </div>
-              <span className="text-lg font-semibold">Fit Form</span>
+              <FitFormLogo className="size-8" />
+              <FitFormWordmark className="text-lg" />
             </Link>
             <div className="flex items-center gap-2">
               {isAuthenticated ? (
@@ -157,14 +156,16 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
         {/* Hero */}
         <section className="mx-auto max-w-6xl px-4 pt-20 pb-16 text-center sm:px-6 sm:pt-28 sm:pb-24">
           <div className="mx-auto max-w-3xl">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full glass-light px-4 py-1.5 text-sm font-medium">
-              <img src="/gemini-logo.png" alt="Gemini" className="size-5" />
-              Powered by Gemini 3
+            <div className="mb-6 flex items-center justify-center gap-3">
+              <FitFormLogo className="size-12 sm:size-14" />
+              <h1>
+                <FitFormWordmark className="text-3xl sm:text-4xl" />
+              </h1>
             </div>
-            <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
+            <h2 className="text-4xl font-bold tracking-tight sm:text-6xl">
               Any Form.{" "}
               <span className="text-primary">Perfect Fit.</span>
-            </h1>
+            </h2>
             <p className="mt-6 text-lg text-muted-foreground sm:text-xl">
               Drop a PDF or snap a photo. Brain dump what you know. AI finds
               every field, fills in the answers, and remembers it all for next
@@ -233,7 +234,7 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
                     />
                   </svg>
                 </div>
-                <div className="mt-12 md:mt-0">
+                <div className="mt-12 w-full sm:w-auto md:mt-0">
                   <Button
                     size="lg"
                     onClick={handleGuestLogin}
@@ -269,6 +270,11 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
               <p className="text-xs text-muted-foreground">
                 Supercharge your form-filling with curated memories.
               </p>
+
+              <div className="mt-4 inline-flex items-center gap-2 rounded-full glass-light px-4 py-1.5 text-sm font-medium">
+                <img src="/gemini-logo.png" alt="Gemini" className="size-5" />
+                Powered by Gemini 3
+              </div>
             </div>
           </div>
         </section>
@@ -374,11 +380,19 @@ export function LandingPage({ isAuthenticated }: { isAuthenticated: boolean }) {
         <footer className="border-t border-border/40 py-10">
           <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-4 sm:flex-row sm:justify-between sm:px-6">
             <p className="text-sm text-muted-foreground">
-              Mum approved. Built for the{" "}
+              Built for the{" "}
               <span className="font-medium text-foreground">
                 Gemini 3 Hackathon
-              </span>
-              .
+              </span>{" "}
+              |{" "}
+              <a
+                href="https://www.stoopstudios.io"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-foreground hover:underline"
+              >
+                A Stoop Studios production
+              </a>
             </p>
             <div className="flex items-center gap-4">
               <a

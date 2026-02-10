@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FileText, User, Brain, PenTool, LogOut, Eye, UserPlus } from "lucide-react";
+import { FitFormLogo } from "@/components/icons/FitFormLogo";
+import { FitFormWordmark } from "@/components/icons/FitFormWordmark";
 import {
   Popover,
   PopoverContent,
@@ -61,11 +63,9 @@ export function AppSidebar({ userEmail, isAnonymous }: AppSidebarProps) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/dashboard">
-                <div className="bg-primary text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <FileText className="size-4" />
-                </div>
+                <FitFormLogo className="size-8" />
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">Fit Form</span>
+                  <FitFormWordmark />
                   <span className="truncate text-xs text-muted-foreground">
                     Any Form. Perfect Fit.
                   </span>

@@ -121,7 +121,7 @@ export function ChoiceFieldOverlay({
             return "hover:bg-gray-500/10";
           }
           if (isActive || isHighlighted) {
-            return "bg-purple-500/15 hover:bg-purple-500/25";
+            return "bg-primary/15 hover:bg-primary/25";
           }
           return "bg-orange-400/10 hover:bg-orange-400/20";
         };

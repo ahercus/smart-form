@@ -52,7 +52,7 @@ export function getFieldClasses(isActive: boolean, isHighlighted: boolean, isFil
     isActive
       ? "border-2 border-blue-500 bg-blue-500/15"
       : isHighlighted
-        ? "border-2 border-purple-500 bg-purple-500/15"
+        ? "border-2 border-primary bg-primary/15"
         : isFilled
           ? "bg-green-500/10 hover:bg-green-500/20"
           : "bg-orange-400/10 hover:bg-orange-400/20"
@@ -82,7 +82,7 @@ export function getCheckboxClasses(
     isActive
       ? "border-2 border-blue-500 bg-blue-500/15"
       : isHighlighted
-        ? "border-2 border-purple-500 bg-purple-500/15"
+        ? "border-2 border-primary bg-primary/15"
         : isChecked
           ? "bg-green-500/15 hover:bg-green-500/25"
           : "bg-orange-400/10 hover:bg-orange-400/20"
@@ -102,7 +102,7 @@ export function getSignatureFieldClasses(
       isActive
         ? "ring-2 ring-blue-500 ring-offset-1"
         : isHighlighted
-          ? "ring-2 ring-purple-400 ring-offset-1"
+          ? "ring-2 ring-primary ring-offset-1"
           : "hover:ring-1 hover:ring-gray-300"
     }`;
   }
@@ -116,7 +116,7 @@ export function getSignatureFieldClasses(
     isActive
       ? "border-blue-500 bg-blue-500/10 ring-2 ring-blue-500 ring-offset-1"
       : isHighlighted
-        ? "border-purple-500 bg-purple-500/10 ring-2 ring-purple-400 ring-offset-1"
+        ? "border-primary bg-primary/10 ring-2 ring-primary ring-offset-1"
         : "border-red-400 bg-red-400/5 hover:bg-red-400/10"
   }`;
 }

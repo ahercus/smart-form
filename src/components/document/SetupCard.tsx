@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Upload, Camera, Loader2, Brain } from "lucide-react";
-import { SparkleIcon } from "@/components/icons/SparkleIcon";
+import { FitFormLogo } from "@/components/icons/FitFormLogo";
+import { FitFormWordmark } from "@/components/icons/FitFormWordmark";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -156,10 +157,8 @@ export function SetupCard({
             {/* Branding */}
             <div className="space-y-2">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl border border-primary/30 bg-transparent flex items-center justify-center">
-                  <SparkleIcon className="h-5 w-5" />
-                </div>
-                <h1 className="text-2xl font-bold">Fit Form</h1>
+                <FitFormLogo className="size-10" />
+                <FitFormWordmark className="text-2xl" />
               </div>
               <p className="text-muted-foreground">
                 Scan your document and let AI identify where you need to sign or
