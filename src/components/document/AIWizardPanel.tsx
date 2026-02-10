@@ -5,7 +5,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Sparkles, ChevronUp, ChevronDown } from "lucide-react";
+import { ChevronUp, ChevronDown } from "lucide-react";
+import { SparkleIcon } from "@/components/icons/SparkleIcon";
 import { QuestionCard } from "./QuestionCard";
 import { ProcessingOverlay } from "./ProcessingOverlay";
 import type { QuestionGroup, ProcessingProgress } from "@/lib/types";
@@ -92,7 +93,7 @@ export function AIWizardPanel({
         ) : totalQuestions > 0 ? (
           <div className="text-center py-8">
             <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mx-auto mb-3">
-              <Sparkles className="w-6 h-6 text-green-600 dark:text-green-400" />
+              <SparkleIcon className="w-6 h-6 text-green-600 dark:text-green-400" />
             </div>
             <p className="font-medium">All questions answered!</p>
             <p className="text-sm text-muted-foreground mt-1">
@@ -138,7 +139,7 @@ export function AIWizardPanel({
           <DrawerHeader className="pb-2">
             <div className="flex items-center justify-between">
               <DrawerTitle className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-primary" />
+                <SparkleIcon className="w-5 h-5 text-primary" />
                 Smart Assist
               </DrawerTitle>
               <Button
@@ -162,7 +163,7 @@ export function AIWizardPanel({
         <SheetHeader className="p-4 pb-2 border-b">
           <div className="flex items-center justify-between">
             <SheetTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-primary" />
+              <SparkleIcon className="w-5 h-5 text-primary" />
               Smart Assist
             </SheetTitle>
           </div>
@@ -191,7 +192,7 @@ export function WizardTrigger({
       className="fixed bottom-6 right-6 shadow-lg gap-2 z-50"
       size="lg"
     >
-      <Sparkles className="w-5 h-5" />
+      <SparkleIcon className="w-5 h-5" />
       {isProcessing ? (
         "Processing..."
       ) : questionCount > 0 ? (

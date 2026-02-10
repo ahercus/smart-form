@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sparkles } from "lucide-react";
+import { SparkleIcon } from "@/components/icons/SparkleIcon";
 import { SignatureField } from "@/components/signature";
 import type { ExtractedField } from "@/lib/types";
 
@@ -123,7 +123,7 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
 
       {hasAISuggestion && (
         <div className="flex items-center gap-2 p-2 rounded-md bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
-          <Sparkles className="h-4 w-4 text-blue-500" />
+          <SparkleIcon className="h-4 w-4 text-blue-500" />
           <span className="text-sm text-blue-700 dark:text-blue-300 flex-1">
             AI suggested:{" "}
             <span className="font-medium">{field.ai_suggested_value}</span>

@@ -45,12 +45,15 @@ export function ChoiceFieldShape({
   const hasSelection = selected.length > 0;
   const padding = 4;
 
-  if (choiceOptions.length === 0) {
+  // Filter out options with missing coordinates (Gemini sometimes omits them)
+  const validOptions = choiceOptions.filter((opt) => opt.coordinates?.left != null);
+
+  if (validOptions.length === 0) {
     return null;
   }
 
   // Calculate bounding box for hover detection
-  const allPixels = choiceOptions.map((opt) => ({
+  const allPixels = validOptions.map((opt) => ({
     x: (opt.coordinates.left / 100) * pageWidth,
     y: (opt.coordinates.top / 100) * pageHeight,
     width: (opt.coordinates.width / 100) * pageWidth,
@@ -76,7 +79,7 @@ export function ChoiceFieldShape({
       />
 
       {/* Choice options */}
-      {choiceOptions.map((option) => {
+      {validOptions.map((option) => {
         const isSelected = selected.includes(option.label);
         const x = (option.coordinates.left / 100) * pageWidth;
         const y = (option.coordinates.top / 100) * pageHeight;
