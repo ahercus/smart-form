@@ -36,8 +36,11 @@ export async function GET(
     const fields =
       document.status === "ready" ? await getDocumentFields(id) : [];
 
+    // Strip ocr_text to avoid exceeding Vercel's 4.5MB response limit
+    const { ocr_text: _, ...doc } = document;
+
     return NextResponse.json({
-      ...document,
+      ...doc,
       fields,
     });
   } catch (error) {
